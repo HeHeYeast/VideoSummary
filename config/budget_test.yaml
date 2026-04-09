@@ -1,0 +1,33 @@
+mode: test
+total_budget_cny: 0.20    # 测试稍微放宽, 避免被预检卡住
+fail_fast: true
+max_tokens_per_call: 2500
+
+stage_limits:
+  type_detect: 0.005
+  vision:      0.05    # 4-5 帧 qwen3-vl-plus
+  ocr:         0.005
+  anchor:      0.005
+  outline:     0.025   # gpt-4o-mini, 留余量
+  section:     0.10    # 2-3 section deepseek-v3.2
+  polish:      0.015
+  critique:    0
+  revise:      0
+  map:         0
+  reduce:      0
+
+call_limits:
+  type_detect: 1
+  vision:      5
+  ocr:         3
+  anchor:      1
+  outline:     1
+  section:     3
+  polish:      1
+  critique:    0
+  revise:      0
+  map:         0
+  reduce:      0
+
+frame_cap: 5
+chapter_cap: 3

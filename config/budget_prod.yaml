@@ -1,0 +1,33 @@
+mode: prod
+total_budget_cny: 0.80    # 比初始 0.5 放宽, 避免被预检卡住
+fail_fast: true
+max_tokens_per_call: 2500
+
+stage_limits:
+  type_detect: 0.005
+  vision:      0.20    # ~12 帧 qwen3-vl-plus
+  ocr:         0.02
+  anchor:      0.01
+  outline:     0.05
+  section:     0.45    # 8 section deepseek
+  polish:      0.03
+  critique:    0
+  revise:      0
+  map:         0
+  reduce:      0
+
+call_limits:
+  type_detect: 1
+  vision:      12
+  ocr:         8
+  anchor:      1
+  outline:     1
+  section:     8
+  polish:      1
+  critique:    0
+  revise:      0
+  map:         0
+  reduce:      0
+
+frame_cap: 12
+chapter_cap: 8

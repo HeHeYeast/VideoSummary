@@ -1,0 +1,79 @@
+```json
+{
+  "topic": "创建一个可复用的伤害数字生成器",
+  "sections": [
+    {
+      "id": "s1",
+      "title": "下载资源并介绍伤害数字生成器",
+      "time_range": [0, 6],
+      "must_cover": [
+        "下载视频中的资源文件链接",
+        "介绍伤害数字生成器的功能",
+        "说明将创建一个自定义节点来生成伤害数字"
+      ],
+      "frame_ids": [0],
+      "length_budget_words": 300
+    },
+    {
+      "id": "s2",
+      "title": "创建自定义节点",
+      "time_range": [6, 18],
+      "must_cover": [
+        "在脚本标签中创建新脚本并命名为 damage number spawner",
+        "确保脚本扩展自 Node2D",
+        "解释为什么选择 Node2D 作为基础"
+      ],
+      "frame_ids": [],
+      "length_budget_words": 400
+    },
+    {
+      "id": "s3",
+      "title": "设置伤害数字生成逻辑",
+      "time_range": [18, 54],
+      "must_cover": [
+        "创建 SpawnLabel 函数来生成伤害数字",
+        "使用 str 转换数字为字符串",
+        "设置标签的 ZIndex 确保其在其他内容之上"
+      ],
+      "frame_ids": [1],
+      "length_budget_words": 500
+    },
+    {
+      "id": "s4",
+      "title": "处理暴击和颜色变化",
+      "time_range": [54, 102],
+      "must_cover": [
+        "根据暴击改变标签的颜色",
+        "创建新的 CanvasItemMaterial 以忽略 2D 光照",
+        "将标签节点作为生成器的子节点"
+      ],
+      "frame_ids": [2],
+      "length_budget_words": 500
+    },
+    {
+      "id": "s5",
+      "title": "实现标签动画",
+      "time_range": [102, 144],
+      "must_cover": [
+        "设置目标上升位置和动画持续时间",
+        "创建 Tween 动画以实现标签的升起效果",
+        "连接 Tween 动画完成事件以删除标签"
+      ],
+      "frame_ids": [3],
+      "length_budget_words": 600
+    },
+    {
+      "id": "s6",
+      "title": "将伤害数字生成器添加到敌人",
+      "time_range": [144, 520],
+      "must_cover": [
+        "在游戏中的敌人节点上添加伤害数字生成器",
+        "设置暴击颜色和标签设置",
+        "说明如何使用 SpawnLabel 函数生成伤害数字"
+      ],
+      "frame_ids": [4],
+      "length_budget_words": 800
+    }
+  ]
+}
+```

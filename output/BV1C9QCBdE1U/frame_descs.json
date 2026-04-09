@@ -1,0 +1,27 @@
+[
+  {
+    "timestamp": 0.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000001.jpg",
+    "description": "标题“TUTORIAL ASSETS”，标注“[FREE] [LINK IN DESCRIPTION]”；像素风界面中，手形标点击带数字“10”的设备，下方中文提示“可免费下载视频中的RC文件”。"
+  },
+  {
+    "timestamp": 100.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000101.jpg",
+    "description": "代码片段：定义 `awn_label` 函数，参数 `critical_hit: bool = false`；声明 `critical_hit_color` 为红色（#FF0000）；底部字幕说明该参数默认值为 false。"
+  },
+  {
+    "timestamp": 213.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000214.jpg",
+    "description": "代码片段：创建 CanvasItemMaterial，设为 LIGHT_MODE_UNSHADED，并赋给 new_label.material。关键行：var label_material = CanvasItemMaterial.new()；label_material.light_mode = …；new_label.material = label_material。"
+  },
+  {
+    "timestamp": 322.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000323.jpg",
+    "description": "代码片段：第28行 `en().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)` 设置Tween动画的过渡模式为后退缓出；下方有scale与modulate动画调用。"
+  },
+  {
+    "timestamp": 411.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000412.jpg",
+    "description": "Godot编辑器界面，左侧场景树显示HEALTHBAR、move_anim、AnimationPlayer节点；右键菜单弹出“Add Child Node...”选项；底部字幕：“添加我们创建的DamageNumberSpawner节点”。"
+  }
+]

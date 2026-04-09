@@ -1,0 +1,419 @@
+# 向量引擎
+
+## Docs
+- [引言](https://vectorengine.apifox.cn/doc-7392066.md): 
+- [在线调试说明](https://vectorengine.apifox.cn/doc-7392067.md): 
+- [发出请求](https://vectorengine.apifox.cn/doc-7392068.md): 
+- [一、前置准备（必装）](https://vectorengine.apifox.cn/doc-8472165.md): 
+- 中转站基本介绍 [API 快速开始指南](https://vectorengine.apifox.cn/doc-7392069.md): 
+- 中转站基本介绍 [联系客服](https://vectorengine.apifox.cn/doc-7392070.md): 
+- 中转站基本介绍 [分组详细表格](https://vectorengine.apifox.cn/doc-7392071.md): 
+- 中转站基本介绍 [分组的特殊性及价格差异](https://vectorengine.apifox.cn/doc-7392072.md): 
+- 中转站基本介绍 [如何新建指定分组的令牌](https://vectorengine.apifox.cn/doc-7392073.md): 
+- 中转站基本介绍 [代理接口调用地址](https://vectorengine.apifox.cn/doc-7392074.md): 
+- 中转站基本介绍 [API Key 额度查询服务](https://vectorengine.apifox.cn/doc-7392075.md): 
+- 中转站基本介绍 [免费AI聊天项目导航](https://vectorengine.apifox.cn/doc-7392076.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [聊天完成对象](https://vectorengine.apifox.cn/doc-7392077.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [聊天完成块对象](https://vectorengine.apifox.cn/doc-7392078.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT自动补全（Completions） [完成对象](https://vectorengine.apifox.cn/doc-7392079.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT嵌入（Embeddings） [嵌入对象](https://vectorengine.apifox.cn/doc-7392080.md): 
+- 聊天(Chat) > Anthropic Claude 接口 [聊天完成对象](https://vectorengine.apifox.cn/doc-7392081.md): 
+- 聊天(Chat) > Anthropic Claude 接口 [聊天完成块对象](https://vectorengine.apifox.cn/doc-7392082.md): 
+- 聊天(Responses) [Responses API与Chat API对比](https://vectorengine.apifox.cn/doc-7392083.md): 
+- 绘画模型 [README](https://vectorengine.apifox.cn/doc-7392084.md): 
+- 绘画模型 [图像对象](https://vectorengine.apifox.cn/doc-7392085.md): 
+- 绘画模型 > FLUX 系列 > Replicate 官方格式 [Flux 分辨率](https://vectorengine.apifox.cn/doc-7392086.md): 
+- 绘画模型 > FLUX 系列 > Replicate 官方格式 [接入教程 ](https://vectorengine.apifox.cn/doc-7392087.md): 
+- 绘画模型 > Fal.ai平台 [状态码](https://vectorengine.apifox.cn/doc-7392088.md): 
+- 绘画模型 > 腾讯AIGC生图 [状态码](https://vectorengine.apifox.cn/doc-8013403.md): 
+- 视频模型 > veo 视频生成 > 视频统一格式 [状态码](https://vectorengine.apifox.cn/doc-7392089.md): 
+- 视频模型 > luma 视频生成 > 官方API格式 [状态码](https://vectorengine.apifox.cn/doc-7392090.md): 
+- 视频模型 > Runway 视频生成 [状态码](https://vectorengine.apifox.cn/doc-7392092.md): 
+- 视频模型 > 海螺 视频生成 [状态码](https://vectorengine.apifox.cn/doc-7392094.md): 
+- 视频模型 > grok 视频生成 > 视频统一格式 [状态码](https://vectorengine.apifox.cn/doc-7791139.md): 
+- 视频模型 > 腾讯AIGC视频生成 [状态码](https://vectorengine.apifox.cn/doc-8013404.md): 
+- GPTs 相关 [简介](https://vectorengine.apifox.cn/doc-7392095.md): 
+- 文生音乐 Suno [说明](https://vectorengine.apifox.cn/doc-7392096.md): 
+- 文生音乐 Suno [参数](https://vectorengine.apifox.cn/doc-7392097.md): 
+- 可灵 Kling 平台 [Callback协议](https://vectorengine.apifox.cn/doc-7890327.md): 
+- 官方VIDU视频生成、图片生成、音频生成 [状态码](https://vectorengine.apifox.cn/doc-8232432.md): 
+- Replicate 聚合平台 [接入教程  ](https://vectorengine.apifox.cn/doc-7392116.md): 
+- Replicate 聚合平台 [Flux 分辨率 ](https://vectorengine.apifox.cn/doc-7392117.md): 
+- Fal-ai 聚合平台 [接入教程](https://vectorengine.apifox.cn/doc-7392115.md): 
+- php配置方式 [php使用图片编辑demo](https://vectorengine.apifox.cn/doc-7392118.md): 
+- nodejs 配置方式  [nodejs 基础对话](https://vectorengine.apifox.cn/doc-7392119.md): 
+- Python配置方式 [python 使用 语音转文本](https://vectorengine.apifox.cn/doc-7392100.md): 
+- Python配置方式 [python 使用文本转语音](https://vectorengine.apifox.cn/doc-7392101.md): 
+- Python配置方式 [python 使用Embeddings 向量化](https://vectorengine.apifox.cn/doc-7392102.md): 
+- Python配置方式 [python 调用DALL·E](https://vectorengine.apifox.cn/doc-7392103.md): 
+- Python配置方式 [python简单调用 openai function-calling demo](https://vectorengine.apifox.cn/doc-7392104.md): 
+- Python配置方式 [python 简单langchain 调用openai demo](https://vectorengine.apifox.cn/doc-7392105.md): 
+- Python配置方式 [python llama_index 配置](https://vectorengine.apifox.cn/doc-7392106.md): 
+- Python配置方式 [Python基础对话](https://vectorengine.apifox.cn/doc-7392107.md): 
+- Python配置方式 [Python使用gpt-4o识别图片-本地图片](https://vectorengine.apifox.cn/doc-7392108.md): 
+- Python配置方式 [Python使用gpt-4o识别图片](https://vectorengine.apifox.cn/doc-7392109.md): 
+- Python配置方式 [Python使用Claude识别图片](https://vectorengine.apifox.cn/doc-7392110.md): 
+- Python配置方式 [python 库流式输出](https://vectorengine.apifox.cn/doc-7392111.md): 
+- Python配置方式 [gpt realtime模型调用](https://vectorengine.apifox.cn/doc-7392112.md): 
+- Python配置方式 [python request 请求 流式输出demo](https://vectorengine.apifox.cn/doc-7392113.md): 
+- Python配置方式 [python 使用gpt-image-1 创建编辑图片](https://vectorengine.apifox.cn/doc-7392114.md): 
+- Python配置方式 [python openai官方库（使用AutoGPT，langchain等）](https://vectorengine.apifox.cn/doc-7392098.md): 
+- Python配置方式 [python 连续对话](https://vectorengine.apifox.cn/doc-7392099.md): 
+- 各种插件/软件使用教程 [Codex 配置教程](https://vectorengine.apifox.cn/doc-7436331.md): 
+- 各种插件/软件使用教程 [vscode配置教程](https://vectorengine.apifox.cn/doc-8475276.md): 
+- 各种插件/软件使用教程 [trae完整配置教程](https://vectorengine.apifox.cn/doc-8475331.md): 
+- 各种插件/软件使用教程 [OpenClaw  Clawdbot 自定义中转站配置教程](https://vectorengine.apifox.cn/doc-8145519.md): 
+- 各种插件/软件使用教程 [N8N 工作流使用中转API 教程](https://vectorengine.apifox.cn/doc-7392120.md): 
+- 各种插件/软件使用教程 [opencode 配置教程](https://vectorengine.apifox.cn/doc-8145520.md): 
+- 各种插件/软件使用教程 [Gemini CLI 中转站配置使用教程](https://vectorengine.apifox.cn/doc-7392121.md): 
+- 各种插件/软件使用教程 [Claude Code 安装使用教程](https://vectorengine.apifox.cn/doc-7392122.md): 
+- 各种插件/软件使用教程 [CherryStudio调用cluade MCP](https://vectorengine.apifox.cn/doc-7392123.md): 
+- 各种插件/软件使用教程 [Cherry Studio配置教程](https://vectorengine.apifox.cn/doc-7392124.md): 
+- 各种插件/软件使用教程 [Cherry Studio配置 banana pro 4K和分辨率教程](https://vectorengine.apifox.cn/doc-7871147.md): 
+- 各种插件/软件使用教程 [CherryStudio配置o4推理级别](https://vectorengine.apifox.cn/doc-7392125.md): 
+- 各种插件/软件使用教程 [扣子工作流简单配置从输入到获取url](https://vectorengine.apifox.cn/doc-8013405.md): 
+- 各种插件/软件使用教程 [dify添加模型](https://vectorengine.apifox.cn/doc-7392126.md): 
+- 各种插件/软件使用教程 [cline 配置教程](https://vectorengine.apifox.cn/doc-7392127.md): 
+- 各种插件/软件使用教程 [aider 配置教程](https://vectorengine.apifox.cn/doc-7392128.md): 
+- 各种插件/软件使用教程 [Cursor 配置教程](https://vectorengine.apifox.cn/doc-7392129.md): 
+- 各种插件/软件使用教程 [lobechat 设置教程](https://vectorengine.apifox.cn/doc-7392130.md): 
+- 各种插件/软件使用教程 [ChatBox(推荐使用)](https://vectorengine.apifox.cn/doc-7392131.md): 
+- 各种插件/软件使用教程 [开源gpt_academic](https://vectorengine.apifox.cn/doc-7392132.md): 
+- 各种插件/软件使用教程 [nextchat 设置教程](https://vectorengine.apifox.cn/doc-7392133.md): 
+- 各种插件/软件使用教程 [zotero gpt 配置方法](https://vectorengine.apifox.cn/doc-7392134.md): 
+- 各种插件/软件使用教程 [CLAUDE DEV 配置教程](https://vectorengine.apifox.cn/doc-7392135.md): 
+- 各种插件/软件使用教程 [沉浸式翻译 设置gpt翻译](https://vectorengine.apifox.cn/doc-7392136.md): 
+- 各种插件/软件使用教程 [浏览器插件ChatGPT Sidebar](https://vectorengine.apifox.cn/doc-7392137.md): 
+- 各种插件/软件使用教程 [chatgpt-on-wechat 配置教程](https://vectorengine.apifox.cn/doc-7392138.md): 
+- 各种插件/软件使用教程 [chatgpt GPT Academic 学术优化配置gpt教程](https://vectorengine.apifox.cn/doc-7392139.md): 
+- 各种插件/软件使用教程 [RikkaHub 配置教程](https://vectorengine.apifox.cn/doc-7474820.md): 
+- 各种插件/软件使用教程 [coze 工作流使用中转API 教程 ](https://vectorengine.apifox.cn/doc-7553852.md): 
+- 各种插件/软件使用教程 [n8n 工作流获取本地图片生成视频例子](https://vectorengine.apifox.cn/doc-8013406.md): 
+- 各种插件/软件使用教程 [OpenClaw 最新版本 自定义中转站配置教程](https://vectorengine.apifox.cn/doc-8232433.md): 
+- 各种插件/软件使用教程 [OpenClaw配合CC switch自定义中转站配置教程](https://vectorengine.apifox.cn/doc-8294058.md): 
+- 帮助中心 [AI返回字段: 思考相关](https://vectorengine.apifox.cn/doc-7392140.md): 
+- 帮助中心 [HTTP状态码及其含义](https://vectorengine.apifox.cn/doc-7392141.md): 
+- 帮助中心 [自建图床API](https://vectorengine.apifox.cn/doc-7392142.md): 
+
+## API Docs
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [GPT-4o-audio](https://vectorengine.apifox.cn/api-349239078.md): 官方文档：https://platform.openai.com/docs/api-reference/chat/create
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [音频转文字 whisper-1](https://vectorengine.apifox.cn/api-349239074.md): 官方文档：https://platform.openai.com/docs/guides/speech-to-text
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [音频转文字 gpt-4o-transcribe](https://vectorengine.apifox.cn/api-349239075.md): 官方文档：https://platform.openai.com/docs/guides/speech-to-text
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [创建语音 gpt-4o-mini-tts](https://vectorengine.apifox.cn/api-349239076.md): 官方文档：https://platform.openai.com/docs/guides/text-to-speech
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [创建翻译 (不支持)](https://vectorengine.apifox.cn/api-349239077.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 （流式）](https://vectorengine.apifox.cn/api-349239079.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 （非流） ](https://vectorengine.apifox.cn/api-349239080.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （流式）](https://vectorengine.apifox.cn/api-349239081.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （流式） best64](https://vectorengine.apifox.cn/api-349239082.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （非流） ](https://vectorengine.apifox.cn/api-349239083.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天创作图 （非流）](https://vectorengine.apifox.cn/api-349239084.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [官方Function calling调用](https://vectorengine.apifox.cn/api-349239085.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [官方N测试](https://vectorengine.apifox.cn/api-349239087.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [列出模型](https://vectorengine.apifox.cn/api-349239086.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天函数调用](https://vectorengine.apifox.cn/api-349239088.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建结构化输出](https://vectorengine.apifox.cn/api-349239089.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [控制推理模型努力程度](https://vectorengine.apifox.cn/api-349239090.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 qwen-mt-turbo](https://vectorengine.apifox.cn/api-349239091.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全  deepseek v3.1思考程度 (流式）](https://vectorengine.apifox.cn/api-349239094.md): 
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [deepseek-ocr 识别](https://vectorengine.apifox.cn/api-349239098.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT自动补全（Completions） [创建完成](https://vectorengine.apifox.cn/api-349239092.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > ChatGpt 接口 > ChatGPT嵌入（Embeddings） [创建嵌入](https://vectorengine.apifox.cn/api-349239093.md): 获取给定输入的矢量表示，机器学习模型和算法可以轻松使用该表示。
+- 聊天(Chat) > ChatGpt 接口 > Web 搜索 [web搜索](https://vectorengine.apifox.cn/api-349239099.md): 参考文档：https://platform.openai.com/docs/api-reference/chat/create
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [创建聊天补全 （流式）](https://vectorengine.apifox.cn/api-349239095.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [创建函数调用 （流式）](https://vectorengine.apifox.cn/api-349239096.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [创建格式化输出 ](https://vectorengine.apifox.cn/api-349239097.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [创建思考聊天 ](https://vectorengine.apifox.cn/api-349239100.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [PDF支持 ](https://vectorengine.apifox.cn/api-373137976.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [PDF支持     base64格式](https://vectorengine.apifox.cn/api-406601743.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [联网搜索](https://vectorengine.apifox.cn/api-409709959.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > chat兼容格式 [创建思考聊天](https://vectorengine.apifox.cn/api-366376766.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > chat兼容格式 [创建聊天补全 （流式）](https://vectorengine.apifox.cn/api-349239101.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > chat兼容格式 [创建聊天补全 （非流） ](https://vectorengine.apifox.cn/api-349239102.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > chat兼容格式 [创建聊天识图 （流式）](https://vectorengine.apifox.cn/api-349239120.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > Anthropic Claude 接口 > chat兼容格式 [创建聊天识图 （非流）](https://vectorengine.apifox.cn/api-349239121.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成](https://vectorengine.apifox.cn/api-349239103.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成-流 ](https://vectorengine.apifox.cn/api-392818374.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成+思考-流 ](https://vectorengine.apifox.cn/api-349239105.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成](https://vectorengine.apifox.cn/api-429932148.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-2.5-flash-image](https://vectorengine.apifox.cn/api-360310637.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-2.5-flash-image 控制宽高比](https://vectorengine.apifox.cn/api-360310638.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-3-pro-image-preview 控制宽高比 +清晰度](https://vectorengine.apifox.cn/api-381740608.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片编辑 ](https://vectorengine.apifox.cn/api-392818375.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片理解](https://vectorengine.apifox.cn/api-349239115.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-understanding?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [格式化输出](https://vectorengine.apifox.cn/api-360310640.md): 官方文档：https://ai.google.dev/gemini-api/docs/structured-output?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [函数调用](https://vectorengine.apifox.cn/api-373137977.md): 官方文档：https://ai.google.dev/gemini-api/docs/function-calling?hl=zh-cn&example=meeting
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文档理解](https://vectorengine.apifox.cn/api-373137978.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [URL context [原生格式]  ](https://vectorengine.apifox.cn/api-349239111.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [代码执行](https://vectorengine.apifox.cn/api-386534712.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [google search](https://vectorengine.apifox.cn/api-358028482.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [视频理解](https://vectorengine.apifox.cn/api-386534714.md): 官方文档：https://ai.google.dev/gemini-api/docs/video-understanding?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [URL context](https://vectorengine.apifox.cn/api-386534715.md): 官方文档：https://ai.google.dev/gemini-api/docs/url-context?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [音频理解](https://vectorengine.apifox.cn/api-386534716.md): 官方文档：https://ai.google.dev/gemini-api/docs/url-context?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [Embeddings](https://vectorengine.apifox.cn/api-392818376.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [TTS 文本转语音](https://vectorengine.apifox.cn/api-414804399.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成 gemini-3-pro-preview:generateContent](https://vectorengine.apifox.cn/api-381740609.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [ Imagen 生成图片](https://vectorengine.apifox.cn/api-414804400.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [gemini-tts文本转语音](https://vectorengine.apifox.cn/api-421110400.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本嵌入](https://vectorengine.apifox.cn/api-421110401.md): https://ai.google.dev/gemini-api/docs/embeddings?hl=zh-cn#rest_3   官方文档
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [gemini图片创作接口 [chat兼容格式]](https://vectorengine.apifox.cn/api-349239122.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口 [chat兼容格式]](https://vectorengine.apifox.cn/api-349239123.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口-思考1 [chat兼容格式] ](https://vectorengine.apifox.cn/api-366376768.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口-思考2 [chat兼容格式] ](https://vectorengine.apifox.cn/api-366376773.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [识图接口 [chat兼容格式]](https://vectorengine.apifox.cn/api-373137991.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天+读取文件接口 [chat兼容格式] ](https://vectorengine.apifox.cn/api-373137992.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [文本嵌入 [chat兼容格式]](https://vectorengine.apifox.cn/api-421110402.md): 
+- 聊天(Responses) [创建模型响应](https://vectorengine.apifox.cn/api-349239124.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建函数调用](https://vectorengine.apifox.cn/api-349239125.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建模型响应(流式返回)](https://vectorengine.apifox.cn/api-349239126.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建模型响应 (控制思考长度)](https://vectorengine.apifox.cn/api-349239127.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建网络搜索](https://vectorengine.apifox.cn/api-349239128.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建模型响应 gpt-5启用思考](https://vectorengine.apifox.cn/api-349239129.md): https://platform.openai.com/docs/api-reference/responses/create
+- 聊天(Responses) [创建函数调用 Copy](https://vectorengine.apifox.cn/api-358028485.md): https://platform.openai.com/docs/api-reference/responses/create
+- 绘画模型 > Midjourney [上传图片](https://vectorengine.apifox.cn/api-349239130.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/33329380893325-Managing-Image-Uploads
+- 绘画模型 > Midjourney [提交Imagine任务](https://vectorengine.apifox.cn/api-349239131.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32023408776205-Prompt-Basics
+- 绘画模型 > Midjourney [根据任务ID 查询任务状态](https://vectorengine.apifox.cn/api-349239132.md): 
+- 绘画模型 > Midjourney [根据ID列表查询任务](https://vectorengine.apifox.cn/api-349239133.md): 
+- 绘画模型 > Midjourney [获取任务图片的seed](https://vectorengine.apifox.cn/api-349239134.md): 
+- 绘画模型 > Midjourney [执行Action动作](https://vectorengine.apifox.cn/api-349239135.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32804058614669-Upscalers
+- 绘画模型 > Midjourney [提交Blend任务](https://vectorengine.apifox.cn/api-349239136.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32635189884557-Blend-Images-on-Discord
+- 绘画模型 > Midjourney [提交Describe任务](https://vectorengine.apifox.cn/api-349239137.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32497889043981-Describe
+- 绘画模型 > Midjourney [提交Modal](https://vectorengine.apifox.cn/api-349239139.md): 
+- 绘画模型 > Ideogram [Generate 3.0（文生图）Generate ](https://vectorengine.apifox.cn/api-349239141.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 绘画模型 > Ideogram [Generate 3.0（图片编辑）Edit](https://vectorengine.apifox.cn/api-349239142.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 绘画模型 > Ideogram [Generate 3.0（图片重制）Remix ](https://vectorengine.apifox.cn/api-349239143.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 绘画模型 > Ideogram [Generate 3.0（图片重构）Reframe ](https://vectorengine.apifox.cn/api-349239144.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 绘画模型 > Ideogram [Generate 3.0（替换背景） Replace Background](https://vectorengine.apifox.cn/api-349239145.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 绘画模型 > Ideogram [ideogram（文生图）](https://vectorengine.apifox.cn/api-349239146.md): Generates images synchronously based on a given prompt and optional parameters.
+- 绘画模型 > Ideogram [Remix（混合图）](https://vectorengine.apifox.cn/api-349239147.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/remix
+- 绘画模型 > Ideogram [Upscale（放大高清）](https://vectorengine.apifox.cn/api-349239148.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/upscale
+- 绘画模型 > Ideogram [Describe（描述）](https://vectorengine.apifox.cn/api-349239149.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/describe
+- 绘画模型 > GPT Image 系列 [创建  gpt-image-1](https://vectorengine.apifox.cn/api-349239153.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > GPT Image 系列 [编辑  gpt-image-1](https://vectorengine.apifox.cn/api-349239155.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > GPT Image 系列 [蒙版  gpt-image-1](https://vectorengine.apifox.cn/api-381740611.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > GPT Image 系列 [创建  gpt-image-1.5](https://vectorengine.apifox.cn/api-349239154.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > GPT Image 系列 [编辑  gpt-image-1.5](https://vectorengine.apifox.cn/api-394023132.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > GPT Image 系列 [蒙版  gpt-image-1.5](https://vectorengine.apifox.cn/api-394023133.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > Grok Image 系列  [创建 Image](https://vectorengine.apifox.cn/api-349239161.md): 
+- 绘画模型 > Grok Image 系列  [编辑 image](https://vectorengine.apifox.cn/api-423043393.md): 
+- 绘画模型 > DALL·E 3 [创建 DALL·E 3](https://vectorengine.apifox.cn/api-349239162.md): [图片](https://platform.openai.com/docs/api-reference/images)
+- 绘画模型 > FLUX 系列 > gpt 兼容格式 [Flux 创建（OpenAI dall-e-3格式）](https://vectorengine.apifox.cn/api-358028486.md): [图片](https://platform.openai.com/docs/api-reference/images)
+- 绘画模型 > FLUX 系列 > gpt 兼容格式 [Flux编辑（OpenAI dall-e-3格式）](https://vectorengine.apifox.cn/api-426103277.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 绘画模型 > FLUX 系列 > Replicate 官方格式 [创建任务 black-forest-labs/flux-kontext-dev](https://vectorengine.apifox.cn/api-349239156.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-dev
+- 绘画模型 > FLUX 系列 > Replicate 官方格式 [查询任务](https://vectorengine.apifox.cn/api-349239157.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- 绘画模型 > 豆包系列 [创建图片](https://vectorengine.apifox.cn/api-403778977.md): 给定提示和/或输入图像，模型将生成新图像。
+- 绘画模型 > Fal.ai平台 [获取请求结果 ](https://vectorengine.apifox.cn/api-349239163.md): 
+- 绘画模型 > Fal.ai平台 [/fal-ai/nano-banana 文生图](https://vectorengine.apifox.cn/api-349239164.md): 官方文档: https://fal.ai/models/fal-ai/nano-banana
+- 绘画模型 > Fal.ai平台 [/fal-ai/nano-banana/edit 图片编辑](https://vectorengine.apifox.cn/api-349239165.md): 官方文档: https://fal.ai/models/fal-ai/nano-banana/edit
+- 绘画模型 > 腾讯AIGC生图 [获取请求结果 ](https://vectorengine.apifox.cn/api-403778974.md): 
+- 绘画模型 > 腾讯AIGC生图 [创建任务](https://vectorengine.apifox.cn/api-403778975.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- 绘画模型 > 千问Qwen 系列 [qwen-image-max](https://vectorengine.apifox.cn/api-421110403.md): 
+- 绘画模型 > 千问Qwen 系列 [z-image-turbo](https://vectorengine.apifox.cn/api-423043392.md): 
+- 绘画模型 > 千问Qwen 系列 [qwen-image-edit-2509](https://vectorengine.apifox.cn/api-429932151.md): 给定提示和/或输入图像，模型将生成新图像。
+- 视频模型 > veo 视频生成 > 视频统一格式 [创建视频](https://vectorengine.apifox.cn/api-349239166.md): 
+- 视频模型 > veo 视频生成 > 视频统一格式 [创建视频，带图片](https://vectorengine.apifox.cn/api-349239168.md): 
+- 视频模型 > veo 视频生成 > 视频统一格式 [查询任务](https://vectorengine.apifox.cn/api-349239167.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > veo 视频生成 > 视频统一格式 [创建视频（参考图）](https://vectorengine.apifox.cn/api-360308586.md): 
+- 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 创建视频，带图片](https://vectorengine.apifox.cn/api-366376771.md): 
+- 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 查询任务](https://vectorengine.apifox.cn/api-373149017.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 下载视频](https://vectorengine.apifox.cn/api-373149063.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > luma 视频生成 > 官方API格式 [提交生成视频任务](https://vectorengine.apifox.cn/api-349239169.md): 官方文档：https://docs.lumalabs.ai/docs/video-generation
+- 视频模型 > luma 视频生成 > 官方API格式 [扩展视频](https://vectorengine.apifox.cn/api-349239170.md): 官方文档：https://docs.lumalabs.ai/docs/video-generation
+- 视频模型 > luma 视频生成 > 查询任务 [查询单个任务](https://vectorengine.apifox.cn/api-349239171.md): "state": "completed" 枚举值： "pending", "processing", "completed", "failed"
+- 视频模型 > luma 视频生成 > 查询任务 [批量获取任务](https://vectorengine.apifox.cn/api-349239172.md): "state": "completed" 枚举值： "pending", "processing", "completed", "failed"
+- 视频模型 > Runway 视频生成 [提交视频生成任务](https://vectorengine.apifox.cn/api-349239177.md): 官方文档：https://docs.dev.runwayml.com/api/#tag/Start-generating/paths/~1v1~1image_to_video/post
+- 视频模型 > Runway 视频生成 [查询视频任务(免费)](https://vectorengine.apifox.cn/api-349239178.md): 
+- 视频模型 > 海螺 视频生成 [提交视频生成任务 ](https://vectorengine.apifox.cn/api-349239181.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 视频模型 > 海螺 视频生成 [视频任务状态查询](https://vectorengine.apifox.cn/api-349239182.md): 
+- 视频模型 > 海螺 视频生成 [图生视频](https://vectorengine.apifox.cn/api-373137982.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 视频模型 > 海螺 视频生成 [首尾帧视频](https://vectorengine.apifox.cn/api-373137983.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 视频模型 > 豆包 视频生成 [创建任务](https://vectorengine.apifox.cn/api-358028487.md): 官方文档：https://www.volcengine.com/docs/82379/1520757
+- 视频模型 > 豆包 视频生成 [查询单个任务](https://vectorengine.apifox.cn/api-358028492.md): 
+- 视频模型 > 豆包 视频生成 [查询视频生成任务列表-默认](https://vectorengine.apifox.cn/api-358028493.md): 
+- 视频模型 > 豆包 视频生成 [查询视频生成任务列表-搜索多个任务 ID](https://vectorengine.apifox.cn/api-358028494.md): 
+- 视频模型 > 豆包 视频生成 [seedance-1-5-pro-首尾帧 ](https://vectorengine.apifox.cn/api-358028488.md): 
+- 视频模型 > 豆包 视频生成 [seedance-1-5-pro](https://vectorengine.apifox.cn/api-358028489.md): 
+- 视频模型 > sora 视频生成 > 统一视频格式 [查询任务 ](https://vectorengine.apifox.cn/api-386534724.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > sora 视频生成 > 统一视频格式 [创建视频，带图片  sora-2](https://vectorengine.apifox.cn/api-373137985.md): 
+- 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 sora-2](https://vectorengine.apifox.cn/api-386534725.md): 
+- 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 sora-2-pro](https://vectorengine.apifox.cn/api-386534727.md): 
+- 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 （带 Character）](https://vectorengine.apifox.cn/api-421110409.md): 
+- 视频模型 > sora 视频生成 > 统一视频格式 [创建角色](https://vectorengine.apifox.cn/api-381740613.md): 
+- 视频模型 > sora 视频生成 > chat格式 [创建视频](https://vectorengine.apifox.cn/api-381740614.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > sora 视频生成 > chat格式 [创建视频, 带图片](https://vectorengine.apifox.cn/api-381740616.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > sora 视频生成 > chat格式 [连续修改生成视频](https://vectorengine.apifox.cn/api-381740618.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > sora 视频生成 > OpenAI官方视频格式 [创建视频](https://vectorengine.apifox.cn/api-373137989.md): 
+- 视频模型 > sora 视频生成 > OpenAI官方视频格式 [创建一个来自上传视频的角色](https://vectorengine.apifox.cn/api-429932154.md): 
+- 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 编辑视频](https://vectorengine.apifox.cn/api-366376772.md): 
+- 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 下载视频](https://vectorengine.apifox.cn/api-373137987.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 查询任务](https://vectorengine.apifox.cn/api-366376769.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > grok 视频生成 > 视频统一格式 [创建视频 ](https://vectorengine.apifox.cn/api-423043398.md): 
+- 视频模型 > grok 视频生成 > 视频统一格式 [查询任务 ](https://vectorengine.apifox.cn/api-386534728.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 视频模型 > grok 视频生成 > 视频统一格式 [扩展视频](https://vectorengine.apifox.cn/api-436622185.md): 
+- 视频模型 > 通义万象 视频生成 [生成视频](https://vectorengine.apifox.cn/api-360272407.md): 
+- 视频模型 > 通义万象 视频生成 [视频查询](https://vectorengine.apifox.cn/api-360272408.md): 
+- 视频模型 > 腾讯AIGC视频生成 [创建任务](https://vectorengine.apifox.cn/api-403778980.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- 视频模型 > 腾讯AIGC视频生成 [获取请求结果 ](https://vectorengine.apifox.cn/api-403778979.md): 
+- 视频模型 > 腾讯AIGC视频生成 [特效模板创建任务](https://vectorengine.apifox.cn/api-429932155.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- GPTs 相关 [GPTs对话](https://vectorengine.apifox.cn/api-421110411.md): 模型名称格式为：gpt-4-gizmo-*，系统会自动进行识别
+- 系统API [获取令牌列表](https://vectorengine.apifox.cn/api-349239184.md): 
+- 系统API [新增令牌](https://vectorengine.apifox.cn/api-349239185.md): 
+- 系统API [获取令牌支持模型](https://vectorengine.apifox.cn/api-349239186.md): 
+- 系统API [获取账号信息](https://vectorengine.apifox.cn/api-349239187.md): 
+- 系统API [修改令牌](https://vectorengine.apifox.cn/api-358028496.md): 
+- 系统API [搜索令牌](https://vectorengine.apifox.cn/api-381740617.md): 
+- 系统API [获取令牌使用情况](https://vectorengine.apifox.cn/api-417728885.md): 
+- 系统API [删除令牌](https://vectorengine.apifox.cn/api-358028497.md): 
+- 系统API [批量修改令牌](https://vectorengine.apifox.cn/api-436622192.md): 
+- 文生音乐 Suno > 任务提交 [生成歌曲(灵感模式)](https://vectorengine.apifox.cn/api-349239189.md): 
+- 文生音乐 Suno > 任务提交 [生成歌曲(自定义模式)](https://vectorengine.apifox.cn/api-349239190.md): 
+- 文生音乐 Suno > 任务提交 [生成歌曲(续写模式)](https://vectorengine.apifox.cn/api-349239191.md): 
+- 文生音乐 Suno > 任务提交 [生成歌曲(歌手风格)](https://vectorengine.apifox.cn/api-349239192.md): # 接入步骤
+- 文生音乐 Suno > 任务提交 [生成歌曲(上传歌曲二次创作)](https://vectorengine.apifox.cn/api-349239193.md): 
+- 文生音乐 Suno > 任务提交 [生成歌曲(拼接歌曲)](https://vectorengine.apifox.cn/api-349239194.md): 
+- 文生音乐 Suno > 任务提交 [生成歌词](https://vectorengine.apifox.cn/api-349239195.md): 
+- 文生音乐 Suno > 任务提交 [歌曲拼接](https://vectorengine.apifox.cn/api-349239197.md): 
+- 文生音乐 Suno > 任务提交 [报告上传完毕](https://vectorengine.apifox.cn/api-403778981.md): ┌─────────────────────────────────────────────────────────────────┐
+- 文生音乐 Suno > 任务提交 [查询上传处理状态](https://vectorengine.apifox.cn/api-403778982.md): ┌─────────────────────────────────────────────────────────────────┐
+- 文生音乐 Suno > 任务提交 [初始化音频文件](https://vectorengine.apifox.cn/api-403778983.md): ┌─────────────────────────────────────────────────────────────────┐
+- 文生音乐 Suno > 任务提交 [请求上传授权](https://vectorengine.apifox.cn/api-403778984.md): ┌─────────────────────────────────────────────────────────────────┐
+- 文生音乐 Suno > 任务提交 [s3上传示例](https://vectorengine.apifox.cn/api-403778985.md): 
+- 文生音乐 Suno > 任务提交 [场景一: 灵感模式](https://vectorengine.apifox.cn/api-409709962.md): 
+- 文生音乐 Suno > 任务提交 [场景二: 自定义.歌词歌名](https://vectorengine.apifox.cn/api-409709963.md): 
+- 文生音乐 Suno > 任务提交 [场景三: 纯音乐.自定义](https://vectorengine.apifox.cn/api-409709964.md): 
+- 文生音乐 Suno > 查询接口 [批量获取任务](https://vectorengine.apifox.cn/api-349239198.md): 
+- 文生音乐 Suno > 查询接口 [查询单个任务](https://vectorengine.apifox.cn/api-349239199.md): 
+- 文生音乐 Suno > 查询接口 [获取wav](https://vectorengine.apifox.cn/api-358028499.md): 
+- 文生音乐 Suno > 查询接口 [Timing:歌词、音频时间线](https://vectorengine.apifox.cn/api-409709965.md): 
+- 文生音乐 Suno > 查询接口 [场景详情获取](https://vectorengine.apifox.cn/api-409709966.md): 
+- Rerank 重排序模型 [重排序](https://vectorengine.apifox.cn/api-349239215.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 可灵 Kling 平台 > 文成视频 [文生视频](https://vectorengine.apifox.cn/api-436622204.md): 
+- 可灵 Kling 平台 > 文成视频 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023136.md): 
+- 可灵 Kling 平台 > 图生视频 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023138.md): 
+- 可灵 Kling 平台 > 图生视频 [图生视频](https://vectorengine.apifox.cn/api-436622194.md): 
+- 可灵 Kling 平台 > Omni-Video [Omni-Video](https://vectorengine.apifox.cn/api-394023139.md): 
+- 可灵 Kling 平台 > Omni-Video [查询任务（单个）](https://vectorengine.apifox.cn/api-436622195.md): 
+- 可灵 Kling 平台 > Omni-Image [Omni-Image](https://vectorengine.apifox.cn/api-394023157.md): 
+- 可灵 Kling 平台 > Omni-Image [查询任务（单个）](https://vectorengine.apifox.cn/api-394023158.md): 
+- 可灵 Kling 平台 > 多图参考生视频 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023142.md): 
+- 可灵 Kling 平台 > 多图参考生视频 [多图参考生视频](https://vectorengine.apifox.cn/api-436622196.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [初始化待编辑视频](https://vectorengine.apifox.cn/api-394023143.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [增加视频选区](https://vectorengine.apifox.cn/api-394023144.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [删减视频选区](https://vectorengine.apifox.cn/api-394023145.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [预览已选区视频](https://vectorengine.apifox.cn/api-394023146.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [多模态视频](https://vectorengine.apifox.cn/api-394023147.md): 
+- 可灵 Kling 平台 > 多模态视频编辑 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023148.md): 
+- 可灵 Kling 平台 > 视频延长 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023150.md): 
+- 可灵 Kling 平台 > 视频延长 [视频延长](https://vectorengine.apifox.cn/api-436622197.md): 
+- 可灵 Kling 平台 > 视频特效 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023152.md): 
+- 可灵 Kling 平台 > 视频特效 [视频特效](https://vectorengine.apifox.cn/api-436622198.md): 
+- 可灵 Kling 平台 > 图像生成 [图像生成](https://vectorengine.apifox.cn/api-429932168.md): 
+- 可灵 Kling 平台 > 图像生成 [查询任务（单个）](https://vectorengine.apifox.cn/api-426103290.md): 
+- 可灵 Kling 平台 > 多图参考生图 [多图参考生图](https://vectorengine.apifox.cn/api-394023155.md): 
+- 可灵 Kling 平台 > 多图参考生图 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023156.md): 
+- 可灵 Kling 平台 > 扩图 [扩图](https://vectorengine.apifox.cn/api-394023159.md): 
+- 可灵 Kling 平台 > 扩图 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023160.md): 
+- 可灵 Kling 平台 > 图像识别 [图像识别](https://vectorengine.apifox.cn/api-394023161.md): 
+- 可灵 Kling 平台 > 数字人 [数字人](https://vectorengine.apifox.cn/api-394023162.md): 
+- 可灵 Kling 平台 > 数字人 [查询任务（单个）](https://vectorengine.apifox.cn/api-403778986.md): 
+- 可灵 Kling 平台 > 文生音效 [文生音效](https://vectorengine.apifox.cn/api-403778987.md): 
+- 可灵 Kling 平台 > 文生音效 [查询任务（单个）](https://vectorengine.apifox.cn/api-403778988.md): 
+- 可灵 Kling 平台 > 视频生音效 [视频生音效](https://vectorengine.apifox.cn/api-394023166.md): 
+- 可灵 Kling 平台 > 视频生音效 [查询任务（单个）](https://vectorengine.apifox.cn/api-403778989.md): 
+- 可灵 Kling 平台 > 语音合成 [语音合成](https://vectorengine.apifox.cn/api-403778990.md): 
+- 可灵 Kling 平台 > 虚拟试穿 [查询任务（单个）](https://vectorengine.apifox.cn/api-394023170.md): 
+- 可灵 Kling 平台 > 虚拟试穿 [虚拟试穿](https://vectorengine.apifox.cn/api-429932169.md): 官方文档：https://app.klingai.com/cn/dev/document-api/apiReference/model/functionalityTry
+- 可灵 Kling 平台 > 对口型 [人脸识别](https://vectorengine.apifox.cn/api-394023171.md): 
+- 可灵 Kling 平台 > 对口型 [对口型](https://vectorengine.apifox.cn/api-394023172.md): 
+- 可灵 Kling 平台 > 对口型 [查询任务（单个）](https://vectorengine.apifox.cn/api-403778991.md): 
+- 可灵 Kling 平台 > 自定义音色 [自定义音色](https://vectorengine.apifox.cn/api-409709967.md): 
+- 可灵 Kling 平台 > 自定义音色 [查询自定义音色（单个）](https://vectorengine.apifox.cn/api-403778992.md): 
+- 可灵 Kling 平台 > 自定义音色 [查询官方音色](https://vectorengine.apifox.cn/api-414804402.md): 
+- 可灵 Kling 平台 > 自定义音色 [删除自定义音色](https://vectorengine.apifox.cn/api-414804403.md): 
+- 可灵 Kling 平台 > 动作控制 [动作控制](https://vectorengine.apifox.cn/api-403778993.md): 
+- 可灵 Kling 平台 > 动作控制 [查询任务（单个）](https://vectorengine.apifox.cn/api-403778994.md): 
+- 可灵 Kling 平台 > 主体 [主体(旧)](https://vectorengine.apifox.cn/api-403778995.md): 
+- 可灵 Kling 平台 > 主体 [主体（新版本）](https://vectorengine.apifox.cn/api-436622200.md): 
+- 可灵 Kling 平台 > 主体 [查询自定义主体（单个新版本）](https://vectorengine.apifox.cn/api-436622201.md): 
+- 可灵 Kling 平台 > 主体 [查询官方主体（列表新版本）](https://vectorengine.apifox.cn/api-436622202.md): 
+- 可灵 Kling 平台 > 主体 [删除自定义主体（新版本）](https://vectorengine.apifox.cn/api-436622203.md): 
+- MINIMAX官方 [创建异步语音合成任务 V2](https://vectorengine.apifox.cn/api-421110416.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-async-create
+- MINIMAX官方 [同步语音合成 V2](https://vectorengine.apifox.cn/api-421110417.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-http
+- MINIMAX官方 [文生图生视频生成任务](https://vectorengine.apifox.cn/api-421110418.md): 
+- MINIMAX官方 [上传复刻音频](https://vectorengine.apifox.cn/api-421110419.md): 
+- MINIMAX官方 [上传示例音频](https://vectorengine.apifox.cn/api-421110420.md): 
+- MINIMAX官方 [首尾帧生成视频](https://vectorengine.apifox.cn/api-421110421.md): 
+- MINIMAX官方 [音色快速复刻](https://vectorengine.apifox.cn/api-421110422.md): https://platform.minimaxi.com/docs/api-reference/voice-cloning-clone
+- MINIMAX官方 [查询视频生成任务状态](https://vectorengine.apifox.cn/api-421110423.md): 
+- MINIMAX官方 [检索(用于视频下载,异步音频下载)](https://vectorengine.apifox.cn/api-421110424.md): 
+- MINIMAX官方 [文本合成](https://vectorengine.apifox.cn/api-421110425.md): https://platform.minimaxi.com/docs/api-reference/text-post
+- MINIMAX官方 [查询语音生成任务状态](https://vectorengine.apifox.cn/api-421110426.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-async-query
+- MINIMAX官方 [音色设计](https://vectorengine.apifox.cn/api-421110427.md): 
+- 官方VIDU视频生成、图片生成、音频生成 [创建文生视频任务](https://vectorengine.apifox.cn/api-417728886.md): 官方文档:https://platform.vidu.cn/docs/text-to-video
+- 官方VIDU视频生成、图片生成、音频生成 [创建图生视频任务](https://vectorengine.apifox.cn/api-417728887.md): 官方文档:https://platform.vidu.cn/docs/image-to-video
+- 官方VIDU视频生成、图片生成、音频生成 [创建图片生成任务](https://vectorengine.apifox.cn/api-417728888.md): 官方文档:https://platform.vidu.cn/docs/reference-to-image
+- 官方VIDU视频生成、图片生成、音频生成 [创建文生音频任务](https://vectorengine.apifox.cn/api-417728889.md): 官方文档:https://platform.vidu.cn/docs/text-to-audio
+- 官方VIDU视频生成、图片生成、音频生成 [语音合成](https://vectorengine.apifox.cn/api-417728890.md): 官方文档:https://platform.vidu.cn/docs/text-to-speech
+- 官方VIDU视频生成、图片生成、音频生成 [创建参考生视频任务](https://vectorengine.apifox.cn/api-417728891.md): 官方文档:https://platform.vidu.cn/docs/reference-to-video
+- 官方VIDU视频生成、图片生成、音频生成 [创建首尾帧生视频任务](https://vectorengine.apifox.cn/api-417728892.md): 官方文档:https://platform.vidu.cn/docs/start-end-to-video
+- 官方VIDU视频生成、图片生成、音频生成 [获取请求结果 ](https://vectorengine.apifox.cn/api-417728893.md): 
+- Replicate 聚合平台 [查询任务](https://vectorengine.apifox.cn/api-349239216.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- Replicate 聚合平台 [创建任务-通过模型version（predictions）](https://vectorengine.apifox.cn/api-349239217.md): version models 支持以下
+- Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion](https://vectorengine.apifox.cn/api-349239218.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion
+- Replicate 聚合平台 [创建任务 stability-ai/sdxl](https://vectorengine.apifox.cn/api-349239219.md): 官方文档: https://replicate.com/stability-ai/sdxl
+- Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion-inpainting](https://vectorengine.apifox.cn/api-349239220.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion-inpainting
+- Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion-img2img](https://vectorengine.apifox.cn/api-349239221.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion-img2img
+- Replicate 聚合平台 [创建任务 lucataco/flux-schnell-lora](https://vectorengine.apifox.cn/api-349239222.md): 官方文档: https://replicate.com/lucataco/flux-schnell-lora
+- Replicate 聚合平台 [创建任务 lucataco/flux-dev-lora](https://vectorengine.apifox.cn/api-349239223.md): 官方文档: https://replicate.com/lucataco/flux-dev-lora
+- Replicate 聚合平台 [创建任务 andreasjansson/stable-diffusion-animation](https://vectorengine.apifox.cn/api-349239224.md): 官方文档:https://replicate.com/andreasjansson/stable-diffusion-animation
+- Replicate 聚合平台 [创建任务 sujaykhandekar/object-removal](https://vectorengine.apifox.cn/api-349239225.md): 官方文档:https://replicate.com/sujaykhandekar/object-removal
+- Replicate 聚合平台 [创建任务 cjwbw/rembg](https://vectorengine.apifox.cn/api-349239226.md): 官方文档:https://replicate.com/cjwbw/rembg
+- Replicate 聚合平台 [创建任务 lucataco/animate-diff](https://vectorengine.apifox.cn/api-349239227.md): 官方文档:https://replicate.com/lucataco/animate-diff
+- Replicate 聚合平台 [创建任务 ideogram-ai/ideogram-v2-turbo](https://vectorengine.apifox.cn/api-349239228.md): 官方文档:https://replicate.com/ideogram-ai/ideogram-v2-turbo
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-dev](https://vectorengine.apifox.cn/api-349239229.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-dev
+- Replicate 聚合平台 [创建任务 minimax/video-01-live](https://vectorengine.apifox.cn/api-349239230.md): 官方文档:https://replicate.com/minimax/video-01-live
+- Replicate 聚合平台 [创建任务 minimax/video-01](https://vectorengine.apifox.cn/api-349239231.md): 官方文档:https://replicate.com/minimax/video-01
+- Replicate 聚合平台 [创建任务 recraft-ai/recraft-v3](https://vectorengine.apifox.cn/api-349239232.md): 官方文档:https://replicate.com/recraft-ai/recraft-v3
+- Replicate 聚合平台 [创建任务 recraft-ai/recraft-v3-svg](https://vectorengine.apifox.cn/api-349239233.md): 官方文档:https://replicate.com/recraft-ai/recraft-v3-svg
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-1.1-pro-ultra](https://vectorengine.apifox.cn/api-349239234.md): 官方文档: https://replicate.com/black-forest-labs/flux-1.1-pro-ultra
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-pro](https://vectorengine.apifox.cn/api-349239235.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-pro
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-max](https://vectorengine.apifox.cn/api-349239236.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- Replicate 聚合平台 [创建任务 flux-kontext-apps/multi-image-kontext-max](https://vectorengine.apifox.cn/api-349239237.md): 官方文档:https://replicate.com/flux-kontext-apps/multi-image-kontext-max
+- Replicate 聚合平台 [创建任务 flux-kontext-apps/multi-image-kontext-pro](https://vectorengine.apifox.cn/api-349239238.md): 官方文档:https://replicate.com/flux-kontext-apps/multi-image-kontext-pro
+- Replicate 聚合平台 [创建任务 lucataco/remove-bg](https://vectorengine.apifox.cn/api-358028500.md): 官方文档:https://replicate.com/lucataco/remove-bg
+- Replicate 聚合平台 [创建任务 riffusion/riffusion](https://vectorengine.apifox.cn/api-349239240.md): 官方文档:https://replicate.com/riffusion/riffusion
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-fill-dev](https://vectorengine.apifox.cn/api-349239241.md): 官方文档:https://replicate.com/black-forest-labs/flux-fill-dev
+- Replicate 聚合平台 [创建任务 black-forest-labs/flux-fill-pro](https://vectorengine.apifox.cn/api-349239242.md): 官方文档:https://replicate.com/black-forest-labs/flux-fill-pro
+- Replicate 聚合平台 [创建任务 google/imagen-4-fast](https://vectorengine.apifox.cn/api-349239243.md): 官方文档:https://replicate.com/google/imagen-4-fast
+- Replicate 聚合平台 [创建任务 google/imagen-4-ultra](https://vectorengine.apifox.cn/api-349239244.md): 官方文档:https://replicate.com/google/imagen-4-ultra
+- Replicate 聚合平台 [创建任务 google/imagen-4](https://vectorengine.apifox.cn/api-349239245.md): 官方文档:https://replicate.com/google/imagen-4
+- Replicate 聚合平台 [创建任务 prunaai/vace-14b](https://vectorengine.apifox.cn/api-349239246.md): 官方文档:https://replicate.com/prunaai/vace-14b
+- Replicate 聚合平台 [创建任务 bytedance/seedream-4](https://vectorengine.apifox.cn/api-360310642.md): 
+- Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3](https://vectorengine.apifox.cn/api-358028510.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3
+- Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/fast/image-to-video](https://vectorengine.apifox.cn/api-358028511.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3/fast/image-to-video
+- Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/fast](https://vectorengine.apifox.cn/api-358028512.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3/fast
+- Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/requests/{request_id}](https://vectorengine.apifox.cn/api-358028514.md): 
+- Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/image-to-video](https://vectorengine.apifox.cn/api-358028513.md): 官方文档：https://fal.ai/models/fal-ai/veo3/image-to-video
+- Fal-ai 聚合平台 [获取请求结果](https://vectorengine.apifox.cn/api-349239200.md): 
+- Fal-ai 聚合平台 [/fal-ai/flux-1/dev](https://vectorengine.apifox.cn/api-349239201.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev
+- Fal-ai 聚合平台 [/fal-ai/flux-1/dev/image-to-image](https://vectorengine.apifox.cn/api-349239202.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev/image-to-image
+- Fal-ai 聚合平台 [/fal-ai/flux-1/dev/redux](https://vectorengine.apifox.cn/api-349239203.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev/redux
+- Fal-ai 聚合平台 [/fal-ai/flux-1/schnell/redux](https://vectorengine.apifox.cn/api-349239204.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/schnell/redux
+- Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext](https://vectorengine.apifox.cn/api-349239205.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext
+- Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/text-to-image](https://vectorengine.apifox.cn/api-349239206.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext/text-to-image
+- Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/max](https://vectorengine.apifox.cn/api-349239207.md): 官方文档:  https://fal.ai/models/fal-ai/flux-pro/kontext/max
+- Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/max/multi](https://vectorengine.apifox.cn/api-349239208.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext/max/multi
+- Fal-ai 聚合平台 [/fal-ai/wan/v2.2-a14b/image-to-image](https://vectorengine.apifox.cn/api-349239209.md): 官方文档: https://fal.ai/models/fal-ai/wan/v2.2-a14b/image-to-image
+- Fal-ai 聚合平台 [/fal-ai/bytedance/seedream/v4/text-to-image](https://vectorengine.apifox.cn/api-349239210.md): 官方文档: https://fal.ai/models/fal-ai/bytedance/seedream/v4/text-to-image
+- Fal-ai 聚合平台 [/fal-ai/bytedance/seedream/v4/edit](https://vectorengine.apifox.cn/api-349239211.md): 官方文档: https://fal.ai/models/fal-ai/bytedance/seedream/v4/edit
+- Fal-ai 聚合平台 [/fal-ai/vidu/reference-to-image](https://vectorengine.apifox.cn/api-349239212.md): 官方文档: https://fal.ai/models/fal-ai/vidu/reference-to-image
+- Fal-ai 聚合平台 [/fal-ai/imagen4/preview](https://vectorengine.apifox.cn/api-349239213.md): 官方文档: https://fal.ai/models/fal-ai/imagen4/preview
+- Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-lora](https://vectorengine.apifox.cn/api-349239214.md): 官方文档: https://fal.ai/models/fal-ai/qwen-image-edit-lora
+- Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-plus](https://vectorengine.apifox.cn/api-358028502.md): 官方文档: https://fal.ai/models/fal-ai/qwen-image-edit-plus
+- Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/text-to-video](https://vectorengine.apifox.cn/api-358028503.md): 官方文档: https://fal.ai/models//fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+- Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/image-to-video](https://vectorengine.apifox.cn/api-358028504.md): 官方文档: https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/pro/image-to-video
+- Fal-ai 聚合平台 [/fal-ai/flux-lora](https://vectorengine.apifox.cn/api-358028505.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora
+- Fal-ai 聚合平台 [/fal-ai/flux-lora/image-to-image](https://vectorengine.apifox.cn/api-358028506.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora/image-to-image
+- Fal-ai 聚合平台 [/fal-ai/flux-lora/inpainting](https://vectorengine.apifox.cn/api-358028507.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora/inpainting
+- Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/text-to-video](https://vectorengine.apifox.cn/api-358028508.md): 
+- Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-lora](https://vectorengine.apifox.cn/api-358028509.md): 
+- 帮助中心 [上传图片到图床](https://vectorengine.apifox.cn/api-358028515.md): 

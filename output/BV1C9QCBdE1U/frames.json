@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": 0.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000001.jpg"
+  },
+  {
+    "timestamp": 100.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000101.jpg"
+  },
+  {
+    "timestamp": 213.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000214.jpg"
+  },
+  {
+    "timestamp": 322.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000323.jpg"
+  },
+  {
+    "timestamp": 411.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000412.jpg"
+  }
+]
