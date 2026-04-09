@@ -2,26 +2,76 @@
   {
     "timestamp": 0.5,
     "path": "output\\BV1C9QCBdE1U\\frames\\frame_000001.jpg",
-    "description": "标题“TUTORIAL ASSETS”，标注“[FREE] [LINK IN DESCRIPTION]”；像素风界面中，手形标点击带数字“10”的设备，下方中文提示“可免费下载视频中的RC文件”。"
+    "description": "标题为“TUTORIAL ASSETS”，标注免费并提供链接。画面中央显示像素风格人物，手指点击按钮，下方屏幕数字为10。底部字幕提示可免费下载视频中的RC文件。"
+  },
+  {
+    "timestamp": 30.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000031.jpg",
+    "description": "画面展示了 Godot 引擎的代码编辑器界面，正在编写 GDScript 脚本。屏幕显示代码 `extends Node2D` 和类名定义 `DamageNumberSpawner`，底部字幕提示“接下来 我们将类名定义为”。"
+  },
+  {
+    "timestamp": 63.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000064.jpg",
+    "description": "画面显示 Godot 引擎的 GDScript 代码编辑器，正在编辑 `DamageNumberSpawner` 脚本。第5行定义了导出变量 `critical_hit_color` 为红色（FF0000），下方有中文提示“或者你也可以使用”。"
   },
   {
     "timestamp": 100.5,
     "path": "output\\BV1C9QCBdE1U\\frames\\frame_000101.jpg",
-    "description": "代码片段：定义 `awn_label` 函数，参数 `critical_hit: bool = false`；声明 `critical_hit_color` 为红色（#FF0000）；底部字幕说明该参数默认值为 false。"
+    "description": "Godot 代码编辑器显示 DamageNumberSpawner 脚本。关键代码定义 `critical_hit_color` 变量和 `spawn_label` 函数，其中 `critical_hit` 参数默认值为 false。底部字幕解释“我们给这个参数提供默认值 false”。"
+  },
+  {
+    "timestamp": 122.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000123.jpg",
+    "description": "GDScript代码编辑器界面，显示 `damage_number_spawner.gd` 文件。第10行高亮 `str(number if step_decimals(number) != 0 else number as int)`，底部中文提示“如果 step_decimals”。"
+  },
+  {
+    "timestamp": 173.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000174.jpg",
+    "description": "屏幕显示 GDScript 代码 `damage_number_spawner.gd`，重点在第13行设置文本标签的 `pivot_offset_ratio` 为底部中心。下方字幕提示：“我们将 pivot_offset”。"
   },
   {
     "timestamp": 213.5,
     "path": "output\\BV1C9QCBdE1U\\frames\\frame_000214.jpg",
-    "description": "代码片段：创建 CanvasItemMaterial，设为 LIGHT_MODE_UNSHADED，并赋给 new_label.material。关键行：var label_material = CanvasItemMaterial.new()；label_material.light_mode = …；new_label.material = label_material。"
+    "description": "画面展示GDScript代码编辑器界面，第18行高亮显示 `CanvasItemMaterial.new()` 的创建过程。底部字幕提示“来存放一个新的 CanvasItemMaterial”，说明正在为Label节点设置材质属性。"
+  },
+  {
+    "timestamp": 239.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000240.jpg",
+    "description": "画面展示 Godot 引擎代码编辑器，正在编写 `damage_number_spawner.gd`。核心逻辑涉及创建伤害数字标签（Label），设置材质、颜色及在屏幕中心定位。底部有中文字幕“这使我们能够根据标签的大小”。"
+  },
+  {
+    "timestamp": 271.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000272.jpg",
+    "description": "代码编辑器显示 GDScript 脚本片段，第26行高亮部分 `randf_range(-22.0, -16.0)` 被选中。底部字幕解释该随机函数用于生成Y轴上的特定数值范围。"
   },
   {
     "timestamp": 322.5,
     "path": "output\\BV1C9QCBdE1U\\frames\\frame_000323.jpg",
-    "description": "代码片段：第28行 `en().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)` 设置Tween动画的过渡模式为后退缓出；下方有scale与modulate动画调用。"
+    "description": "画面展示 GDScript 代码编辑器，第 28-31 行正在配置 Tween 动画：设置过渡模式为 `TRANS_BACK`、缓动方式为 `EASE_OUT`，并定义目标位置、缩放及透明度变化。底部字幕提示“将 Tween 的过渡模式”。"
+  },
+  {
+    "timestamp": 348.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000349.jpg",
+    "description": "代码第30行显示缩放属性修改为 `Vector2.ONE * 1.35`，底部字幕提示“我们将缩放改为向量 1.35 乘以 1.35”，涉及 Godot 引擎中伤害数字生成器的动画调整。"
+  },
+  {
+    "timestamp": 380.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000381.jpg",
+    "description": "屏幕显示 Godot 代码编辑器，高亮 `label_tween.parallel()`。画面底部有中文注释“调用 parallel 函数来实现”，展示如何使用并行动画处理标签的位置、缩放和颜色变化。"
   },
   {
     "timestamp": 411.5,
     "path": "output\\BV1C9QCBdE1U\\frames\\frame_000412.jpg",
-    "description": "Godot编辑器界面，左侧场景树显示HEALTHBAR、move_anim、AnimationPlayer节点；右键菜单弹出“Add Child Node...”选项；底部字幕：“添加我们创建的DamageNumberSpawner节点”。"
+    "description": "Godot 编辑器界面，鼠标悬停在左上角“添加子节点”按钮上。左侧场景树显示 Sprite2D、HealthBar、move_anim 和 AnimationPlayer 节点。底部字幕提示添加 DamageNumberSpawner 节点。"
+  },
+  {
+    "timestamp": 453.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000454.jpg",
+    "description": "画面显示Unity编辑器界面，右侧面板打开“DamageNumberSpawner”组件的Label Setting菜单，鼠标悬停在“Save As...”选项上。底部字幕提示点击“另存为”，正在命名资源文件。"
+  },
+  {
+    "timestamp": 487.5,
+    "path": "output\\BV1C9QCBdE1U\\frames\\frame_000488.jpg",
+    "description": "Godot 脚本展示 `take_damage()` 函数，计算暴击伤害并调用 `spawn_label` 显示数字。屏幕底部中文提示：“传入我们想要造成的伤害数值”。"
   }
 ]

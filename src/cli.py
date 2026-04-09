@@ -30,7 +30,13 @@ def main():
     parser.add_argument("--polish-model", default="gpt-4o-mini")
     parser.add_argument("--skip-download", action="store_true",
                         help="跳过下载, 用缓存的 meta.json (调试用)")
+    parser.add_argument("--test-duration", type=int, default=None,
+                        help="截取前 N 秒做端到端测试 (test 模式默认 120s, prod 不截)")
     args = parser.parse_args()
+
+    # test 模式默认截前 120 秒, 让有限预算能跑完整 pipeline
+    if args.test_duration is None:
+        args.test_duration = 120 if args.mode == "test" else 0
 
     logging.basicConfig(
         level=logging.INFO,
@@ -49,7 +55,8 @@ def main():
             outline_model=args.outline_model,
             writer_model=args.writer_model,
             polish_model=args.polish_model,
-            skip_download=args.skip_download)
+            skip_download=args.skip_download,
+            test_duration=args.test_duration)
     except BudgetExceeded as e:
         print(f"\n❌ 预算超限: {e}", file=sys.stderr)
         print(budget.report(), file=sys.stderr)

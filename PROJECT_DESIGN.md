@@ -224,6 +224,96 @@
 
 ---
 
+## 十一、实施现状（v4，2026-04-09 更新）
+
+> 这部分记录落地过程中与原设计的偏差、已知问题和正在做的修复。原设计部分保留不动。
+
+### 1. 实际落地的 pipeline
+
+与原设计基本一致，但有以下偏差：
+
+| 环节 | 原设计 | 实际 | 原因 |
+|---|---|---|---|
+| ASR | GPU faster-whisper large-v3 | **CPU** faster-whisper **small** | Windows cuBLAS/cuDNN 没装好, CUDA 推理崩溃 |
+| 视觉 | Claude Sonnet 4.6 vision | **qwen3-vl-plus** (via VectorEngine 中转) | 项目决定用中转避免 Claude Code 依赖; gemini 系列不听 max_tokens |
+| 抽帧 | 场景切换 + 语音锚点 + 哈希去重 | 只有 **1fps + pHash 去重 + 硬上限** | 场景检测和语音锚点未实现, 欠债 |
+| 分段总结 | Claude Sonnet | **gpt-4o-mini / deepseek-v3.2 / kimi-k2** fallback 链 | 成本控制, 但 deepseek/kimi 长期被中转站限流, 实际全落到 gpt-4o-mini |
+| 精修 | critique-revise 双轮 | **仅 polish 一次**, 只做衔接建议 | M3 目标未到 |
+| 覆盖率审查 | 有 | **未实现** | 欠债 |
+| MCP Server | 有 | **未实现** | M3 目标未到 |
+
+### 2. 当前代码结构
+
+```
+src/
+├── cli.py          # 入口, --mode test|prod, --test-duration 截断
+├── pipeline.py     # 6 stage 编排 + 缓存
+├── download.py     # yt-dlp
+├── asr.py          # faster-whisper + VAD + 幻觉过滤
+├── frames.py       # 1fps + pHash + cap
+├── vision.py       # 单帧 → 文本描述
+├── llm_client.py   # VectorEngine 中转, cheap/quality 双 key
+├── budget.py       # BudgetGuard precheck/commit + PRICE_TABLE
+└── summarize.py    # v4 文档生成: outline → write_section → polish → assemble
+config/
+├── budget_test.yaml  # 总预算 ¥0.40, 前 2 分钟截断, frame_cap=15
+└── budget_prod.yaml  # 总预算 ¥0.80 (尚未跑过)
+```
+
+### 3. 已知问题与修复进度
+
+记录首次跑通后暴露的所有问题:
+
+| # | 问题 | 严重性 | 状态 |
+|---|---|---|---|
+| 1 | **ASR 对英文音频产生中文幻觉**: `language="zh"` 强制参数 + 视频实际是英文 → 00:29 之后字幕全是 "许多的许多" 类乱码 | 🔴 致命 | ✅ 已修: `language=None` 自动检测 |
+| 2 | **outline 时间戳全挤在视频开头 13%**: `transcript[:20000]` 对 1 小时视频丢后 2/3, 模型只看到开头 | 🔴 致命 | ✅ 已修: `_compress_transcript_for_outline` 均匀抽样 |
+| 3 | **writer 注水编造**: `min_words=200` 下限逼 gpt-4o-mini 凑字数生成废话 | 🔴 致命 | ✅ 已修: 删 min_words, 只保留 max_words |
+| 4 | **时间戳幻觉无校验**: writer 输出的 [HH:MM:SS] 凭空生成, 均匀分布暴露编造 | 🔴 致命 | ✅ 已修: `validate_timestamps` 8s 容差删除整行 |
+| 5 | **LLM 分配 frame_ids 错漏**: outline 让模型输出帧归属, 经常漏分重分 | 🟠 高 | ✅ 已修: `assign_frames_to_sections` 代码按时间几何确定性分配 |
+| 6 | **帧与字幕两份割裂输入**: writer 自己对齐对不上 | 🟠 高 | ✅ 已修: 按时间戳 merge 成统一时间线 (含 📺 标记) |
+| 7 | **预算耗尽静默截断**: 6 节只写 3 节, 用户看不到警告 | 🟠 高 | ✅ 已修: assemble 顶部 ⚠️ banner + TOC 未生成节标红 |
+| 8 | **frame_cap=5 对 8:40 视频太少**: 平均每 100s 才一帧 | 🟠 高 | ✅ 已修: test 模式 5→15 |
+| 9 | **完整代码合集是碎片拼接**: 7 个 fenced block 顺序粘贴, 没拼成可运行函数 | 🟠 高 | ✅ 已修: writer 强制在 section 末尾输出 `### 本节完整代码` 整块, assemble 优先取这些块 |
+| 10 | **图片路径是 Windows 绝对路径反斜杠**: `![](output\...\frame_000001.jpg)` 在 md 里不显示 | 🟠 高 | ✅ 已修: writer 拿到的是相对路径 `frames/frame_000001.jpg` |
+| 11 | **writer 偷懒所有节都引用同一张帧**: 没帧的节也硬插第一张 | 🟠 高 | ✅ 已修: prompt 加 "本节没帧时不要插图" + `validate_timestamps` 收尾 |
+| 12 | **test 模式预算数学不可行**: ¥0.10 总预算 < 6 节 writer 单独调用成本 | 🟠 高 | ✅ 已修: 总预算 ¥0.10 → ¥0.40 + 默认截取前 120 秒 |
+| 13 | **budget.py `estimate_asr_cost` 笔误**: 引用了不存在的 `ASR_PRICE_PER_MIN` | 🟡 定时炸弹 | ✅ 已修: 改为 `ASR_PRICE_PER_1M` 按 token 估算 |
+| 14 | **kimi-k2 / deepseek-v3.2 中转站长期 429**: 所有请求走到 gpt-4o-mini fallback, 中文写作质量打折 | 🟡 中 | ❌ 未解决: 待换时段/quality 组 key/切换主模型 |
+| 15 | **polish 只做衔接标注, 不做覆盖率审查, 不改写正文** | 🟡 中 | ❌ 未做: 排第二批 |
+| 16 | **writer 上下文稀薄**: 没有上一节摘要 + 全局视频意图 | 🟡 中 | ❌ 未做: 排第二批 |
+| 17 | **视觉 80 字上限对代码/PPT 太紧**: 代码截图无法完整 OCR → writer 只能编代码 | 🟡 中 | ❌ 未做: 排第二批 (分层 TINY/DETAIL) |
+| 18 | **1fps+pHash 对教学视频不够鲁棒**: 静态画面浪费配额, 快切段漏帧 | 🟡 中 | ❌ 未做: 排 v5 (语音锚点 + 场景检测) |
+| 19 | **whisper CPU + small**: 长视频慢, 对专有名词识别差 | 🟢 低 | ❌ 未做: 待装 cuDNN 或换 medium |
+| 20 | **prod 模式从未跑过**: budget_prod.yaml 是纸面配置 | 🟢 低 | ❌ 未做: 等 test 质量达标 |
+
+### 4. 第一批修复 (已完成, 本次提交)
+
+- `summarize.py`: 删 min_words + validate_timestamps + assign_frames_to_sections + merge_transcript_with_frames + _compress_transcript_for_outline + assemble banner + 完整代码合并 + 相对路径插图
+- `pipeline.py`: `language=None` + test_duration 截断 segs/frames/meta
+- `cli.py`: `--test-duration` 参数 (test 默认 120s, prod 默认 0)
+- `budget.py`: ASR_PRICE_PER_1M 修复 + kimi-k2 价格条目
+- `config/budget_test.yaml`: total ¥0.20→¥0.40, frame_cap 5→15, vision call 5→15, section call 3→8, vision stage ¥0.05→¥0.15
+
+### 5. 第二批 (待做)
+
+- 视觉分层 prompt: 先 TINY (5 字类型标签 + 30 字) 再对 code/PPT 帧二次 DETAIL (200 字 + 完整 OCR)
+- outline transcript 压缩: 从均匀抽样升级为 "便宜模型每段压成一行 → 再喂 outline 模型" (B 方案)
+- polish 覆盖率审查: 让 polish 模型对照原始字幕指出遗漏要点
+- 跨章节上下文注入: 写手拿到上一节结尾 + 下一节标题列表
+- 语音锚点抽帧: 字幕里出现 "看这里/这段代码" 时强制在该时间点抽帧
+- 字幕健康检查: 检测幻觉特征 (n-gram 重复 / 填充词高频)
+
+### 6. 留到 v5
+
+- 多信号加权抽帧 (场景检测 + OCR 变化 + 语音锚点 + 均匀)
+- 模型 A/B 测试框架
+- 优雅降级预算策略 (guaranteed / elastic / priority_order)
+- MCP Server 封装
+- 本地向量库跨视频 RAG
+
+---
+
 ## 参考资料
 
 - [JimmyLv/BibiGPT-v1](https://github.com/JimmyLv/BibiGPT-v1)

@@ -48,8 +48,8 @@ class LLMClient:
                  budget: BudgetGuard):
         self.budget = budget
         # 中转站经常 429, 多 retry 一些
-        self.client_cheap = OpenAI(base_url=base_url, api_key=key_cheap, max_retries=5)
-        self.client_quality = OpenAI(base_url=base_url, api_key=key_quality, max_retries=5)
+        self.client_cheap = OpenAI(base_url=base_url, api_key=key_cheap, max_retries=1)
+        self.client_quality = OpenAI(base_url=base_url, api_key=key_quality, max_retries=1)
 
     def _client(self, group: str) -> OpenAI:
         return self.client_cheap if group == "cheap" else self.client_quality

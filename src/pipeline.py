@@ -23,7 +23,8 @@ def run(url: str, work_dir: str | Path, budget: BudgetGuard,
         outline_model: str = "gpt-4o-mini",
         writer_model: str = "deepseek-v3.2",
         polish_model: str = "gpt-4o-mini",
-        skip_download: bool = False) -> str:
+        skip_download: bool = False,
+        test_duration: int = 0) -> str:
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -51,7 +52,8 @@ def run(url: str, work_dir: str | Path, budget: BudgetGuard,
         else:
             audio = work_dir / "audio.wav"
             extract_audio(meta["video_path"], audio)
-            segs = transcribe(audio, model_size=whisper_size, language="zh")
+            # language=None → whisper 自动检测, 避免强制 zh 对英文音频产生幻觉
+            segs = transcribe(audio, model_size=whisper_size, language=None)
         segs_cache.write_text(
             json.dumps([asdict(s) for s in segs], ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -86,6 +88,18 @@ def run(url: str, work_dir: str | Path, budget: BudgetGuard,
             json.dumps([asdict(f) for f in frame_descs], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    # 4.5 test 模式按时间窗裁剪 segs/frames/frame_descs, 让有限预算能跑完整 pipeline
+    if test_duration and test_duration > 0:
+        orig_segs, orig_frames, orig_fd = len(segs), len(frames), len(frame_descs)
+        segs = [s for s in segs if s.start < test_duration]
+        frames = [f for f in frames if f.timestamp < test_duration]
+        frame_descs = [f for f in frame_descs if f.timestamp < test_duration]
+        log.info("test_duration=%ds: segs %d→%d, frames %d→%d, descs %d→%d",
+                 test_duration, orig_segs, len(segs), orig_frames, len(frames),
+                 orig_fd, len(frame_descs))
+        # 同时把 meta.duration 截短, outline 才不会规划视频后半部分
+        meta = {**meta, "duration": min(meta.get("duration", test_duration), test_duration)}
 
     # 5. v4 文档生成: outline → section → polish → assemble
     log.info("=== Stage 5: 文档生成 (v4) ===")

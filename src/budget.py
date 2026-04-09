@@ -31,6 +31,7 @@ PRICE_TABLE: dict[str, tuple[float, float]] = {
     "glm-4.5-air":             (0.60, 2.40),    # critique 用 (换家族)
     "glm-4.6":                 (1.20, 4.80),
     "deepseek-v3.2":           (1.20, 1.80),    # 比直觉贵很多, 备选
+    "kimi-k2":                 (0.60, 2.40),    # 估算, 跑完对账
     "deepseek-v3.1":           (2.40, 7.20),    # 比 v3.2 还贵, 不推荐
     "gemini-2.5-pro":          (1.00, 8.00),    # 精修档
     # ── 视觉 (按 token 计) ───────────────────────
@@ -104,7 +105,10 @@ class BudgetGuard:
 
     @staticmethod
     def estimate_asr_cost(model: str, audio_minutes: float) -> float:
-        return ASR_PRICE_PER_MIN.get(model, 0.006) * audio_minutes
+        # 粗估: 平台按 token 计价, 口播大约每分钟 ~150 tokens input.
+        # 此函数仅在使用云 ASR 时走到; 当前本地 faster-whisper 路径不调用.
+        price_per_1m = ASR_PRICE_PER_1M.get(model, 1.5)
+        return price_per_1m * (150 * audio_minutes) / 1_000_000
 
     # ---------- 守护 ----------
     def precheck(self, stage: str, est_cost_usd: float) -> None:

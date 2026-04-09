@@ -1,11 +1,11 @@
 mode: test
-total_budget_cny: 0.20    # 测试稍微放宽, 避免被预检卡住
+total_budget_cny: 0.40    # test 模式: 前 2 分钟 + 更多帧
 fail_fast: true
 max_tokens_per_call: 2500
 
 stage_limits:
   type_detect: 0.005
-  vision:      0.05    # 4-5 帧 qwen3-vl-plus
+  vision:      0.15    # 15 帧 qwen3-vl-plus
   ocr:         0.005
   anchor:      0.005
   outline:     0.025   # gpt-4o-mini, 留余量
@@ -18,16 +18,16 @@ stage_limits:
 
 call_limits:
   type_detect: 1
-  vision:      5
+  vision:      15
   ocr:         3
   anchor:      1
   outline:     1
-  section:     3
+  section:     8
   polish:      1
   critique:    0
   revise:      0
   map:         0
   reduce:      0
 
-frame_cap: 5
+frame_cap: 15
 chapter_cap: 3

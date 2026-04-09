@@ -1,1292 +1,852 @@
 [
   {
     "start": 0.0,
-    "end": 2.6,
-    "text": "You can download the rc in the video for free, link in the description."
+    "end": 2.56,
+    "text": "You can download the R scene in the video for free, link in the description."
   },
   {
-    "start": 2.6,
+    "start": 2.56,
     "end": 6.0,
     "text": "But damage numbers that are simple and easy to add to any enemy in your game."
   },
   {
     "start": 6.0,
-    "end": 10.1,
-    "text": "We will create our own custom node that we can add like any other node through the add node window."
+    "end": 10.08,
+    "text": "We will create our own custom node that we can add like any other node through the add node window,"
   },
   {
-    "start": 10.1,
-    "end": 12.8,
-    "text": "Which will hold all the logic for spawning in the damage number label."
+    "start": 10.08,
+    "end": 12.72,
+    "text": "which will hold all the logic for spawning in the damage number label."
   },
   {
-    "start": 12.8,
+    "start": 12.72,
+    "end": 17.04,
+    "text": "We do so go to the Scripts tab, then go to File, New Script, name it Damage Number Spawner,"
+  },
+  {
+    "start": 17.04,
     "end": 18.0,
-    "text": "We do so go to the scripts tab, then go to file, new script, name it damage number spawner, and press create."
+    "text": "and press Create."
   },
   {
     "start": 18.0,
     "end": 20.4,
-    "text": "Inside we will first make sure it extends node2d."
+    "text": "Inside we will first make sure it extends node 2D."
   },
   {
     "start": 20.4,
-    "end": 23.0,
-    "text": "This is because we want the position value of the node2d."
+    "end": 22.88,
+    "text": "This is because we want the position value of the node 2D,"
   },
   {
-    "start": 23.0,
+    "start": 22.88,
     "end": 26.4,
-    "text": "That's when we add this custom node, it will have all the properties of what it extends."
+    "text": "and so when we add this custom node it will have all the properties of what it extends,"
   },
   {
     "start": 26.4,
     "end": 29.6,
-    "text": "Allowing us to position this spawner where we want the numbers to appear."
+    "text": "allowing us to position this spawner where we want the numbers to appear."
   },
   {
     "start": 29.6,
-    "end": 32.12,
-    "text": "接下来我们调整成有点不好的许多"
+    "end": 33.92,
+    "text": "Next we define the class name as damage number spawner. This will turn the script into a node inside"
   },
   {
-    "start": 32.12,
-    "end": 35.12,
-    "text": "这里就会把许多的许多里面进入许多文件"
+    "start": 33.92,
+    "end": 37.76,
+    "text": "of the add node window and the name on the right is the name of the custom node and therefore"
   },
   {
-    "start": 35.12,
-    "end": 37.3,
-    "text": "而顺序是许多的许多"
+    "start": 37.76,
+    "end": 41.92,
+    "text": "is what we search for when we are adding this node to the scene. Next we will establish two export"
   },
   {
-    "start": 37.3,
-    "end": 40.36,
-    "text": "这就是我们要做的许多的许多"
+    "start": 41.92,
+    "end": 45.52,
+    "text": "variables. Label settings will hold all the settings for the label that we are spawning in"
   },
   {
-    "start": 40.36,
-    "end": 42.66,
-    "text": "接下来我们会将计计2号计算"
+    "start": 45.52,
+    "end": 49.76,
+    "text": "as the label settings resource holds a bunch of different data such as font, font size,"
   },
   {
-    "start": 42.66,
-    "end": 45.6,
-    "text": "许多的许多会担任许多的许多的许多"
+    "start": 49.76,
+    "end": 53.44,
+    "text": "font color, outlines and more. And critical hit color will be the color of the font when"
   },
   {
-    "start": 45.6,
-    "end": 48.28,
-    "text": "许多的许多的许多会担任许多的许多"
+    "start": 53.44,
+    "end": 57.2,
+    "text": "we land a critical hit which we will use a default value of red although here you"
   },
   {
-    "start": 48.28,
-    "end": 51.44,
-    "text": "比如许多,许多,许多,许多"
+    "start": 57.2,
+    "end": 60.56,
+    "text": "you would want to change this color to whatever color you're commonly using, which can either"
   },
   {
-    "start": 51.44,
-    "end": 54.6,
-    "text": "许多的许多会担任许多的许多"
+    "start": 60.56,
+    "end": 64.36,
+    "text": "be done using color, dot, and then the name of that color, or you can use a string for"
   },
   {
-    "start": 54.6,
-    "end": 56.62,
-    "text": "我们将使用许多的许多的许多"
+    "start": 64.36,
+    "end": 67.86,
+    "text": "the hex value, which if you do it this way then you can click on the color for an easier"
   },
   {
-    "start": 56.62,
-    "end": 58.42,
-    "text": "许多的许多会担任许多的许多"
-  },
-  {
-    "start": 58.42,
-    "end": 60.02,
-    "text": "就是你平常使用的色彩"
-  },
-  {
-    "start": 60.02,
-    "end": 63.08,
-    "text": "可以用色彩的名字或名字"
-  },
-  {
-    "start": 63.08,
-    "end": 65.22,
-    "text": "或用一支線來使用"
-  },
-  {
-    "start": 65.22,
-    "end": 66.22,
-    "text": "如果這樣做"
-  },
-  {
-    "start": 66.22,
-    "end": 67.42,
-    "text": "可以選擇色彩"
-  },
-  {
-    "start": 67.42,
+    "start": 67.86,
     "end": 68.86,
-    "text": "或是更容易的色彩"
+    "text": "color selection."
   },
   {
     "start": 68.86,
-    "end": 70.86,
-    "text": "另外我們可以用X4的方式"
+    "end": 71.96,
+    "text": "Additionally, we make both of these export variables to allow for a different value"
   },
   {
-    "start": 70.86,
-    "end": 73.32,
-    "text": "來讓我們可以使用不同的色彩"
+    "start": 71.96,
+    "end": 75.12,
+    "text": "on each spawner that we add to our game, allowing different enemies to have different"
   },
   {
-    "start": 73.32,
-    "end": 74.82,
-    "text": "讓我們可以使用不同的色彩"
+    "start": 75.12,
+    "end": 78.4,
+    "text": "looking labels that display the damage dealt to them, which can become especially"
   },
   {
-    "start": 74.82,
-    "end": 77.32,
-    "text": "讓我們可以使用不同的色彩"
+    "start": 78.4,
+    "end": 81.44,
+    "text": "useful if you want to use a different color for the damage dealt to the opponent,"
   },
   {
-    "start": 77.32,
-    "end": 78.86,
-    "text": "可以特別使用"
+    "start": 81.44,
+    "end": 83.64,
+    "text": "compared to damage that an opponent does to you."
   },
   {
-    "start": 78.86,
-    "end": 80.06,
-    "text": "如果你想使用不同色彩"
+    "start": 83.64,
+    "end": 86.6,
+    "text": "Additionally, feel free to add as many export variables as you would like with"
   },
   {
-    "start": 80.06,
-    "end": 81.46,
-    "text": "用X4的方式"
+    "start": 86.6,
+    "end": 90.04,
+    "text": "various properties and things that we will be setting in the script. Next, we will create a custom"
   },
   {
-    "start": 81.46,
-    "end": 83.46,
-    "text": "可以使用不同的色彩"
+    "start": 90.04,
+    "end": 94.28,
+    "text": "function called spawn label, which will have two arguments. Number is the value that we want"
   },
   {
-    "start": 83.46,
-    "end": 84.78,
-    "text": "另外可以使用"
+    "start": 94.28,
+    "end": 98.12,
+    "text": "the label to display. And critical hit is what we will use to know whether the color should be"
   },
   {
-    "start": 84.78,
-    "end": 86.46,
-    "text": "很多X4的方式"
+    "start": 98.12,
+    "end": 102.12,
+    "text": "changed to a critical hit color, which we provide this argument with a default value of false, but"
   },
   {
-    "start": 86.46,
-    "end": 87.46,
-    "text": "或是不同的色彩"
+    "start": 102.12,
+    "end": 105.88,
+    "text": "that if you have certain enemies or objects that can't receive a critical hit, then you only"
   },
   {
-    "start": 87.46,
-    "end": 89.16,
-    "text": "那些东西我们会调整在描述中"
+    "start": 105.88,
+    "end": 109.32,
+    "text": "need to call this function with a number and nothing else. Insert the function we will"
   },
   {
-    "start": 89.16,
-    "end": 91.7,
-    "text": "接下来我们会提供一个方式叫SpawnLabel"
+    "start": 109.32,
+    "end": 113.24,
+    "text": "first define a variable called new label, which will hold a new label node. Then we will"
   },
   {
-    "start": 91.7,
-    "end": 93.22,
-    "text": "这些就是两个线路"
+    "start": 113.24,
+    "end": 117.72,
+    "text": "set a variety of properties on the label. For the text, we use str to convert the number"
   },
   {
-    "start": 93.22,
-    "end": 95.66,
-    "text": "线路是我们要的数字"
+    "start": 117.72,
+    "end": 121.4,
+    "text": "into a string that we can use for the text property. Which for this, we also use a Turner"
   },
   {
-    "start": 95.66,
-    "end": 95.86,
-    "text": "并且是我们会使用的"
+    "start": 121.4,
+    "end": 126.12,
+    "text": "Reef statement where we will use the exact number if step decimals with the number in brackets is"
   },
   {
-    "start": 95.86,
-    "end": 97.2,
-    "text": "并且是我们会使用的"
+    "start": 126.12,
+    "end": 130.12,
+    "text": "equal to zero. Also, we will use an integer version of the number step decimals simply"
   },
   {
-    "start": 97.2,
-    "end": 99.7,
-    "text": "上色应该会进行向我们的数字"
+    "start": 130.12,
+    "end": 134.12,
+    "text": "equals a number based on how many decimals it takes to reach the decimal that isn't zero."
   },
   {
-    "start": 99.7,
-    "end": 100.86,
-    "text": "我们会提供一个方式"
+    "start": 134.12,
+    "end": 138.68,
+    "text": "So if a number is equal to 10.0, it returns zero because there is no non zero decimal."
   },
   {
-    "start": 100.86,
-    "end": 102.26,
-    "text": "在正式的数字里的订选"
+    "start": 138.68,
+    "end": 142.84,
+    "text": "And if a number equals 10.5, then it returns one. This saves us from having the label"
   },
   {
-    "start": 102.26,
-    "end": 104.22,
-    "text": "但是如果有某些人或物件"
+    "start": 142.84,
+    "end": 147.64,
+    "text": "display 10.0 instead displaying the number as an integer meaning it would just display 10."
   },
   {
-    "start": 104.22,
-    "end": 105.7,
-    "text": "不可以抽出并且"
+    "start": 147.64,
+    "end": 151.48,
+    "text": "We will then set the level settings of the label to a duplicate version of the label settings"
   },
   {
-    "start": 105.7,
-    "end": 107.06,
-    "text": "那么我们仍然需要达到了这个数字"
+    "start": 151.48,
+    "end": 155.32,
+    "text": "export variable. This is to ensure that if we change the color to a critical hit color,"
   },
   {
-    "start": 107.06,
-    "end": 108.52,
-    "text": "并且是没有其他数字"
+    "start": 155.32,
+    "end": 159.64,
+    "text": "it doesn't change it on all levels using this level settings. I then set the z-index to something"
   },
   {
-    "start": 108.52,
-    "end": 109.3,
-    "text": "接下来的数字"
+    "start": 159.64,
+    "end": 163.72,
+    "text": "like 1000 so that the label appears above all other content in the game. Although you may"
   },
   {
-    "start": 109.3,
-    "end": 111.52,
-    "text": "我们会找到一种叫NudeLabel"
+    "start": 163.72,
+    "end": 166.68,
+    "text": "want to change this to a even higher number based on how your game is set up with the"
   },
   {
-    "start": 111.52,
-    "end": 113.02,
-    "text": "这些是NudeLabel的线路"
+    "start": 166.68,
+    "end": 170.68,
+    "text": "z-index. The most important part about the z-index number is just to make sure that this"
   },
   {
-    "start": 113.02,
-    "end": 114.22,
-    "text": "我们接下来会把数字的数字"
+    "start": 170.68,
+    "end": 175.32,
+    "text": "label appears above everything else. We set the pivot ratio to the bottom middle of the label,"
   },
   {
-    "start": 114.22,
-    "end": 115.46,
-    "text": "带来一个数字"
+    "start": 175.32,
+    "end": 178.76,
+    "text": "so that when we change and animate the scale of the label, the origin will be at the bottom"
   },
   {
-    "start": 115.46,
-    "end": 120.1,
-    "text": "我們使用str to convert the number into a string that we can use for the text property"
+    "start": 178.76,
+    "end": 182.92,
+    "text": "middle. Also, we didn't set the global position of the label node, as we will be adding a label"
   },
   {
-    "start": 120.1,
-    "end": 122.34,
-    "text": "which for this we also use a turner-reif statement"
+    "start": 182.92,
+    "end": 187.16,
+    "text": "as a child of this spawner, which will make this label 00 equal to the exact position of"
   },
   {
-    "start": 122.34,
-    "end": 124.1,
-    "text": "where we will use the exact number"
+    "start": 187.16,
+    "end": 191.4,
+    "text": "this spawner. We will however have to add a slight offset to align the pivot offset to the"
   },
   {
-    "start": 124.1,
-    "end": 126.98,
-    "text": "if step decimals with the number in brackets is equal to 0"
+    "start": 191.4,
+    "end": 195.56,
+    "text": "00 of the spawner, which we will do later. Next, if we lend a critical hit, then we"
   },
   {
-    "start": 126.98,
-    "end": 129.14,
-    "text": "else we will use an integer version of the number"
+    "start": 195.56,
+    "end": 200.12,
+    "text": "grab the labels label settings, its font color, and change it to the critical hit color."
   },
   {
-    "start": 129.14,
-    "end": 132.5,
-    "text": "step decimals simply equals a number based on how many decimals it takes"
+    "start": 200.12,
+    "end": 203.82,
+    "text": "Also, make sure you are editing the levels, level settings, and not the level settings"
   },
   {
-    "start": 132.5,
-    "end": 134.18,
-    "text": "to reach the decimal that isn't 0"
+    "start": 203.82,
+    "end": 204.82,
+    "text": "export variable."
   },
   {
-    "start": 134.18,
-    "end": 136.18,
-    "text": "so if a number is equal to 10.0"
+    "start": 204.82,
+    "end": 208.06,
+    "text": "Additionally, in the case that your game has any lighting and you don't want the level"
   },
   {
-    "start": 136.18,
-    "end": 138.74,
-    "text": "it returns 0 because there is no non-zero decimal"
+    "start": 208.06,
+    "end": 211.9,
+    "text": "to be affected by that 2D lighting, then you can create a variable to hold a new level"
   },
   {
-    "start": 138.74,
-    "end": 140.5,
-    "text": "and if a number equals 10.5"
+    "start": 211.9,
+    "end": 216.26,
+    "text": "material, set it to a new canvas item material, set the light mode of the material, set the"
   },
   {
-    "start": 140.5,
-    "end": 141.46,
-    "text": "then it returns 1"
+    "start": 216.26,
+    "end": 220.46,
+    "text": "light mode unshaded, then apply that level material to the material of the level node."
   },
   {
-    "start": 141.46,
-    "end": 144.1,
-    "text": "this saves us from having the label displayed 10.0"
+    "start": 220.46,
+    "end": 224.02,
+    "text": "This will ignore lighting and shadows from the various 2D lighting nodes, although this"
   },
   {
-    "start": 144.1,
-    "end": 146.2,
-    "text": "instead displaying the number as an integer"
+    "start": 224.02,
+    "end": 225.46,
+    "text": "part is completely optional."
   },
   {
-    "start": 146.2,
-    "end": 147.8,
-    "text": "meaning it will just display 10"
+    "start": 225.46,
+    "end": 228.58,
+    "text": "Finally, we add the level node as a child of the spawner node, and we use"
   },
   {
-    "start": 147.8,
-    "end": 149.6,
-    "text": "we will then set the label settings of the label"
+    "start": 228.58,
+    "end": 232.2,
+    "text": "called a third to add the label node at the end of the current frame so that we can use"
   },
   {
-    "start": 149.6,
-    "end": 152.4,
-    "text": "to a duplicate version of the label settings export variable"
+    "start": 232.2,
+    "end": 236.8,
+    "text": "a weight on the resize signal, which will occur or emit naturally when the label changes"
   },
   {
-    "start": 152.4,
-    "end": 155.4,
-    "text": "this is to ensure that if we change the color to a critical hit color"
+    "start": 236.8,
+    "end": 241.16,
+    "text": "size due to its text being set, allowing us to then set the offset of the position of"
   },
   {
-    "start": 155.4,
-    "end": 158.2,
-    "text": "it doesn't change it on all labels using this label settings"
+    "start": 241.16,
+    "end": 245.12,
+    "text": "the label node based on the size of the label so that the bottom middle of the label is"
   },
   {
-    "start": 158.2,
-    "end": 160.4,
-    "text": "i then set the zindex to something like 1000"
+    "start": 245.12,
+    "end": 248.68,
+    "text": "positioned at the spawn is zero zero. And by using called a third, we ensure that"
   },
   {
-    "start": 160.4,
-    "end": 163.2,
-    "text": "so that the label appears above all other content in the game"
+    "start": 248.68,
+    "end": 252.44,
+    "text": "the order of events are correct and don't cause any potential errors. Additionally,"
   },
   {
-    "start": 163.2,
-    "end": 165.4,
-    "text": "although you may want to change this to a even higher number"
+    "start": 252.44,
+    "end": 255.72,
+    "text": "if you would like a slight offset to the spawn position of the label, you can also"
   },
   {
-    "start": 165.4,
-    "end": 167.5,
-    "text": "based on how your game is set up with the zindex"
+    "start": 255.72,
+    "end": 260.28,
+    "text": "add this line, which we'll just add a random value from negative five to five on both axis."
   },
   {
-    "start": 167.5,
-    "end": 169.6,
-    "text": "the most important part about the zindex number"
+    "start": 260.28,
+    "end": 264.12,
+    "text": "Now for the animation of the label node, we will establish three variables to help."
   },
   {
-    "start": 169.6,
-    "end": 172.6,
-    "text": "is just to make sure that this label appears above everything else"
+    "start": 264.12,
+    "end": 268.04,
+    "text": "Target rise position is the position we want the label to reach so that it looks like it's rising."
   },
   {
-    "start": 172.6,
-    "end": 175.4,
-    "text": "We set the pivot ratio to the bottom middle of the label"
+    "start": 268.04,
+    "end": 273.08,
+    "text": "This will equal the label's current position plus a random value from negative 22 to negative 16"
   },
   {
-    "start": 175.4,
-    "end": 177.6,
-    "text": "So that when we change and animate the scale of the label"
+    "start": 273.08,
+    "end": 276.84,
+    "text": "on the Y so that it will go up. By having a different value, it will appear as if the"
   },
   {
-    "start": 177.6,
-    "end": 179.3,
-    "text": "The origin will be at the bottom middle"
+    "start": 276.84,
+    "end": 280.6,
+    "text": "animation is rising at different speeds and we also apply a slight randomness of the"
   },
   {
-    "start": 179.3,
-    "end": 181.8,
-    "text": "Also we didn't set the global position of the label node"
+    "start": 280.6,
+    "end": 284.6,
+    "text": "horizontal position of the target so that the value doesn't just go straight up, allowing"
   },
   {
-    "start": 181.8,
-    "end": 184.3,
-    "text": "So we will be adding a label as a child of the spawner"
+    "start": 284.6,
+    "end": 289.0,
+    "text": "the player to differentiate between multiple damaged labels that may appear at very close times."
   },
   {
-    "start": 184.3,
-    "end": 187.9,
-    "text": "Which will make this label 00 equal to the exact position of the spawner"
+    "start": 289.0,
+    "end": 292.84,
+    "text": "Wean length is the total amount of time that the animation will last, and because the animation"
   },
   {
-    "start": 187.9,
-    "end": 190.0,
-    "text": "We will however have to add a slight offset"
+    "start": 292.84,
+    "end": 296.52,
+    "text": "will last for a set amount of time, it will therefore create an illusion of certain labels"
   },
   {
-    "start": 190.0,
-    "end": 192.7,
-    "text": "To align the pivot offset to the 00 of the spawner"
+    "start": 296.52,
+    "end": 300.36,
+    "text": "having to rise faster than others, due to them having to reach a higher position,"
   },
   {
-    "start": 192.7,
-    "end": 193.8,
-    "text": "Which we will do later"
+    "start": 300.36,
+    "end": 303.96,
+    "text": "which is again why we provide some randomness to the vertical target position."
   },
   {
-    "start": 193.8,
-    "end": 195.4,
-    "text": "Next if we land a critical hit"
+    "start": 303.96,
+    "end": 307.8,
+    "text": "Then to actually animate this label, we create a variable called label tween,"
   },
   {
-    "start": 195.4,
-    "end": 197.4,
-    "text": "Then we grab the label's level settings"
+    "start": 307.8,
+    "end": 312.04,
+    "text": "which will hold a newly created tween, which a tween simply grabs a property on a node"
   },
   {
-    "start": 197.4,
-    "end": 200.1,
-    "text": "It's font color and change it to the critical hit color"
+    "start": 312.04,
+    "end": 316.36,
+    "text": "and moves it towards a value over a given amount of time and by default a tween uses a linear"
   },
   {
-    "start": 200.1,
-    "end": 202.8,
-    "text": "also make sure you are editing the levels level settings"
+    "start": 316.36,
+    "end": 321.0,
+    "text": "progression towards this target value so to provide a better or more smoother looking animation"
   },
   {
-    "start": 202.8,
-    "end": 204.8,
-    "text": "and not the level settings export variable"
+    "start": 321.0,
+    "end": 325.48,
+    "text": "I will use set transition to set the tween to a transition of back now I'll set the easing"
   },
   {
-    "start": 204.8,
-    "end": 207.1,
-    "text": "additionally in the case that your game has any lighting"
+    "start": 325.48,
+    "end": 328.92,
+    "text": "the ease out feel free to change these values as you would like to change how the animation"
   },
   {
-    "start": 207.1,
-    "end": 209.9,
-    "text": "and you don't want the level to be affected by that 2D lighting"
+    "start": 328.92,
+    "end": 332.76,
+    "text": "looks now to activate the tween and provide the necessary data we will be using the"
   },
   {
-    "start": 209.9,
-    "end": 212.6,
-    "text": "then you can create a variable to hold a new level material"
+    "start": 332.76,
+    "end": 337.08,
+    "text": "tween property function three times grabbing the level node the property that we want to"
   },
   {
-    "start": 212.6,
-    "end": 214.4,
-    "text": "set it to a new canvas item material"
+    "start": 337.08,
+    "end": 341.4,
+    "text": "affect the target value and finally the total time of the tween animation which we use"
   },
   {
-    "start": 214.4,
-    "end": 216.0,
-    "text": "set the light mode of the material"
+    "start": 341.4,
+    "end": 343.0,
+    "text": "use our twin length variable for."
   },
   {
-    "start": 216.0,
-    "end": 217.2,
-    "text": "set the light mode unshaded"
-  },
-  {
-    "start": 217.2,
-    "end": 220.2,
-    "text": "then apply that level material to the material of the level node"
-  },
-  {
-    "start": 220.2,
-    "end": 223.4,
-    "text": "this will ignore lighting and shadows from the various 2D lighting nodes"
-  },
-  {
-    "start": 223.4,
-    "end": 225.4,
-    "text": "although this part is completely optional"
-  },
-  {
-    "start": 225.4,
-    "end": 228.1,
-    "text": "finally we add the level node as a child of the spawner node"
-  },
-  {
-    "start": 228.1,
-    "end": 231.48,
-    "text": "然后当我们销售代表时按封面刷端"
-  },
-  {
-    "start": 231.48,
-    "end": 234.24,
-    "text": "使用脸布和尺寸层面试"
-  },
-  {
-    "start": 234.24,
-    "end": 237.38,
-    "text": "随时转换辘位置时"
-  },
-  {
-    "start": 237.38,
-    "end": 238.6,
-    "text": "按封面刷端的地方"
-  },
-  {
-    "start": 238.6,
-    "end": 241.4,
-    "text": "选择计划的执着"
-  },
-  {
-    "start": 241.4,
-    "end": 243.66,
-    "text": "公开纯权的位置"
-  },
-  {
-    "start": 243.66,
-    "end": 245.8,
-    "text": "在线最方向的位置"
-  },
-  {
-    "start": 245.8,
-    "end": 247.4,
-    "text": "网络的表面刷进行"
-  },
-  {
-    "start": 247.4,
-    "end": 248.74,
-    "text": "下面的中处的线"
-  },
-  {
-    "start": 248.74,
-    "end": 250.12,
-    "text": "使用脸布的位置"
-  },
-  {
-    "start": 250.12,
-    "end": 251.82,
-    "text": "我们准划进行"
-  },
-  {
-    "start": 251.82,
-    "end": 253.2,
-    "text": "制线的数据"
-  },
-  {
-    "start": 253.2,
-    "end": 255.2,
-    "text": "使用脸布的位置"
-  },
-  {
-    "start": 255.2,
-    "end": 260.2,
-    "text": "You can also add this line, which will just add a random value from negative 5 to 5 on both axes."
-  },
-  {
-    "start": 260.2,
-    "end": 264.2,
-    "text": "Now for the animation of the label node, you will establish three variables to help."
-  },
-  {
-    "start": 264.2,
-    "end": 268.2,
-    "text": "TargetRisePosition is the position we want the label to reach so that it looks like it's rising."
-  },
-  {
-    "start": 268.2,
-    "end": 270.2,
-    "text": "This will equal the label's current position."
-  },
-  {
-    "start": 270.2,
-    "end": 275.2,
-    "text": "Loss a random value from negative 22 to negative 16 on the Y so that it will go up."
-  },
-  {
-    "start": 275.2,
-    "end": 279.2,
-    "text": "By having a different value, it will appear as if the animation is rising at different speeds."
-  },
-  {
-    "start": 279.2,
-    "end": 282.2,
-    "text": "And we also apply a slight randomness of the horizontal position of the target"
-  },
-  {
-    "start": 282.2,
-    "end": 284.2,
-    "text": "但它仍然沒有直接提升"
-  },
-  {
-    "start": 284.2,
-    "end": 287.2,
-    "text": "讓 player to differentiate between multiple damaged labels"
-  },
-  {
-    "start": 287.2,
-    "end": 289.2,
-    "text": "that may appear at very close times"
-  },
-  {
-    "start": 289.2,
-    "end": 292.2,
-    "text": "queen length is the total amount of time that the animation will last"
-  },
-  {
-    "start": 292.2,
-    "end": 294.2,
-    "text": "and because the animation will last for a set amount of time"
-  },
-  {
-    "start": 294.2,
-    "end": 298.2,
-    "text": "it will therefore create an illusion of certain labels having to rise faster than others"
-  },
-  {
-    "start": 298.2,
-    "end": 300.2,
-    "text": "due to them having to reach a higher position"
-  },
-  {
-    "start": 300.2,
-    "end": 304.2,
-    "text": "which is again why we provide some randomness to the vertical target position"
-  },
-  {
-    "start": 304.2,
-    "end": 306.2,
-    "text": "then to actually animate this label"
-  },
-  {
-    "start": 306.2,
-    "end": 308.2,
-    "text": "we create a variable called label tween"
-  },
-  {
-    "start": 308.2,
-    "end": 310.2,
-    "text": "which will hold a newly created tween"
-  },
-  {
-    "start": 310.2,
-    "end": 311.98,
-    "text": "我們簡單地利用鑰匙"
-  },
-  {
-    "start": 311.98,
-    "end": 313.44,
-    "text": "然後把鑰匙移動到"
-  },
-  {
-    "start": 313.44,
-    "end": 314.54,
-    "text": "需要多次的價值"
-  },
-  {
-    "start": 314.54,
-    "end": 315.48,
-    "text": "然後按按鈕"
-  },
-  {
-    "start": 315.48,
-    "end": 316.64,
-    "text": "鑰匙使用的程式"
-  },
-  {
-    "start": 316.64,
-    "end": 318.18,
-    "text": "去提升鑰匙的價值"
-  },
-  {
-    "start": 318.18,
-    "end": 319.26,
-    "text": "所以可以幫助更好"
-  },
-  {
-    "start": 319.26,
-    "end": 321.18,
-    "text": "更拆散的施工"
-  },
-  {
-    "start": 321.18,
-    "end": 322.72,
-    "text": "我們把鑰匙設定"
-  },
-  {
-    "start": 322.72,
-    "end": 324.54,
-    "text": "再設定鑰匙"
-  },
-  {
-    "start": 324.54,
-    "end": 325.66,
-    "text": "現在設定衣服"
-  },
-  {
-    "start": 325.66,
-    "end": 326.48,
-    "text": "把衣服出售"
-  },
-  {
-    "start": 326.48,
-    "end": 327.42,
-    "text": "你也要不斷改鑰匙"
-  },
-  {
-    "start": 327.42,
-    "end": 328.04,
-    "text": "讓你喜歡"
-  },
-  {
-    "start": 328.04,
-    "end": 329.34,
-    "text": "更改鑰匙的方式"
-  },
-  {
-    "start": 329.34,
-    "end": 330.46,
-    "text": "現在把鑰匙移動"
-  },
-  {
-    "start": 330.46,
-    "end": 332.02,
-    "text": "並且利用必須的資料"
-  },
-  {
-    "start": 332.02,
-    "end": 333.16,
-    "text": "我們會用鑰匙的"
-  },
-  {
-    "start": 333.16,
-    "end": 334.84,
-    "text": "專業3次"
-  },
-  {
-    "start": 334.84,
-    "end": 336.04,
-    "text": "再鑰匙的升級"
-  },
-  {
-    "start": 336.04,
-    "end": 337.52,
-    "text": "我們想要的鑰匙"
-  },
-  {
-    "start": 337.52,
-    "end": 338.64,
-    "text": "的價值"
-  },
-  {
-    "start": 338.64,
-    "end": 341.0,
-    "text": "终于是整个动作的时间"
-  },
-  {
-    "start": 341.0,
-    "end": 342.92,
-    "text": "我们使用的轮廓方法"
-  },
-  {
-    "start": 342.92,
+    "start": 343.0,
     "end": 343.92,
-    "text": "第一个轮廓"
+    "text": "And for the first twin,"
   },
   {
     "start": 343.92,
-    "end": 344.72,
-    "text": "我们移动位置"
+    "end": 346.44,
+    "text": "we move the position towards the target rise position."
   },
   {
-    "start": 344.72,
-    "end": 346.32,
-    "text": "向目标位置"
+    "start": 346.44,
+    "end": 348.2,
+    "text": "For the second, we change the scale"
   },
   {
-    "start": 346.32,
-    "end": 347.04,
-    "text": "第二个轮廓"
+    "start": 348.2,
+    "end": 351.4,
+    "text": "towards a vector two of 1.35 by 1.35."
   },
   {
-    "start": 347.04,
-    "end": 348.12,
-    "text": "我们移动了"
+    "start": 351.4,
+    "end": 354.16,
+    "text": "And we do vector two dot one multiplied by 1.35"
   },
   {
-    "start": 348.12,
-    "end": 351.32,
-    "text": "2.1.35x1.35"
+    "start": 354.16,
+    "end": 356.52,
+    "text": "to make it easier if you want to change this value later"
   },
   {
-    "start": 351.32,
-    "end": 354.12,
-    "text": "我们移动了2.1x1.35"
+    "start": 356.52,
+    "end": 358.0,
+    "text": "as you will only need to edit one number"
   },
   {
-    "start": 354.12,
-    "end": 354.92,
-    "text": "让它更方便"
+    "start": 358.0,
+    "end": 360.2,
+    "text": "to effectively edit both on either axis."
   },
   {
-    "start": 354.92,
-    "end": 356.44,
-    "text": "如果您想移动它的位置"
+    "start": 360.2,
+    "end": 361.8,
+    "text": "And lastly, we move the modulate dot A"
   },
   {
-    "start": 356.44,
-    "end": 357.44,
-    "text": "因为您仍然需要移动"
+    "start": 361.8,
+    "end": 363.2,
+    "text": "or transparency of the label"
   },
   {
-    "start": 357.44,
-    "end": 357.96,
-    "text": "1个轮廓"
+    "start": 363.2,
+    "end": 365.36,
+    "text": "towards a value of zero to make the label invisible."
   },
   {
-    "start": 357.96,
-    "end": 360.12,
-    "text": "移动它们的位置"
+    "start": 365.36,
+    "end": 366.52,
+    "text": "Additionally, you should take note"
   },
   {
-    "start": 360.12,
-    "end": 361.0,
-    "text": "最后我们移动了"
+    "start": 366.52,
+    "end": 368.16,
+    "text": "that we use a colon instead of a dot."
   },
   {
-    "start": 361.0,
-    "end": 361.84,
-    "text": "1.8轮廓"
+    "start": 368.16,
+    "end": 369.32,
+    "text": "So when you are in a string,"
   },
   {
-    "start": 361.84,
-    "end": 363.16,
-    "text": "或轮廓的轮廓"
+    "start": 369.32,
+    "end": 371.72,
+    "text": "always use a colon instead of a dot for properties."
   },
   {
-    "start": 363.16,
-    "end": 364.08,
-    "text": "移动了轮廓"
+    "start": 371.72,
+    "end": 374.06,
+    "text": "And one issue with using three tween property functions"
   },
   {
-    "start": 364.08,
-    "end": 365.32,
-    "text": "让轮廓看见"
+    "start": 374.06,
+    "end": 375.28,
+    "text": "on the one tween variable"
   },
   {
-    "start": 365.32,
-    "end": 366.28,
-    "text": "再加上您应该"
+    "start": 375.28,
+    "end": 377.88,
+    "text": "is that we need to tell Godot to run these simultaneously,"
   },
   {
-    "start": 366.28,
-    "end": 367.32,
-    "text": "使用轮廓"
-  },
-  {
-    "start": 367.32,
-    "end": 368.12,
-    "text": "instead of a dot"
-  },
-  {
-    "start": 368.12,
-    "end": 371.64,
-    "text": "是当你用一个锅子 instead of a dot for properties"
-  },
-  {
-    "start": 371.64,
-    "end": 373.92,
-    "text": "一个问题是使用三个锅子的方式"
-  },
-  {
-    "start": 373.92,
-    "end": 375.22,
-    "text": "在一个锅子的方式上"
-  },
-  {
-    "start": 375.22,
-    "end": 377.8,
-    "text": "是我们需要告诉go.to 去返回它"
-  },
-  {
-    "start": 377.8,
+    "start": 377.88,
     "end": 379.8,
-    "text": "这可以通过锅子的方式"
+    "text": "which can be done by calling the parallel function"
   },
   {
     "start": 379.8,
-    "end": 381.36,
-    "text": "返回的方式"
+    "end": 381.44,
+    "text": "before the tween property function."
   },
   {
-    "start": 381.36,
+    "start": 381.44,
     "end": 382.76,
-    "text": "我们不写这一句"
+    "text": "And we don't write this for the first one"
   },
   {
     "start": 382.76,
-    "end": 385.32,
-    "text": "因为我们要告诉go.to 去返回这两个锅子的方式"
+    "end": 383.6,
+    "text": "as we are telling Godot"
   },
   {
-    "start": 385.32,
-    "end": 387.32,
-    "text": "返回的方式"
+    "start": 383.6,
+    "end": 386.08,
+    "text": "to run these two tween property functions in parallel"
   },
   {
-    "start": 387.32,
-    "end": 388.52,
-    "text": "最后我们需要找一个方式"
+    "start": 386.08,
+    "end": 387.48,
+    "text": "with the first one that is called."
   },
   {
-    "start": 388.52,
-    "end": 389.48,
-    "text": "去删除这个锅子"
+    "start": 387.48,
+    "end": 389.52,
+    "text": "Finally, we need to find a way to delete this label"
   },
   {
-    "start": 389.48,
-    "end": 391.04,
-    "text": "等它完成了这个设备"
+    "start": 389.52,
+    "end": 391.12,
+    "text": "after it has completed its animation"
   },
   {
-    "start": 391.04,
-    "end": 392.12,
-    "text": "然后去看"
+    "start": 391.12,
+    "end": 392.16,
+    "text": "and gone invisible."
   },
   {
-    "start": 392.12,
-    "end": 393.42,
-    "text": "我们使用connect"
+    "start": 392.16,
+    "end": 393.48,
+    "text": "To do this, we use connect"
   },
   {
-    "start": 393.42,
-    "end": 395.44,
-    "text": "去返回锅子的建设和结构"
+    "start": 393.48,
+    "end": 395.52,
+    "text": "to connect the tween's built-in finish signal"
   },
   {
-    "start": 395.44,
-    "end": 398.22,
-    "text": "which activates or emits when the twin property function completes"
+    "start": 395.52,
+    "end": 396.56,
+    "text": "which activates or emits"
   },
   {
-    "start": 398.22,
-    "end": 400.78,
-    "text": "and we're connected to the Q3 function on the label node"
+    "start": 396.56,
+    "end": 398.32,
+    "text": "when the tween property function completes"
   },
   {
-    "start": 400.78,
-    "end": 404.58,
-    "text": "Overall, calling Q3 once the label reaches a modulated value of 0"
+    "start": 398.32,
+    "end": 400.92,
+    "text": "and we're connected to the Q3 function on the level node."
   },
   {
-    "start": 404.58,
-    "end": 406.74,
-    "text": "Making the node delete itself once invisible"
+    "start": 400.92,
+    "end": 403.24,
+    "text": "Overall, calling Q3 once the level reaches"
   },
   {
-    "start": 406.74,
-    "end": 408.94,
-    "text": "Now to add this damage number system to your game"
+    "start": 403.24,
+    "end": 404.68,
+    "text": "a modulated value of zero,"
   },
   {
-    "start": 408.94,
-    "end": 410.48,
-    "text": "Go to any enemy in your game"
+    "start": 404.68,
+    "end": 406.88,
+    "text": "making the node delete itself once invisible."
   },
   {
-    "start": 410.48,
-    "end": 411.54,
-    "text": "Press the plus"
+    "start": 406.88,
+    "end": 409.04,
+    "text": "Now, to add this damage number system to your game,"
   },
   {
-    "start": 411.54,
-    "end": 413.92,
-    "text": "And add the damage number spawner scene we created"
+    "start": 409.04,
+    "end": 411.68,
+    "text": "go to any enemy in your game, press the plus,"
   },
   {
-    "start": 413.92,
-    "end": 416.98,
-    "text": "Keep in mind that this is the class name that we established earlier in the script"
+    "start": 411.68,
+    "end": 414.04,
+    "text": "and add the damage number spawner scene we created."
   },
   {
-    "start": 416.98,
-    "end": 418.42,
-    "text": "Also, if this doesn't show up"
+    "start": 414.04,
+    "end": 415.44,
+    "text": "Keep in mind that this is the class name"
   },
   {
-    "start": 418.42,
-    "end": 421.32,
-    "text": "Make sure the spelling is correct to what you wrote for the class name"
+    "start": 415.44,
+    "end": 417.08,
+    "text": "that we established earlier in the script."
   },
   {
-    "start": 421.32,
-    "end": 422.58,
-    "text": "And if it still doesn't show up"
+    "start": 417.08,
+    "end": 418.48,
+    "text": "Also, if this doesn't show up,"
   },
   {
-    "start": 422.58,
-    "end": 424.58,
-    "text": "Then save your go dot project and reopen it"
+    "start": 418.48,
+    "end": 419.76,
+    "text": "make sure the spelling is correct"
   },
   {
-    "start": 424.58,
-    "end": 426.76,
-    "text": "Once the node is selected, press Create"
+    "start": 419.76,
+    "end": 421.4,
+    "text": "of what you wrote for the class name."
   },
   {
-    "start": 426.76,
+    "start": 421.4,
+    "end": 422.68,
+    "text": "And if it still doesn't show up,"
+  },
+  {
+    "start": 422.68,
+    "end": 424.68,
+    "text": "then save your go dot project and reopen it."
+  },
+  {
+    "start": 424.68,
+    "end": 426.84,
+    "text": "Once the node is selected, press create."
+  },
+  {
+    "start": 426.84,
+    "end": 427.92,
+    "text": "Once added to the scene,"
+  },
+  {
+    "start": 427.92,
     "end": 430.96,
-    "text": "Once added to the scene, feel free to reposition the node to wherever you want the label to spawn"
+    "text": "Feel free to reposition the node to wherever you want the labels to spawn."
   },
   {
     "start": 430.96,
-    "end": 433.06,
-    "text": "I will move mine to 2 on the white axis"
+    "end": 433.08,
+    "text": "I'll move mine to two on the white axis."
   },
   {
-    "start": 433.06,
-    "end": 435.22,
-    "text": "Then we can start setting the export variables"
+    "start": 433.08,
+    "end": 435.28,
+    "text": "Then we can start setting the export variables."
   },
   {
-    "start": 435.22,
-    "end": 436.92,
-    "text": "Set the critical hit color as you would like"
+    "start": 435.28,
+    "end": 436.96,
+    "text": "Set the critical hit color as you would like."
   },
   {
-    "start": 436.92,
-    "end": 439.32,
-    "text": "Then select the empty on the label settings export"
+    "start": 436.96,
+    "end": 440.92,
+    "text": "Then select the empty on the label settings export and create a new level settings."
   },
   {
-    "start": 439.32,
-    "end": 440.88,
-    "text": "And create a new level settings"
+    "start": 440.92,
+    "end": 442.92,
+    "text": "Here you can edit any values as you would like."
   },
   {
-    "start": 440.88,
-    "end": 442.88,
-    "text": "Here you can edit any values as you would like"
+    "start": 442.92,
+    "end": 447.2,
+    "text": "Setting the font, the font size, the outline size and color, as well as much more."
   },
   {
-    "start": 442.88,
-    "end": 446.12,
-    "text": "Setting the font, the font size, the outline size and color"
+    "start": 447.2,
+    "end": 450.6,
+    "text": "Additionally, if almost all of your labels across the different scenes of your different"
   },
   {
-    "start": 446.12,
-    "end": 447.16,
-    "text": "As well as much more"
+    "start": 450.6,
+    "end": 453.84,
+    "text": "enemies are going to use the same properties, then select the drop down."
   },
   {
-    "start": 447.16,
-    "end": 452.48,
-    "text": "Additionally, if almost all of your labels across the different scenes of your different enemies are going to use the same properties"
-  },
-  {
-    "start": 452.48,
+    "start": 453.84,
     "end": 454.88,
-    "text": "然后选择 drop-down,选择 save as"
+    "text": "Press save as."
   },
   {
     "start": 454.88,
     "end": 457.28,
-    "text": "我会叫 my damage label basic,选择 save"
+    "text": "We'll call mine damage label basic press save."
   },
   {
     "start": 457.28,
-    "end": 459.28,
-    "text": "现在我会选择新 label settings"
+    "end": 461.36,
+    "text": "Now, when I want to add a new label settings, which has all the typical values that I use,"
   },
   {
-    "start": 459.28,
-    "end": 461.38,
-    "text": "这有所有的 typical values that I use"
+    "start": 461.36,
+    "end": 465.28,
+    "text": "I can press the folder icon and select the damage label basic that I just created."
   },
   {
-    "start": 461.38,
-    "end": 462.88,
-    "text": "我可以选择 the folder icon"
+    "start": 465.28,
+    "end": 468.32,
+    "text": "And if you just want to use the majority of settings in this typical label settings,"
   },
   {
-    "start": 462.88,
-    "end": 465.38,
-    "text": "然后选择 the damage label basic that I just created"
+    "start": 468.32,
+    "end": 472.32,
+    "text": "but you want to change maybe a few things for a specific enemy, then select the drop down again"
   },
   {
-    "start": 465.38,
-    "end": 468.48,
-    "text": "如果你想选择大多数的 settings in this typical label settings"
+    "start": 472.32,
+    "end": 476.4,
+    "text": "and press make unique so that now any edits made won't affect the label settings file that"
   },
   {
-    "start": 468.48,
-    "end": 469.88,
-    "text": "如果你想改变一些东西"
+    "start": 476.4,
+    "end": 479.84,
+    "text": "we just saved. Once all the values are set as you would like for the visuals of the label"
   },
   {
-    "start": 469.88,
-    "end": 471.08,
-    "text": "选择 specific enemy"
+    "start": 479.84,
+    "end": 483.28,
+    "text": "being spawned, we can go to the script of the enemy and all we need to do is grab the"
   },
   {
-    "start": 471.08,
-    "end": 472.38,
-    "text": "然后选择 drop-down again"
+    "start": 483.28,
+    "end": 487.16,
+    "text": "the damage number spawn a node that we just created, call the spawn label function, passing"
   },
   {
-    "start": 472.38,
-    "end": 473.48,
-    "text": "然后选择 make unique"
+    "start": 487.16,
+    "end": 490.24,
+    "text": "the amount of damage that we want to deal, which you can just put a number here if you"
   },
   {
-    "start": 473.48,
-    "end": 474.78,
-    "text": "所以现在 any add is made"
+    "start": 490.24,
+    "end": 493.52,
+    "text": "would like, and whether it is a critical hit, which you can just put a true or false here"
   },
   {
-    "start": 474.78,
-    "end": 477.18,
-    "text": "不会影响 the label settings file that we just saved"
+    "start": 493.52,
+    "end": 497.04,
+    "text": "if you would like as well. Keep in mind that if you have a certain enemy or object that"
   },
   {
-    "start": 477.18,
-    "end": 478.78,
-    "text": "选择 all the values are set as you would like"
+    "start": 497.04,
+    "end": 500.52,
+    "text": "doesn't receive a critical hit damage, then you can just pass the damage on its own,"
   },
   {
-    "start": 478.78,
-    "end": 480.58,
-    "text": "for the visuals of the label being spawned"
+    "start": 500.52,
+    "end": 503.4,
+    "text": "as Godot will just rely on the default value that we set earlier for the critical"
   },
   {
-    "start": 480.58,
-    "end": 482.18,
-    "text": "我们可以到 the script of the enemy"
+    "start": 503.4,
+    "end": 507.16,
+    "text": "hit variable, which was false, and again just to clear any confusion, you don't"
   },
   {
-    "start": 482.18,
-    "end": 485.44,
-    "text": "我們需要用Dmg.Spawn.Node是我們設的"
+    "start": 507.16,
+    "end": 510.16,
+    "text": "have to use separate variables for the damage or critical hit, as you can just pass"
   },
   {
-    "start": 485.44,
-    "end": 486.92,
-    "text": "叫Spawn.Nable function"
+    "start": 510.16,
+    "end": 513.6,
+    "text": "a number with or without a decimal and a true or false for the critical hit."
   },
   {
-    "start": 486.92,
-    "end": 488.8,
-    "text": "將圍繞大量oi want to deal"
+    "start": 513.6,
+    "end": 516.62,
+    "text": "Now you have a simple damage number spawner that you can add to any of your enemies in"
   },
   {
-    "start": 488.84,
-    "end": 490.74,
-    "text": "可以放一個號碼如果您介意"
+    "start": 516.62,
+    "end": 519.66,
+    "text": "any of your 2D CoD games and don't forget that you can check out the project files"
   },
   {
-    "start": 490.74,
-    "end": 492.14,
-    "text": "那是否有繁殖"
-  },
-  {
-    "start": 492.14,
-    "end": 494.56,
-    "text": "也可以放一個錯誤的號碼如果您必先選"
-  },
-  {
-    "start": 494.58,
-    "end": 497.0,
-    "text": "別忘了它有堆積敵 or object"
-  },
-  {
-    "start": 497.0,
-    "end": 498.62,
-    "text": "沒有了繁殖感"
-  },
-  {
-    "start": 498.66,
-    "end": 500.38,
-    "text": "可以放一個名字"
-  },
-  {
-    "start": 500.42,
-    "end": 502.12,
-    "text": "Gotta will just rely on the default value"
-  },
-  {
-    "start": 502.12,
-    "end": 502.86,
-    "text": "正如我們做的"
-  },
-  {
-    "start": 502.86,
-    "end": 504.12,
-    "text": "在繁殖的Verbal"
-  },
-  {
-    "start": 504.12,
-    "end": 504.94,
-    "text": "錯誤"
-  },
-  {
-    "start": 504.94,
-    "end": 506.8,
-    "text": "就此要先控制"
-  },
-  {
-    "start": 506.84,
-    "end": 508.26,
-    "text": "不必使用別的版本"
-  },
-  {
-    "start": 508.26,
-    "end": 509.44,
-    "text": "負責等繁殖"
-  },
-  {
-    "start": 509.44,
-    "end": 510.66,
-    "text": "可以過一號碼"
-  },
-  {
-    "start": 510.66,
-    "end": 511.92,
-    "text": "with or without a decimal"
-  },
-  {
-    "start": 511.92,
-    "end": 513.5,
-    "text": "and a true or false for the critical hit"
-  },
-  {
-    "start": 513.5,
-    "end": 515.14,
-    "text": "now you have a simple damage number spawner"
-  },
-  {
-    "start": 515.14,
-    "end": 516.56,
-    "text": "then you can add to any of your enemies"
-  },
-  {
-    "start": 516.56,
-    "end": 518.14,
-    "text": "in any of your 2D code or games"
-  },
-  {
-    "start": 518.14,
-    "end": 518.7,
-    "text": "and don't forget"
-  },
-  {
-    "start": 518.7,
-    "end": 519.74,
-    "text": "you can check out the project files"
-  },
-  {
-    "start": 519.74,
-    "end": 520.34,
-    "text": "link in the description"
+    "start": 519.66,
+    "end": 520.16,
+    "text": "in the description."
   }
 ]

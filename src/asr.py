@@ -51,7 +51,7 @@ def extract_audio(video_path: str | Path, out_path: str | Path) -> Path:
 
 def transcribe(audio_path: str | Path,
                model_size: str = "small",
-               language: str = "zh",
+               language: str | None = None,
                initial_prompt: str | None = None) -> list[Segment]:
     """转录. model_size: tiny/base/small/medium/large-v3.
 
