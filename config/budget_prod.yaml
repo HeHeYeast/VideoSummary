@@ -18,7 +18,7 @@ stage_limits:
 
 call_limits:
   type_detect: 1
-  vision:      12
+  vision:      30
   ocr:         8
   anchor:      1
   outline:     1
@@ -29,5 +29,5 @@ call_limits:
   map:         0
   reduce:      0
 
-frame_cap: 12
+frame_cap: 30
 chapter_cap: 8

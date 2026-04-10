@@ -11,12 +11,15 @@ from .budget import BudgetExceeded
 log = logging.getLogger(__name__)
 
 
-VISION_PROMPT = """用中文极简描述这一帧画面内容, 严格控制在 80 字以内.
-- 屏幕上的关键文字 (标题/菜单/重要正文)
-- 如果是代码, 只截取最关键 3-5 行
-- 如果是 UI 操作, 一句话说在做什么
-- 不要写"这张图展示了"等废话, 直接给内容
-- 严禁超过 80 字"""
+VISION_PROMPT = """用中文描述这一帧画面内容 (300 字以内).
+
+按以下优先级描述:
+1. **代码/命令行**: 完整抄录所有可见代码, 用 ``` 包裹. 不要概括, 不要省略, 逐行抄.
+2. **PPT/幻灯片**: 提取所有可见文字 (标题、列表项、公式).
+3. **UI 操作**: 具体描述在哪个面板/菜单做了什么操作, 涉及哪些属性值.
+4. **普通画面**: 一句话说在做什么即可.
+
+不要写"这张图展示了"等废话, 直接给内容."""
 
 
 @dataclass
@@ -37,7 +40,7 @@ def describe_frames(frames: list[Frame], client: LLMClient,
                 prompt=VISION_PROMPT,
                 image_path=f.path,
                 group="cheap",
-                max_tokens=200,
+                max_tokens=500,
             )
             out.append(FrameDescription(
                 timestamp=f.timestamp, path=f.path, description=desc.strip()
