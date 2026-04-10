@@ -1,251 +1,307 @@
-# 【Godot教程】伤害数字生成器：暴击变色、随机漂浮、可复用，一看就会
+# Godot 4 伤害数字生成器：暴击变色 + 随机漂浮 + Tween 动画
 
-> UP主: xcount | 时长: 00:02:00 | 原视频: https://www.bilibili.com/video/BV1C9QCBdE1U
+> 视频作者：xcount | 时长：8:40 | 来源：[BV1C9QCBdE1U](https://www.bilibili.com/video/BV1C9QCBdE1U)
+>
+> 本教程实现一个可复用的 DamageNumberSpawner 自定义节点，支持暴击变色、随机漂浮动画，可添加到任意 2D 敌人身上。
 
-## 这个教程做什么
-创建一个伤害数字生成器
+---
 
-## 目录
-1. [下载教程资源](#s1)
-2. [创建自定义节点](#s2)
-3. [定义类名和导出变量](#s3)
-4. [设置标签属性](#s4)
-5. [创建生成标签函数](#s5)
-6. [定义标签文本和颜色](#s6)
+## 1. 创建自定义节点脚本
 
-## 步骤详解
+[00:12] **新建 GDScript 文件**
 
-<a id="s1"></a>
-## 下载教程资源
+打开 Godot 编辑器，进入 Script 标签页，点击 File > New Script，将脚本命名为 `damage_number_spawner.gd`，点击 Create。
 
-[00:00:00] **下载资源**
+![](frames/seg_0012_000002.jpg)
 
-你可以免费下载本教程中使用的 R 场景文件，链接在视频描述中提供。
-
-![](frames/frame_000001.jpg)
-
-*为什么这么做*: 这样你可以直接使用示例文件进行学习和实践，节省时间并提高学习效率。
-
-<a id="s2"></a>
-## 创建自定义节点
-
-[00:00:06] **新建自定义节点**
-
-在本步骤中，我们将创建一个自定义节点，以便在游戏中添加简单易用的伤害数字。这个节点将包含生成伤害数字标签的所有逻辑。
-
-
-*为什么这么做*: 通过创建自定义节点，我们可以更方便地在游戏中管理和显示伤害数字。
-
-[00:00:12] **命名脚本**
-
-接下来，转到 `Scripts` 标签，选择 `File` 菜单，然后点击 `New Script`。在弹出的对话框中，将脚本命名为 `Damage Number Spawner`，然后点击 `Create` 按钮。
-
-
-*为什么这么做*: 通过命名脚本为 `Damage Number Spawner`，我们可以清晰地识别这个脚本的功能，便于后续的维护和使用。
-
-<a id="s3"></a>
-## 定义类名和导出变量
-
-[00:00:18] **确保扩展 Node2D**
-
-在本步骤中，我们将确保自定义节点扩展 `Node2D`。这样做的目的是为了能够使用 `Node2D` 的位置属性，从而可以在场景中灵活地放置伤害数字生成器。
-
-![](frames/frame_000031.jpg)
-
-*为什么这么做*: 通过扩展 `Node2D`，我们可以方便地控制节点的位置，确保伤害数字出现在我们想要的位置。
-
-[00:00:29] **定义类名**
-
-接下来，我们将类名定义为 `DamageNumberSpawner`。这将使得脚本成为一个可在场景中添加的节点。
+在脚本顶部声明两行：
 
 ```gdscript
 extends Node2D
-
 class_name DamageNumberSpawner
 ```
 
-*为什么这么做*: 定义类名为 `DamageNumberSpawner` 可以让我们在添加节点时更容易找到它，并清晰地识别其功能。
+*为什么用 Node2D*：我们需要它的 `position` 属性，这样可以控制伤害数字的生成位置。`class_name` 会将脚本注册为自定义节点，之后可以在 Add Node 窗口中搜索 `DamageNumberSpawner` 直接添加。
 
-[00:00:37] **导出变量**
+![](frames/seg_0012_000005.jpg)
 
-在此步骤中，我们将定义两个导出变量。导出变量使得我们可以在编辑器中直接调整这些变量的值，而不需要修改代码。你可以使用 `@export` 关键字来定义这些变量。
+---
 
-```gdscript
-@export var damageAmount: int
-@export var lifetime: float
-```
+## 2. 声明导出变量
 
-*为什么这么做*: 通过导出变量，我们可以在编辑器中方便地设置伤害值和数字的生命周期，增强了脚本的灵活性和可用性。
-
-### 本节完整代码
-
-```gdscript
-extends Node2D
-
-class_name DamageNumberSpawner
-
-@export var damageAmount: int
-@export var lifetime: float
-```
-
-<a id="s4"></a>
-## 设置标签属性
-
-[00:00:41] **创建标签设置变量**
-
-在本步骤中，我们将创建一个变量来保存标签的设置。这些设置将包含我们生成的标签所需的各种属性，例如字体、字体大小和颜色等。
-
-*为什么这么做*: 通过集中管理标签的设置，我们可以更方便地调整和修改标签的外观和行为。
-
-[00:00:45] **定义标签设置资源**
-
-接下来，我们需要定义一个标签设置资源。这个资源将包含多个不同的数据项，包括字体、字体大小、字体颜色、轮廓等。我们还将为关键击颜色设置一个默认值，这个颜色将在我们造成关键击时使用。
-
-```gdscript
-var labelSettings: LabelSettings
-var criticalHitColor: Color = Color.red
-```
-
-*为什么这么做*: 使用资源来管理标签的设置，可以提高代码的可维护性和可读性，同时也使得在编辑器中调整这些设置变得更加直观。
-
-[00:00:53] **设置关键击颜色**
-
-在这一步中，我们将为关键击设置一个颜色。这里我们使用红色作为默认值，以便在造成关键击时，标签能够以显眼的颜色显示。
-
-*为什么这么做*: 通过设置关键击颜色，我们可以让玩家更容易识别出重要的游戏事件，增强游戏的视觉反馈。
-
-### 本节完整代码
-
-```gdscript
-var labelSettings: LabelSettings
-var criticalHitColor: Color = Color.red
-```
-
-<a id="s5"></a>
-## 创建生成标签函数
-
-[00:00:57] **创建标签生成函数**
-
-在本步骤中，你将创建一个名为 `spawn_label` 的自定义函数，用于生成伤害数字标签。这个函数将接收两个参数：`number` 表示要显示的伤害值，`critical_hit` 用于指示是否为关键击。
-
-```gdscript
-func spawn_label(number: float, critical_hit: bool = false) -> void:
-	pass
-```
-
-*为什么这么做*: 通过创建这个函数，我们可以灵活地生成不同的伤害标签，并根据需要改变标签的颜色。
-
-[00:01:00] **设置颜色变量**
-
-在函数中，你可以使用 `Color` 类型来设置标签的颜色。你可以选择使用颜色名称或十六进制值来定义颜色。例如，使用 `Color("FF0000")` 来设置红色。
-
-![](frames/frame_000064.jpg)
-
-*为什么这么做*: 通过允许不同的颜色设置，你可以为不同的敌人或事件提供更直观的视觉反馈，增强游戏体验。
-
-[00:01:08] **定义导出变量**
-
-确保将 `label_settings` 和 `critical_hit_color` 这两个变量导出，以便在编辑器中方便地调整它们的值。这样做可以让每个生成器在游戏中拥有不同的标签外观。
+[00:37] **定义 label_settings 和 critical_hit_color**
 
 ```gdscript
 @export var label_settings: LabelSettings
 @export var critical_hit_color: Color = Color("FF0000")
 ```
 
-*为什么这么做*: 导出变量使得在编辑器中调整标签的属性变得更加灵活，适应不同的游戏需求。
+![](frames/seg_0012_000009.jpg)
 
-### 本节完整代码
+- `label_settings` 持有 `LabelSettings` 资源，包含字体、字号、字色、描边等属性。
+- `critical_hit_color` 是暴击时的字体颜色，默认红色。你可以使用 `Color.RED` 或十六进制字符串 `Color("FF0000")`——用字符串的好处是在检查器中可以直接点击颜色选择器。
+
+*为什么用 @export*：每个敌人的 DamageNumberSpawner 实例可以配置不同的外观，比如玩家受伤和敌人受伤可以用不同颜色。
+
+![](frames/seg_0012_000014.jpg)
+
+---
+
+## 3. 定义 spawn_label 函数
+
+[01:30] **函数签名**
+
+```gdscript
+func spawn_label(number: float, critical_hit: bool = false) -> void:
+```
+
+![](frames/seg_0068_000005.jpg)
+
+- `number`：要显示的伤害数值。
+- `critical_hit`：是否暴击，默认 `false`。对于不会受到暴击的敌人，调用时只传 `number` 即可。
+
+---
+
+## 4. 创建 Label 并设置属性
+
+[01:49] **创建 Label 节点并配置文本、样式、层级**
+
+```gdscript
+    var new_label: Label = Label.new()
+
+    new_label.text = str(number if step_decimals(number) != 0 else number as int)
+    new_label.label_settings = label_settings.duplicate()
+    new_label.z_index = 1000
+    new_label.pivot_offset_ratio = Vector2(0.5, 1.0)
+```
+
+![](frames/seg_0110_000015.jpg)
+
+逐行说明：
+
+| 行 | 作用 |
+|---|------|
+| `Label.new()` | 在代码中动态创建一个 Label 节点 |
+| `str(...)` | 将数字转成字符串显示。`step_decimals(number)` 返回小数位数——如果为 0（如 10.0），就转成 `int` 显示 `10` 而不是 `10.0` |
+| `label_settings.duplicate()` | 复制一份 LabelSettings，避免修改暴击颜色时影响所有 Label |
+| `z_index = 1000` | 确保伤害数字显示在所有游戏内容之上 |
+| `pivot_offset_ratio = Vector2(0.5, 1.0)` | 缩放动画的原点设在 Label 底部中央 |
+
+---
+
+## 5. 暴击变色
+
+[03:15] **根据 critical_hit 参数修改字体颜色**
+
+```gdscript
+    if critical_hit:
+        new_label.label_settings.font_color = critical_hit_color
+```
+
+![](frames/seg_0110_000018.jpg)
+
+注意：这里修改的是 `new_label.label_settings`（已经 duplicate 过的副本），而不是导出变量 `label_settings` 本身。
+
+---
+
+## 6. 可选：忽略 2D 光照
+
+[03:28] **让伤害数字不受场景中 2D 光照影响（可选）**
+
+```gdscript
+    var label_material: CanvasItemMaterial = CanvasItemMaterial.new()
+    label_material.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+    new_label.material = label_material
+```
+
+![](frames/seg_0110_000021.jpg)
+
+如果你的游戏没有 2D 光照节点，可以跳过这部分。
+
+---
+
+## 7. 添加 Label 到场景 + 位置对齐
+
+[03:48] **使用 call_deferred 添加子节点并等待 resized 信号**
+
+```gdscript
+    call_deferred("add_child", new_label)
+    await new_label.resized
+    new_label.position -= Vector2(new_label.size.x / 2.0, new_label.size.y)
+```
+
+![](frames/seg_0110_000027.jpg)
+
+- `call_deferred` 将 `add_child` 推迟到当前帧末尾执行，确保执行顺序正确，避免潜在错误。
+- `await new_label.resized` 等待 Label 因文本内容变化而触发的 `resized` 信号，此时才能获取正确的 `size`。
+- 位置偏移使 Label 的底部中心对齐到 Spawner 的 (0, 0) 位置。
+
+---
+
+## 8. 可选：随机偏移生成位置
+
+[04:15] **给生成位置添加轻微随机偏移**
+
+```gdscript
+    new_label.position += Vector2(randf_range(-5.0, 5.0), randf_range(-5.0, 5.0))
+```
+
+这样多个伤害数字同时出现时不会完全重叠。
+
+---
+
+## 9. Tween 动画：上浮 + 放大 + 淡出
+
+[04:24] **定义动画参数**
+
+```gdscript
+    var target_rise_pos: Vector2 = new_label.position + Vector2(randf_range(-5.0, 5.0), randf_range(-22.0, -16.0))
+    var tween_length: float = 0.92
+```
+
+![](frames/seg_0260_000006.jpg)
+
+- `target_rise_pos`：Label 上浮的目标位置。Y 方向取 -22 到 -16 的随机值（向上移动），X 方向也有轻微随机，让不同数字的飘动轨迹有差异。
+- `tween_length`：动画总时长 0.92 秒。由于目标高度随机但时间固定，目标更高的数字看起来会上升更快。
+
+[05:07] **创建 Tween 并设置缓动**
+
+```gdscript
+    var label_tween: Tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+```
+
+- `TRANS_BACK` + `EASE_OUT` 产生一个先微微过冲再回弹的平滑动画效果。
+
+[05:32] **三个并行的 tween_property 调用**
+
+```gdscript
+    label_tween.tween_property(new_label, "position", target_rise_pos, tween_length)
+    label_tween.parallel().tween_property(new_label, "scale", Vector2.ONE * 1.35, tween_length)
+    label_tween.parallel().tween_property(new_label, "modulate:a", 0.0, tween_length).connect("finished", new_label.queue_free)
+```
+
+![](frames/seg_0260_000020.jpg)
+
+| Tween 属性 | 目标值 | 效果 |
+|-----------|-------|------|
+| `position` | `target_rise_pos` | 数字上浮 |
+| `scale` | `Vector2.ONE * 1.35` | 数字略微放大到 135% |
+| `modulate:a` | `0.0` | 透明度归零，淡出消失 |
+
+注意要点：
+- `parallel()` 使后两个 tween_property 与第一个同时执行（默认是顺序执行）。
+- 在字符串路径中使用冒号 `:` 而非点 `.`（`"modulate:a"` 而不是 `"modulate.a"`）。
+- `.connect("finished", new_label.queue_free)` 在 Tween 完成后自动删除 Label 节点，防止内存泄漏。
+
+---
+
+## 10. 将 DamageNumberSpawner 添加到敌人
+
+[06:49] **在敌人场景中添加自定义节点**
+
+打开敌人场景，点击 "+" 添加节点，搜索 `DamageNumberSpawner`，点击 Create。
+
+![](frames/seg_0406_000002.jpg)
+
+如果搜索不到，检查 `class_name` 拼写是否正确，或者保存项目后重启 Godot。
+
+[07:07] **调整节点位置和导出属性**
+
+将 DamageNumberSpawner 节点拖动到希望数字出现的位置（例如敌人头顶）。在检查器中：
+
+1. 设置 `Critical Hit Color`（暴击颜色）。
+2. 点击 `Label Settings` 旁的空值，选择 New LabelSettings，设置字体、字号、描边等。
+
+![](frames/seg_0406_000006.jpg)
+
+*复用技巧*：设置好 LabelSettings 后，点击下拉菜单选择 Save As，保存为 `damage_label_basic.tres`。之后在其他敌人上可以直接加载这个资源文件。如果需要微调某个敌人的样式，加载后选择 Make Unique 再修改。
+
+![](frames/seg_0406_000008.jpg)
+
+---
+
+## 11. 在敌人脚本中调用
+
+[08:03] **调用 spawn_label 生成伤害数字**
+
+在敌人脚本（如 `enemy.gd`）中，获取 DamageNumberSpawner 节点并调用 `spawn_label`：
+
+```gdscript
+$DamageNumberSpawner.spawn_label(damage, critical_hit)
+```
+
+![](frames/seg_0406_000012.jpg)
+
+如果敌人不会受到暴击，可以只传伤害值：
+
+```gdscript
+$DamageNumberSpawner.spawn_label(damage)
+```
+
+Godot 会使用 `critical_hit` 参数的默认值 `false`。
+
+![](frames/seg_0406_000015.jpg)
+
+---
+
+## 最终效果
+
+![](frames/seg_0406_000017.jpg)
+
+伤害数字从敌人头顶生成，随机漂浮上升并放大、淡出消失。暴击时字体变为红色（或你自定义的颜色）。
+
+---
+
+## 完整代码
+
+### damage_number_spawner.gd
 
 ```gdscript
 extends Node2D
-
 class_name DamageNumberSpawner
 
 @export var label_settings: LabelSettings
 @export var critical_hit_color: Color = Color("FF0000")
 
 func spawn_label(number: float, critical_hit: bool = false) -> void:
-	pass
+    var new_label: Label = Label.new()
+
+    new_label.text = str(number if step_decimals(number) != 0 else number as int)
+    new_label.label_settings = label_settings.duplicate()
+    new_label.z_index = 1000
+    new_label.pivot_offset_ratio = Vector2(0.5, 1.0)
+
+    if critical_hit:
+        new_label.label_settings.font_color = critical_hit_color
+
+    # 可选：忽略 2D 光照
+    var label_material: CanvasItemMaterial = CanvasItemMaterial.new()
+    label_material.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+    new_label.material = label_material
+
+    call_deferred("add_child", new_label)
+    await new_label.resized
+    new_label.position -= Vector2(new_label.size.x / 2.0, new_label.size.y)
+    new_label.position += Vector2(randf_range(-5.0, 5.0), randf_range(-5.0, 5.0))
+
+    var target_rise_pos: Vector2 = new_label.position + Vector2(randf_range(-5.0, 5.0), randf_range(-22.0, -16.0))
+    var tween_length: float = 0.92
+    var label_tween: Tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+    label_tween.tween_property(new_label, "position", target_rise_pos, tween_length)
+    label_tween.parallel().tween_property(new_label, "scale", Vector2.ONE * 1.35, tween_length)
+    label_tween.parallel().tween_property(new_label, "modulate:a", 0.0, tween_length).connect("finished", new_label.queue_free)
 ```
 
-<a id="s6"></a>
-## 定义标签文本和颜色
-
-[00:01:42] **定义新标签变量**
-
-在这一步中，你将定义一个名为 `new_label` 的变量，用于保存新创建的标签节点。这个变量将帮助我们在后续步骤中对标签进行设置和管理。
-
-*为什么这么做*: 通过定义一个变量来存储标签节点，我们可以在生成标签时方便地访问和修改它的属性。
-
-[00:01:49] **设置标签属性**
-
-接下来，你需要为 `new_label` 设置多个属性，包括文本内容、字体、颜色等。首先，将伤害值转换为字符串格式，以便将其赋值给标签的 `text` 属性。你可以使用 `str(number)` 来实现这一点。
-
-```gdscript
-var new_label = Label.new()
-new_label.text = str(number)
-```
-
-*为什么这么做*: 将数字转换为字符串并设置为标签的文本内容，可以确保玩家在游戏中看到的伤害数字是清晰可读的。
-
-[00:01:57] **设置标签颜色**
-
-在设置完文本后，你还需要为标签指定颜色。可以根据是否为关键击来选择不同的颜色。例如，如果 `critical_hit` 参数为 `true`，则使用 `critical_hit_color`，否则使用默认颜色。
-
-```gdscript
-new_label.modulate = critical_hit ? critical_hit_color : Color.white
-```
-
-*为什么这么做*: 通过根据不同条件设置标签颜色，可以增强游戏的视觉反馈，使玩家能够快速识别重要的游戏事件。
-
-### 本节完整代码
-
-```gdscript
-func spawn_label(number: float, critical_hit: bool = false) -> void:
-    var new_label = Label.new()
-    new_label.text = str(number)
-    new_label.modulate = critical_hit ? critical_hit_color : Color.white
-```
-
-## 完整代码合集
+### enemy.gd（调用示例）
 
 ```gdscript
 extends Node2D
 
-class_name DamageNumberSpawner
+func take_damage() -> void:
+    var critical_hit: bool = true if randi_range(0, 3) == 1 else false
+    var damage: float = 10.0 if !critical_hit else 15.0
 
-@export var damageAmount: int
-@export var lifetime: float
+    $DamageNumberSpawner.spawn_label(damage, critical_hit)
+
+    # 你的其他受伤逻辑...
 ```
-
-```gdscript
-var labelSettings: LabelSettings
-var criticalHitColor: Color = Color.red
-```
-
-```gdscript
-extends Node2D
-
-class_name DamageNumberSpawner
-
-@export var label_settings: LabelSettings
-@export var critical_hit_color: Color = Color("FF0000")
-
-func spawn_label(number: float, critical_hit: bool = false) -> void:
-	pass
-```
-
-```gdscript
-func spawn_label(number: float, critical_hit: bool = false) -> void:
-    var new_label = Label.new()
-    new_label.text = str(number)
-    new_label.modulate = critical_hit ? critical_hit_color : Color.white
-```
-
-## 编辑备注 (polish 阶段建议, 待人工核对)
-
-- [s2] **transition**: 和 s1 衔接突兀, 建议在 s1 结尾提到下载资源后需要进行自定义节点的创建，以便自然引入 s2。
-- [s3] **transition**: 和 s2 衔接突兀, 建议在 s2 结尾提到自定义节点需要定义类名和导出变量，以便自然引入 s3。
-- [s4] **transition**: 和 s3 衔接突兀, 建议在 s3 结尾提到定义类名后需要设置标签属性，以便自然引入 s4。
-- [s5] **transition**: 和 s4 衔接突兀, 建议在 s4 结尾提到设置标签属性后需要创建生成标签函数，以便自然引入 s5。
-- [s6] **transition**: 和 s5 衔接突兀, 建议在 s5 结尾提到生成标签后需要定义标签文本和颜色，以便自然引入 s6。
