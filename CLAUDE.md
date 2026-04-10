@@ -1,114 +1,137 @@
 # VideoSummary 项目指南
 
 ## 项目概述
-B站视频 → 结构化 Markdown 教程。两层架构：
-- **离线数据层**：`python -m agent.prepare` 跑下载/ASR/段落聚合/智能抽帧/帧分类/CLIP embedding
-- **写作层**：Claude Code 直接读缓存文件 + 看帧图片（多模态），写教程
+B站视频 → 结构化 Markdown 教程。全流程 **¥0 成本**（Claude Max 计划）。
+Claude Code 是唯一决策者：抽帧策略、帧理解、章节结构、写作全部由你自己完成。
 
-## 代码结构
+## 可用工具
+
+3 个核心命令（本地执行，¥0）+ 2 个辅助命令：
+
 ```
-agent/              — v2 agent 方案 (离线数据层)
-  prepare.py        — 编排全部离线处理
-  asr_v2.py         — 段落聚合 (segs → paragraphs)
-  frames_v2.py      — 信息量打分抽帧 (替代 v1 的 1fps+pHash)
-  pass1_classify.py — 帧分类 (code/slide/diagram/ui_demo/talking_head/transition)
-  frame_store.py    — 结构化帧存储 + pass2 懒加载详情
-  embed.py          — CLIP embedding + 语义搜帧
-src/                — v1 pipeline (底层模块被 agent/ 复用)
-config/             — 预算配置
-output/             — 运行产出
+python -m agent.tools download <url> --out <dir>
+python -m agent.tools transcribe <video_path> --out <dir> [--whisper small] [--force]
+python -m agent.tools extract_frames <video_path> --out <dir> --fps N --start S --end E
+python -m agent.tools aggregate <segs.json> --out <path> [--gap 1.5]
+python -m agent.tools cleanup_frames <dir> --keep f1.jpg f2.jpg ...
 ```
+
+**帧理解不需要 API** — 直接 `Read output/BVxxx/frames/xxx.jpg` 看图片。
+你是多模态模型，能精确读取代码截图中的每一行。这比任何 OCR API 都准确。
 
 ## 环境变量（.env）
-- `VE_KEY_CHEAP` — VectorEngine 便宜组 API key
-- `VE_KEY_QUALITY` — VectorEngine 质量组 API key（可选）
-- `VE_BASE_URL` — 中转站地址（默认 https://api.vectorengine.ai/v1）
+- `VE_KEY_CHEAP` — VectorEngine API key（仅后备 classify/ocr 命令需要，正常流程不用）
 
 ---
 
-## /summarize-video skill 工作流
+## /summarize-video 完整工作流
 
-当用户说 "总结这个视频"、"/summarize-video" 或给出 B 站 URL 时，**严格按以下步骤执行，不要跳过任何一步**。
+当用户说"总结这个视频"或给出 B 站 URL 时，**严格按以下步骤执行**。
 
-### 步骤 0：数据准备（离线层）
+### Phase 1: 获取原始数据
 
-运行离线数据准备命令（如果用户给了 URL 且数据未就绪）：
-
+**1.1** 如果 `output/BVxxx/` 不存在，下载视频：
 ```bash
-python -m agent.prepare "<url>" --skip-download --skip-clip
+python -m agent.tools download "<url>" --out output/BVxxx
 ```
 
-如果首次运行（无缓存），去掉 `--skip-download`。等命令完成后继续。
+**1.2** ASR 转录（本地 faster-whisper，¥0）：
+```bash
+python -m agent.tools transcribe output/BVxxx/video.mp4 --out output/BVxxx
+```
 
-数据目录通常是 `output/BVxxx/`，包含：
-- `meta.json` — 标题/UP主/时长/URL
-- `segs.json` — 原始字幕 segments
-- `paragraphs.json` — 段落聚合结果 (v2 新增)
-- `frames/` — 关键帧 JPG
-- `frame_store.json` — 结构化帧存储 (含分类/info_score/brief)
-- `embeddings.npy` — CLIP embeddings (可选)
+**1.3** 段落聚合：
+```bash
+python -m agent.tools aggregate output/BVxxx/segs.json --out output/BVxxx/paragraphs.json
+```
 
-### 步骤 1：读取全局信息
+如果 segs.json / paragraphs.json 已存在，跳过对应步骤。
 
-依次 Read：
-1. `meta.json` — 获取标题、时长、UP主
-2. `paragraphs.json` — 通读完整段落化字幕（比 segs.json 更可读）
-3. `frame_store.json` — 看帧列表（关注 type/info_score/brief 字段）
+### Phase 2: 理解内容
 
-**不要跳过通读字幕**。必须在写任何内容之前理解整个视频的完整内容。
+**2.1** Read `meta.json` — 标题、时长、UP主
 
-### 步骤 2：看关键帧图片（多模态）
+**2.2** Read `paragraphs.json`（或 `segs.json`）— **完整通读字幕**。不要跳过。
 
-根据 frame_store.json 中 type 为 `code`、`slide`、`diagram` 的帧：
-- 直接 Read 帧图片文件（如 `output/BVxxx/frames/frame_000031.jpg`）
-- **代码截图逐行抄录**：函数名、参数名、类型、默认值必须精确
-- 不要依赖 brief 字段的 30 字描述，那只是索引，不是真相
-- `talking_head` 和 `transition` 类型的帧可以跳过不看
+**2.3** 基于字幕判断：
+- 视频类型（编程教程 / PPT 讲座 / 操作演示）
+- 哪些时间段信息密集、哪些可以跳过
+- 决定分段抽帧策略（下一步用）
 
-### 步骤 3：规划大纲
+### Phase 3: 智能抽帧（你决定参数）
 
-基于字幕 + 帧，自行决定章节划分：
-- 按视频的自然教学步骤切分，不是固定时长
-- 每节标题用动词短语（"创建自定义节点"、"添加漂浮动画"）
-- **输出大纲给用户确认，确认后再写正文**
+**根据 Phase 2 的判断分段抽帧**。关键原则：
+- **代码演示段**：fps 0.3-0.5（每 2-3 秒一帧，捕捉代码变化）
+- **UI 操作段**：fps 0.2-0.3
+- **纯讲解/闲聊**：fps 0.1 或直接跳过
+- **片头片尾**：跳过
 
-### 步骤 4：逐节写作
+示例（你根据实际内容调整）：
+```bash
+python -m agent.tools extract_frames video.mp4 --out output/BVxxx/frames --fps 0.2 --start 0 --end 30
+python -m agent.tools extract_frames video.mp4 --out output/BVxxx/frames --fps 0.3 --start 30 --end 300
+```
 
-每节遵循教程风格，每个关键步骤格式：
+**控制总帧数**：一条 10 分钟视频通常 30-50 帧就够。不需要太多，你后面会直接看图挑选。
+
+### Phase 4: 看帧（多模态，核心步骤）
+
+**直接 Read 帧图片**。这是你最大的优势 — 不需要 OCR 中间层。
+
+```
+Read output/BVxxx/frames/seg_0030_000015.jpg
+```
+
+重点看：
+- **代码截图**：逐行精确抄录。函数名、参数、类型、默认值一个都不能错
+- **UI 界面**：哪个面板、做了什么操作、属性值是什么
+- **PPT/幻灯片**：标题、列表项、公式
+
+**选择性看**：不需要看所有帧。先看每个时间段的第一帧和最后一帧判断内容变化，再针对性看中间帧。
+
+**补充抽帧**：如果发现某个关键操作没有截图，可以对那个时间点重新抽帧（更高 fps 或更精确的 start/end）。
+
+### Phase 5: 规划大纲
+
+基于字幕 + 帧理解，决定章节结构：
+- 按自然教学步骤切分
+- 每节标题用动词短语
+- **输出大纲给用户确认**（子 agent 执行时可跳过直接写）
+
+### Phase 6: 逐节写作
+
+教程风格，每个步骤格式：
 
 ```markdown
 [HH:MM:SS] **步骤标题**
 
-具体操作说明（第二人称指令式）。
+操作说明（第二人称指令式）。
 
-![](frames/frame_xxx.jpg)
+![](frames/seg_xxxx_xxxxxx.jpg)
 
-*为什么这么做*：解释原因（如果视频里说了）
+*为什么这么做*：原因
 
-```代码块（从截图精确抄录）```
+​```gdscript
+// 从截图精确抄录
+​```
 ```
 
-规则：
-- **时间戳必须真实**：只用 segs.json / paragraphs.json 里实际存在的时间点
-- **代码必须从截图抄**：不确定就回去 Read 帧图片，不要猜
-- **图片紧跟操作步骤**：不要全部堆在末尾
-- **没帧的步骤不要硬插图**
-- **不注水**：视频讲了多少就写多少
-- **不编造**：视频没说的不要加
+### Phase 7: 完整代码 + 输出
 
-### 步骤 5：完整代码合集
+- 文档末尾合并完整代码（分文件列出）
+- Write 到 `output/BVxxx/summary.md`
 
-在文档末尾，把所有散落的代码片段合并成一个完整的可运行脚本。
-如果视频产出了多个文件，分文件名列出。
+### Phase 8: 收尾
 
-### 步骤 6：输出
+- 质量自检（时间戳真实？代码从截图抄？图片对应步骤？无废话？）
+- 可选：`python -m agent.tools cleanup_frames <dir> --keep <用到的帧>` 清理未引用的帧
 
-Write 最终 markdown 到 `output/BVxxx/summary.md`。
+---
 
-### 质量自检清单（写完后过一遍）
+## 质量红线
 
-- [ ] 时间戳都来自字幕真实时间？
-- [ ] 代码都从截图抄录（不是猜的）？
-- [ ] 每张引用的图片都对应正确的操作步骤？
-- [ ] 没有"综上所述"/"接下来我们将"等废话？
-- [ ] 完整代码合集能直接跑？
+- **时间戳只用字幕里真实存在的**
+- **代码从帧截图精确抄录** — 不确定就 Read 图片再看
+- **图片紧跟操作步骤** — 没帧不硬插
+- **不注水不编造**
+- **完整代码可运行**
