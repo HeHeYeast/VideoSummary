@@ -46,6 +46,18 @@ def download(url: str, out_dir: str | Path, skip_if_cached: bool = True) -> dict
     if cookies_path:
         opts["cookiefile"] = str(cookies_path)
 
+    # 抖音强制要求 cookies
+    # 优先级: DOUYIN_COOKIES_FILE > DOUYIN_COOKIES_BROWSER
+    if "douyin.com" in url.lower():
+        cookies_file = os.getenv("DOUYIN_COOKIES_FILE", "").strip()
+        if cookies_file and Path(cookies_file).exists():
+            opts["cookiefile"] = cookies_file
+            log.info("使用 cookies 文件: %s", cookies_file)
+        else:
+            browser = os.getenv("DOUYIN_COOKIES_BROWSER", "chrome").lower()
+            opts["cookiesfrombrowser"] = (browser,)
+            log.info("尝试从 %s 读取 cookies (新版 Chrome/Edge DPAPI 可能失败, 失败请改用 DOUYIN_COOKIES_FILE)", browser)
+
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
 

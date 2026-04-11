@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 from dataclasses import asdict
@@ -32,13 +33,30 @@ log = logging.getLogger(__name__)
 
 
 def cmd_download(args):
-    """下载 B 站视频."""
+    """下载视频. 自动识别 B 站 / 抖音."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from src.download import download
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
-    meta = download(args.url, work_dir, skip_if_cached=True)
-    print(json.dumps(meta, ensure_ascii=False, indent=2))
+
+    url = args.url.lower()
+    if "douyin.com" in url:
+        # 抖音走自建 downloader (a_bogus 签名)
+        from agent.douyin_downloader import download_douyin
+        # cookies 文件默认在项目根
+        cookies_file = os.getenv("DOUYIN_COOKIES_FILE",
+                                  str(Path(__file__).parent.parent / "www.douyin.com_cookies.txt"))
+        if not Path(cookies_file).exists():
+            log.warning("抖音 cookies 文件不存在: %s (可能导致下载失败)", cookies_file)
+            cookies_file = None
+        meta = download_douyin(args.url, work_dir,
+                               cookies_file=cookies_file, skip_if_cached=True)
+    else:
+        # B 站 / YouTube / 其他走 yt-dlp
+        from src.download import download
+        meta = download(args.url, work_dir, skip_if_cached=True)
+
+    # 避免打印含 emoji 的 title 炸 gbk 终端
+    print(json.dumps(meta, ensure_ascii=True, indent=2))
 
 
 def cmd_transcribe(args):
