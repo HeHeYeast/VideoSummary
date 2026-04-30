@@ -30,7 +30,7 @@ Per **Pitfall 3** in `01-RESEARCH.md`, these are *targeted* patterns. A lazy `gr
 ### Command 1 — Bare `open()` calls (4)
 
 ```
-agent/douyin_downloader.py:194:        with open(video_path, "wb") as f:
+agent/douyin_downloader.py:196:        with open(video_path, "wb") as f:
 agent/embed.py:79:                img = PILImage.open(p).convert("RGB")
 agent/frames_v2.py:74:            h = imagehash.phash(Image.open(f.path))
 src/frames.py:53:            h = imagehash.phash(Image.open(f.path))
@@ -38,14 +38,14 @@ src/frames.py:53:            h = imagehash.phash(Image.open(f.path))
 
 | Site | Mode | Verdict |
 |------|------|---------|
-| `agent/douyin_downloader.py:194` | `with open(video_path, "wb") as f:` — binary write (mp4) | OK — binary mode must NOT carry `encoding=`. |
+| `agent/douyin_downloader.py:196` | `with open(video_path, "wb") as f:` — binary write (mp4) | OK — binary mode must NOT carry `encoding=`. |
 | `agent/embed.py:79` | `PILImage.open(p)` — Pillow image read | OK — `PIL.Image.open` is not a text-I/O builtin; PIL handles bytes/encoding internally. |
 | `agent/frames_v2.py:74` | `imagehash.phash(Image.open(f.path))` — Pillow image read via imagehash | OK — same reasoning; PIL handles encoding. |
 | `src/frames.py:53` | `imagehash.phash(Image.open(f.path))` — Pillow image read via imagehash | OK — same reasoning; PIL handles encoding. |
 
 > **Audit note (completeness):** CONTEXT.md D-14 lists *three* bare-open sites; live grep finds *four*. The fourth, `src/frames.py:53`, is a v1-pipeline counterpart of `agent/frames_v2.py:74` and uses the same PIL-via-imagehash pattern. The `01-RESEARCH.md` §"Encoding Audit — Current State" caught it; this audit-pass evidence file lists all four for full traceability. Conclusion is unchanged: 100% compliant.
 
-> **Audit note (Pitfall 6):** Do NOT conflate "is this encoding correct?" with "should this code exist?" — `agent/douyin_downloader.py:60` `_CONFIG.write_text(content, encoding="utf-8")` is *encoding-correct* (it carries `encoding="utf-8"`); the vendor-mutation concern around that write is a CONCERNS.md §2.2 issue, out of PRE-04 scope.
+> **Audit note (Pitfall 6):** Do NOT conflate "is this encoding correct?" with "should this code exist?" — `agent/douyin_downloader.py:62` `_CONFIG.write_text(new_content, encoding="utf-8")` is *encoding-correct* (it carries `encoding="utf-8"`); the vendor-mutation concern around that write is a CONCERNS.md §2.2 issue, out of PRE-04 scope.
 
 ### Command 2 — Text I/O without encoding
 
