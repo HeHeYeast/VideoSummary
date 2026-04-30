@@ -38,6 +38,30 @@ python -m agent.tools cleanup_frames <dir> --keep f1.jpg f2.jpg ...
 
 注意：抖音 cookies 每几天失效，失败时重新导出。yt-dlp 的 douyin extractor 长期 broken（不支持 a_bogus），所以必须走 vendor crawler。
 
+## Windows zh-CN 终端设置（推荐）
+
+中文 Windows 默认 GBK 终端会在打印含 emoji / 非 ASCII 的视频标题时炸出
+`UnicodeEncodeError`。代码已在 `agent/tools.py:59` 留了 `ensure_ascii=True`
+兜底，老路径不设置也能跑；但**推荐**把终端 + 解释器 都切成 UTF-8，让本仓库
+所有路径行为一致：
+
+1. **每个 terminal session 跑一次**（zh-CN cmd / PowerShell）：
+   ```bash
+   chcp 65001
+   ```
+
+2. **一次性设置 `PYTHONUTF8=1` 环境变量**（Windows 10+ 生效）：
+   - PowerShell 永久：`[Environment]::SetEnvironmentVariable("PYTHONUTF8", "1", "User")`
+   - 或在「系统属性 → 环境变量」面板加 `PYTHONUTF8=1`
+   - 设好后重启 terminal 验证：`python -c "import sys; print(sys.flags.utf8_mode)"` 应输出 `1`
+
+设了之后 `print(meta)`、文件 I/O、子进程 stderr 全程 UTF-8；老的 `ensure_ascii`
+兜底保留不动，没设 codepage 的环境也能正常工作。
+
+> **历史背景：** 项目里所有 `read_text` / `write_text` 都已显式 `encoding="utf-8"`
+> （Phase 1 PRE-04 审计通过），这一节是给「希望子进程 stderr 也直接读到中文」
+> 的开发者准备的、可选的一致化设置。
+
 ## 环境变量（.env）
 - `VE_KEY_CHEAP` — VectorEngine API key（仅后备 classify/ocr 命令需要，正常流程不用）
 - `DOUYIN_COOKIES_FILE` — 抖音 cookies 文件路径（默认 `www.douyin.com_cookies.txt`）
