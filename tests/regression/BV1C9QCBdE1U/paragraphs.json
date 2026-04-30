@@ -1,0 +1,324 @@
+[
+  {
+    "para_id": "p0000",
+    "start": 0.0,
+    "end": 29.6,
+    "text": "You can download the R scene in the video for free, link in the description. But damage numbers that are simple and easy to add to any enemy in your game. We will create our own custom node that we can add like any other node through the add node window, which will hold all the logic for spawning in the damage number label. We do so go to the Scripts tab, then go to File, New Script, name it Damage Number Spawner, and press Create. Inside we will first make sure it extends node 2D. This is because we want the position value of the node 2D, and so when we add this custom node it will have all the properties of what it extends, allowing us to position this spawner where we want the numbers to appear.",
+    "seg_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  {
+    "para_id": "p0001",
+    "start": 29.6,
+    "end": 57.2,
+    "text": "Next we define the class name as damage number spawner. This will turn the script into a node inside of the add node window and the name on the right is the name of the custom node and therefore is what we search for when we are adding this node to the scene. Next we will establish two export variables. Label settings will hold all the settings for the label that we are spawning in as the label settings resource holds a bunch of different data such as font, font size, font color, outlines and more. And critical hit color will be the color of the font when we land a critical hit which we will use a default value of red although here you",
+    "seg_indices": [
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ]
+  },
+  {
+    "para_id": "p0002",
+    "start": 57.2,
+    "end": 86.6,
+    "text": "you would want to change this color to whatever color you're commonly using, which can either be done using color, dot, and then the name of that color, or you can use a string for the hex value, which if you do it this way then you can click on the color for an easier color selection. Additionally, we make both of these export variables to allow for a different value on each spawner that we add to our game, allowing different enemies to have different looking labels that display the damage dealt to them, which can become especially useful if you want to use a different color for the damage dealt to the opponent, compared to damage that an opponent does to you. Additionally, feel free to add as many export variables as you would like with",
+    "seg_indices": [
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+    ]
+  },
+  {
+    "para_id": "p0003",
+    "start": 86.6,
+    "end": 113.24,
+    "text": "various properties and things that we will be setting in the script. Next, we will create a custom function called spawn label, which will have two arguments. Number is the value that we want the label to display. And critical hit is what we will use to know whether the color should be changed to a critical hit color, which we provide this argument with a default value of false, but that if you have certain enemies or objects that can't receive a critical hit, then you only need to call this function with a number and nothing else. Insert the function we will first define a variable called new label, which will hold a new label node. Then we will",
+    "seg_indices": [
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33
+    ]
+  },
+  {
+    "para_id": "p0004",
+    "start": 113.24,
+    "end": 142.84,
+    "text": "set a variety of properties on the label. For the text, we use str to convert the number into a string that we can use for the text property. Which for this, we also use a Turner Reef statement where we will use the exact number if step decimals with the number in brackets is equal to zero. Also, we will use an integer version of the number step decimals simply equals a number based on how many decimals it takes to reach the decimal that isn't zero. So if a number is equal to 10.0, it returns zero because there is no non zero decimal. And if a number equals 10.5, then it returns one. This saves us from having the label",
+    "seg_indices": [
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40
+    ]
+  },
+  {
+    "para_id": "p0005",
+    "start": 142.84,
+    "end": 170.68,
+    "text": "display 10.0 instead displaying the number as an integer meaning it would just display 10. We will then set the level settings of the label to a duplicate version of the label settings export variable. This is to ensure that if we change the color to a critical hit color, it doesn't change it on all levels using this level settings. I then set the z-index to something like 1000 so that the label appears above all other content in the game. Although you may want to change this to a even higher number based on how your game is set up with the z-index. The most important part about the z-index number is just to make sure that this",
+    "seg_indices": [
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+    ]
+  },
+  {
+    "para_id": "p0006",
+    "start": 170.68,
+    "end": 200.12,
+    "text": "label appears above everything else. We set the pivot ratio to the bottom middle of the label, so that when we change and animate the scale of the label, the origin will be at the bottom middle. Also, we didn't set the global position of the label node, as we will be adding a label as a child of this spawner, which will make this label 00 equal to the exact position of this spawner. We will however have to add a slight offset to align the pivot offset to the 00 of the spawner, which we will do later. Next, if we lend a critical hit, then we grab the labels label settings, its font color, and change it to the critical hit color.",
+    "seg_indices": [
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54
+    ]
+  },
+  {
+    "para_id": "p0007",
+    "start": 200.12,
+    "end": 228.58,
+    "text": "Also, make sure you are editing the levels, level settings, and not the level settings export variable. Additionally, in the case that your game has any lighting and you don't want the level to be affected by that 2D lighting, then you can create a variable to hold a new level material, set it to a new canvas item material, set the light mode of the material, set the light mode unshaded, then apply that level material to the material of the level node. This will ignore lighting and shadows from the various 2D lighting nodes, although this part is completely optional. Finally, we add the level node as a child of the spawner node, and we use",
+    "seg_indices": [
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+    ]
+  },
+  {
+    "para_id": "p0008",
+    "start": 228.58,
+    "end": 255.72,
+    "text": "called a third to add the label node at the end of the current frame so that we can use a weight on the resize signal, which will occur or emit naturally when the label changes size due to its text being set, allowing us to then set the offset of the position of the label node based on the size of the label so that the bottom middle of the label is positioned at the spawn is zero zero. And by using called a third, we ensure that the order of events are correct and don't cause any potential errors. Additionally, if you would like a slight offset to the spawn position of the label, you can also",
+    "seg_indices": [
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70
+    ]
+  },
+  {
+    "para_id": "p0009",
+    "start": 255.72,
+    "end": 284.6,
+    "text": "add this line, which we'll just add a random value from negative five to five on both axis. Now for the animation of the label node, we will establish three variables to help. Target rise position is the position we want the label to reach so that it looks like it's rising. This will equal the label's current position plus a random value from negative 22 to negative 16 on the Y so that it will go up. By having a different value, it will appear as if the animation is rising at different speeds and we also apply a slight randomness of the horizontal position of the target so that the value doesn't just go straight up, allowing",
+    "seg_indices": [
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77
+    ]
+  },
+  {
+    "para_id": "p0010",
+    "start": 284.6,
+    "end": 312.04,
+    "text": "the player to differentiate between multiple damaged labels that may appear at very close times. Wean length is the total amount of time that the animation will last, and because the animation will last for a set amount of time, it will therefore create an illusion of certain labels having to rise faster than others, due to them having to reach a higher position, which is again why we provide some randomness to the vertical target position. Then to actually animate this label, we create a variable called label tween, which will hold a newly created tween, which a tween simply grabs a property on a node",
+    "seg_indices": [
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84
+    ]
+  },
+  {
+    "para_id": "p0011",
+    "start": 312.04,
+    "end": 341.4,
+    "text": "and moves it towards a value over a given amount of time and by default a tween uses a linear progression towards this target value so to provide a better or more smoother looking animation I will use set transition to set the tween to a transition of back now I'll set the easing the ease out feel free to change these values as you would like to change how the animation looks now to activate the tween and provide the necessary data we will be using the tween property function three times grabbing the level node the property that we want to affect the target value and finally the total time of the tween animation which we use",
+    "seg_indices": [
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91
+    ]
+  },
+  {
+    "para_id": "p0012",
+    "start": 341.4,
+    "end": 369.32,
+    "text": "use our twin length variable for. And for the first twin, we move the position towards the target rise position. For the second, we change the scale towards a vector two of 1.35 by 1.35. And we do vector two dot one multiplied by 1.35 to make it easier if you want to change this value later as you will only need to edit one number to effectively edit both on either axis. And lastly, we move the modulate dot A or transparency of the label towards a value of zero to make the label invisible. Additionally, you should take note that we use a colon instead of a dot. So when you are in a string,",
+    "seg_indices": [
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106
+    ]
+  },
+  {
+    "para_id": "p0013",
+    "start": 369.32,
+    "end": 398.32,
+    "text": "always use a colon instead of a dot for properties. And one issue with using three tween property functions on the one tween variable is that we need to tell Godot to run these simultaneously, which can be done by calling the parallel function before the tween property function. And we don't write this for the first one as we are telling Godot to run these two tween property functions in parallel with the first one that is called. Finally, we need to find a way to delete this label after it has completed its animation and gone invisible. To do this, we use connect to connect the tween's built-in finish signal which activates or emits when the tween property function completes",
+    "seg_indices": [
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123
+    ]
+  },
+  {
+    "para_id": "p0014",
+    "start": 398.32,
+    "end": 427.92,
+    "text": "and we're connected to the Q3 function on the level node. Overall, calling Q3 once the level reaches a modulated value of zero, making the node delete itself once invisible. Now, to add this damage number system to your game, go to any enemy in your game, press the plus, and add the damage number spawner scene we created. Keep in mind that this is the class name that we established earlier in the script. Also, if this doesn't show up, make sure the spelling is correct of what you wrote for the class name. And if it still doesn't show up, then save your go dot project and reopen it. Once the node is selected, press create. Once added to the scene,",
+    "seg_indices": [
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139
+    ]
+  },
+  {
+    "para_id": "p0015",
+    "start": 427.92,
+    "end": 457.28,
+    "text": "Feel free to reposition the node to wherever you want the labels to spawn. I'll move mine to two on the white axis. Then we can start setting the export variables. Set the critical hit color as you would like. Then select the empty on the label settings export and create a new level settings. Here you can edit any values as you would like. Setting the font, the font size, the outline size and color, as well as much more. Additionally, if almost all of your labels across the different scenes of your different enemies are going to use the same properties, then select the drop down. Press save as. We'll call mine damage label basic press save.",
+    "seg_indices": [
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150
+    ]
+  },
+  {
+    "para_id": "p0016",
+    "start": 457.28,
+    "end": 487.16,
+    "text": "Now, when I want to add a new label settings, which has all the typical values that I use, I can press the folder icon and select the damage label basic that I just created. And if you just want to use the majority of settings in this typical label settings, but you want to change maybe a few things for a specific enemy, then select the drop down again and press make unique so that now any edits made won't affect the label settings file that we just saved. Once all the values are set as you would like for the visuals of the label being spawned, we can go to the script of the enemy and all we need to do is grab the the damage number spawn a node that we just created, call the spawn label function, passing",
+    "seg_indices": [
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158
+    ]
+  },
+  {
+    "para_id": "p0017",
+    "start": 487.16,
+    "end": 516.62,
+    "text": "the amount of damage that we want to deal, which you can just put a number here if you would like, and whether it is a critical hit, which you can just put a true or false here if you would like as well. Keep in mind that if you have a certain enemy or object that doesn't receive a critical hit damage, then you can just pass the damage on its own, as Godot will just rely on the default value that we set earlier for the critical hit variable, which was false, and again just to clear any confusion, you don't have to use separate variables for the damage or critical hit, as you can just pass a number with or without a decimal and a true or false for the critical hit. Now you have a simple damage number spawner that you can add to any of your enemies in",
+    "seg_indices": [
+      159,
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167
+    ]
+  },
+  {
+    "para_id": "p0018",
+    "start": 516.62,
+    "end": 520.16,
+    "text": "any of your 2D CoD games and don't forget that you can check out the project files in the description.",
+    "seg_indices": [
+      168,
+      169
+    ]
+  }
+]

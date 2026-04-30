@@ -1,0 +1,5 @@
+# Regression baselines: freeze byte-for-byte. Disable text conversion so
+# Windows-origin CRLF endings + Windows-style "\\" path separators in
+# meta.json (Phase 1 Plan 01-01 D-04 / RESEARCH Pitfall 5) survive
+# round-tripping through git without normalization.
+tests/regression/** -text
