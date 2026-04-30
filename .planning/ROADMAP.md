@@ -31,9 +31,9 @@ This milestone expands the existing ¥0 video-to-tutorial pipeline along six dim
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Commit golden-output regression baselines (PRE-01) + runbook (PRE-02)
-- [ ] 01-02: Retroactive `schema_version: 1` documentation + loader-tolerance change (PRE-03)
-- [ ] 01-03: Encoding audit (PRE-04) + Windows zh-CN setup docs in CLAUDE.md (PRE-05)
+- [x] 01-01: Commit golden-output regression baselines (PRE-01) + runbook (PRE-02)
+- [x] 01-02: Retroactive `schema_version: 1` documentation + loader-tolerance change (PRE-03)
+- [x] 01-03: Encoding audit (PRE-04) + Windows zh-CN setup docs in CLAUDE.md (PRE-05)
 **UI hint**: no
 
 ### Phase 2: Resume Infrastructure & Cache Correctness
