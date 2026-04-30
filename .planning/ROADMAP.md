@@ -24,7 +24,7 @@ This milestone expands the existing ¥0 video-to-tutorial pipeline along six dim
 **Depends on**: Nothing (gating preflight)
 **Requirements**: PRE-01, PRE-02, PRE-03, PRE-04, PRE-05
 **Success Criteria** (what must be TRUE):
-  1. `tests/regression/` contains committed `summary.md` baselines for `BV132wizyEEB`, `godot_brave`, and `douyin_trae_ai` plus a `regression-check.md` runbook describing how to re-run and manual-diff
+  1. `tests/regression/` contains committed `summary.md` baselines for `BV132wizyEEB`, `BV1C9QCBdE1U`, and `douyin_trae_ai` plus a `regression-check.md` runbook describing how to re-run and manual-diff
   2. Loaders for `meta.json` / `segs.json` / `paragraphs.json` accept files lacking `schema_version` and treat them as v1 (archived videos remain re-runnable unchanged)
   3. Every `open()` call in `agent/` and `src/` uses explicit `encoding="utf-8"` (verified by audit)
   4. `CLAUDE.md` documents `chcp 65001` + `PYTHONUTF8=1` as the recommended Windows zh-CN setup so subsequent phases inherit a clean encoding baseline
