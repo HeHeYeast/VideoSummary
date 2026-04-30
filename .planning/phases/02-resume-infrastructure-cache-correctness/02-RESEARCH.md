@@ -816,31 +816,34 @@ cmds = {
 
 **No HIGH-risk assumptions.** All claims either cite stdlib docs / live test results, or relate to project-specific conventions already locked in CONTEXT.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All 5 questions raised during research are resolved either by CONTEXT.md D-XX decisions or by the planner's plan implementations. Each question's resolution is captured below and reflected in the corresponding 02-XX-PLAN.md task.
 
 1. **Should `cmd_download` write a sidecar?**
    - What we know: `cmd_download` writes `meta.json` (B站 path via `src/download.py`) or via `agent/douyin_downloader.py`. Both end with a meta.json write.
    - What's unclear: does meta.json have any "params that affect output"? CLI flag-wise, the only input is the URL (which IS the cache key — different URL → different slug → different `output/<slug>/`). So `cli` is empty for cmd_download. `tools.yt_dlp` / `tools.httpx` could matter for reproducibility but rarely cause output drift.
-   - Recommendation: planner ships sidecar for meta.json with `cli: {}, func: {}, tools: {yt_dlp: <ver>, ffmpeg: <ver>}`. Doctor will display it; mismatch on `tools.*` triggers D-07 warning-only. Low value but consistent with D-04 ("Phase 2 后新写入一律带 sidecar").
+   - **RESOLVED:** Yes — planner ships sidecar for meta.json with `cli: {}, func: {}, tools: {yt_dlp: <ver>, ffmpeg: <ver>}` (consistent with CONTEXT D-04 "Phase 2 后新写入一律带 sidecar"). Implemented in `02-01-PLAN.md` Task 3 Step 5 (cmd_download branch). Doctor will display it; mismatch on `tools.*` triggers D-07 warning-only.
 
 2. **Is the ffmpeg version probe latency acceptable on every cmd_* call?**
    - What we know: `subprocess.run(["ffmpeg", "-version"], ...)` takes ~50-200ms on cold cache.
    - What's unclear: doctor scans 5 artifacts × 2 (sidecar exists + current params build) = potentially 10× ffmpeg invocation. Acceptable?
-   - Recommendation: cache `_ffmpeg_version()` and `_faster_whisper_version()` results with `functools.lru_cache(maxsize=1)`. Single subprocess per Python process. Add a comment that lru_cache is per-process, so each new doctor invocation pays the cost once.
+   - **RESOLVED:** Yes with caching — `_get_ffmpeg_version()` and `_get_faster_whisper_version()` use `functools.lru_cache(maxsize=1)`. Single subprocess per Python process. Implemented in `02-01-PLAN.md` Task 1 (Pattern 4 Sidecar Probes section). lru_cache is per-process, so each new doctor invocation pays the cost once — acceptable.
 
 3. **Should the sidecar `func` segment include the `_DEFAULTS` dict literal, or only the kwargs actually used?**
    - What we know: `aggregate_paragraphs(segs, gap_threshold=1.5)` — caller passes kwargs by name; `_DEFAULTS["gap_threshold"]` is what gets used.
    - What's unclear: if user passes `--gap 2.0` and code calls `aggregate_paragraphs(segs, gap_threshold=2.0)`, sidecar's `cli.gap=2.0` AND `func.gap_threshold=2.0` are duplicated.
-   - Recommendation: keep both; `cli.*` reflects "what user typed", `func.*` reflects "what was actually used to compute". When they're equal it's redundant; when they diverge (Phase 5 `profile=podcast` overrides `--gap`), `func.*` is the truth. Storage is a few extra bytes — negligible.
+   - **RESOLVED:** Keep both — `cli.*` reflects "what user typed", `func.*` reflects "what was actually used to compute". When they're equal it's redundant; when they diverge (Phase 5 `profile=podcast` overrides `--gap`), `func.*` is the truth. Storage is a few extra bytes — negligible. Implemented in `02-01-PLAN.md` Task 3 (cmd_aggregate sidecar build).
 
 4. **Does the doctor's `last_state` column read state.jsonl every invocation?**
    - What we know: state.jsonl can grow over time; reading the whole file each doctor call is O(N).
    - What's unclear: at what N does this become a problem? For Phase 2 day-1 (stage events only), N stays small (< 50 events for typical use).
-   - Recommendation: read whole file every doctor call; document a Phase-V2 follow-up if N grows past 1000 (Phase 4's segment events will push this up). For now, no incremental read needed.
+   - **RESOLVED:** Yes, read whole file every doctor call — implemented in `02-03-PLAN.md` Task 1 (cmd_doctor calls `derived_state(read_events(state_dir))`). No incremental read for Phase 2 day-1; CONTEXT `<deferred>` already records "Phase-V2 follow-up if N grows past 1000 with Phase 4 segment events".
 
 5. **What happens when `cmd_doctor` is run on `output/<slug>` for a slug whose `output/` was created BEFORE Phase 2 (the 17 archive case)?**
    - What we know: D-15 says doctor displays state cleanly; D-16 says `params_hash_match: —` for missing sidecar; `last_state: —` for missing state.jsonl entry.
-   - What's unclear: does doctor also append a `started/completed` event for the doctor invocation itself (D-13 implies `stage="doctor"`)? Recommendation: yes (audit trail), but the append must succeed or be skipped silently — doctor is read-only on artifacts, but state.jsonl IS its own artifact and recording its access is consistent.
+   - What's unclear: does doctor also append a `started/completed` event for the doctor invocation itself (D-13 implies `stage="doctor"`)?
+   - **RESOLVED:** Yes audit trail, fail-silent — doctor appends `started`/`completed` events to state.jsonl; if the append fails (read-only volume / disk full), the failure is swallowed silently because doctor's primary contract is read-only artifact diagnosis, not write reliability. Implemented in `02-03-PLAN.md` Task 1 (cmd_doctor try/except around `append_event`).
 
 ## Environment Availability
 
