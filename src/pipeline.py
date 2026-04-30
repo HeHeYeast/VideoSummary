@@ -6,6 +6,8 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
+from agent.io import load_meta, load_segs
+
 from .asr import Segment, extract_audio, transcribe, parse_vtt
 from .budget import BudgetGuard
 from .download import download
@@ -31,7 +33,7 @@ def run(url: str, work_dir: str | Path, budget: BudgetGuard,
     # 1. 下载 (缓存)
     log.info("=== Stage 1: 下载 ===")
     if skip_download and (work_dir / "meta.json").exists():
-        meta = json.loads((work_dir / "meta.json").read_text(encoding="utf-8"))
+        meta = load_meta(work_dir / "meta.json")
         log.info("--skip-download, 用缓存 meta")
     else:
         meta = download(url, work_dir, skip_if_cached=True)
@@ -43,7 +45,7 @@ def run(url: str, work_dir: str | Path, budget: BudgetGuard,
     segs_cache = work_dir / "segs.json"
     if segs_cache.exists():
         log.info("缓存命中: %s", segs_cache.name)
-        data = json.loads(segs_cache.read_text(encoding="utf-8"))
+        data = load_segs(segs_cache)
         segs = [Segment(**d) for d in data]
     else:
         if meta["subtitle_path"]:

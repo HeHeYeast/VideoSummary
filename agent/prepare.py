@@ -59,6 +59,7 @@ def main():
     from agent.pass1_classify import classify_frames
     from agent.frame_store import FrameStore, FrameRecord
     from agent.embed import compute_embeddings
+    from agent.io import load_meta, load_segs, load_paragraphs
 
     # 预算
     cfg_path = Path(__file__).parent.parent / "config" / f"budget_{args.mode}.yaml"
@@ -74,7 +75,7 @@ def main():
     # ═══════════════════════════════════════════════════════════
     log.info("=== Stage 1: 下载 ===")
     if args.skip_download and (work_dir / "meta.json").exists():
-        meta = json.loads((work_dir / "meta.json").read_text(encoding="utf-8"))
+        meta = load_meta(work_dir / "meta.json")
         log.info("skip-download, 用缓存 meta")
     else:
         meta = download(args.url, work_dir, skip_if_cached=True)
@@ -89,7 +90,7 @@ def main():
     segs_cache = work_dir / "segs.json"
     if segs_cache.exists():
         log.info("缓存命中: segs.json")
-        segs_data = json.loads(segs_cache.read_text(encoding="utf-8"))
+        segs_data = load_segs(segs_cache)
     else:
         if meta.get("subtitle_path"):
             log.info("使用已下载字幕: %s", meta["subtitle_path"])
@@ -111,7 +112,7 @@ def main():
     para_cache = work_dir / "paragraphs.json"
     if para_cache.exists():
         log.info("缓存命中: paragraphs.json")
-        paras_data = json.loads(para_cache.read_text(encoding="utf-8"))
+        paras_data = load_paragraphs(para_cache)
     else:
         paras = aggregate_paragraphs(segs_data)
         paras_data = paragraphs_to_dicts(paras)

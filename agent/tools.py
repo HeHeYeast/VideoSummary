@@ -63,6 +63,7 @@ def cmd_transcribe(args):
     """ASR 转录 (本地 faster-whisper)."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from src.asr import extract_audio, transcribe, Segment
+    from agent.io import load_segs
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -74,7 +75,7 @@ def cmd_transcribe(args):
     segs_file = out_dir / "segs.json"
     if segs_file.exists() and not args.force:
         print(f"cached: {segs_file}")
-        segs_data = json.loads(segs_file.read_text(encoding="utf-8"))
+        segs_data = load_segs(segs_file)
     else:
         segs = transcribe(audio, model_size=args.whisper, language=None)
         segs_data = [asdict(s) for s in segs]
@@ -90,8 +91,9 @@ def cmd_aggregate(args):
     """段落聚合."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from agent.asr_v2 import aggregate_paragraphs, paragraphs_to_dicts
+    from agent.io import load_segs
 
-    segs = json.loads(Path(args.segs_json).read_text(encoding="utf-8"))
+    segs = load_segs(args.segs_json)
     paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
     out = Path(args.out)
     out.write_text(json.dumps(paragraphs_to_dicts(paras), ensure_ascii=False, indent=2), encoding="utf-8")

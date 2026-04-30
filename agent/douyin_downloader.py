@@ -20,6 +20,8 @@ from urllib.parse import urlparse, parse_qs
 
 import httpx
 
+from agent.io import load_meta
+
 log = logging.getLogger(__name__)
 
 # vendor 目录
@@ -147,7 +149,7 @@ def download_douyin(
 
     meta_cache = out_dir / "meta.json"
     if skip_if_cached and meta_cache.exists():
-        meta = json.loads(meta_cache.read_text(encoding="utf-8"))
+        meta = load_meta(meta_cache)
         if meta.get("video_path") and Path(meta["video_path"]).exists():
             log.info("缓存命中, 跳过下载: %s", meta["video_path"])
             return meta
