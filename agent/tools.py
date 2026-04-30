@@ -28,13 +28,37 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from agent.io import (
+    write_json_atomic,
+    read_sidecar,
+    cache_decision,
+    _get_ffmpeg_version,
+    _get_faster_whisper_version,
+    now_iso,
+)
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
+
+
+def _build_sidecar(*, cli: dict, func: dict, tools: dict) -> dict:
+    """Construct the locked 3-segment sidecar shape (D-07).
+
+    Schema includes cli, func, tools, captured_at, schema_version=1.
+    """
+    return {
+        "cli": dict(cli),
+        "func": dict(func),
+        "tools": dict(tools),
+        "captured_at": now_iso(),
+        "schema_version": 1,
+    }
 
 
 def cmd_download(args):
     """下载视频. 自动识别 B 站 / 抖音."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
+    from agent.io import write_sidecar
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -50,10 +74,28 @@ def cmd_download(args):
             cookies_file = None
         meta = download_douyin(args.url, work_dir,
                                cookies_file=cookies_file, skip_if_cached=True)
+        platform = "douyin"
     else:
         # B 站 / YouTube / 其他走 yt-dlp
         from src.download import download
         meta = download(args.url, work_dir, skip_if_cached=True)
+        platform = "bilibili_or_other"
+
+    # Phase 2 RES-01: write sidecar for meta.json (D-04 -- newly-written
+    # artifacts always carry sidecars). meta.json itself is written by the
+    # downloader; we only attach the sidecar here. Archive meta.json without
+    # sidecar follows D-01 path (warn but don't regen).
+    meta_path = work_dir / "meta.json"
+    if meta_path.exists():
+        sidecar = _build_sidecar(
+            cli={},
+            func={"skip_if_cached": True, "platform": platform},
+            tools={"ffmpeg": _get_ffmpeg_version()},
+        )
+        try:
+            write_sidecar(meta_path, sidecar)
+        except OSError as e:
+            log.warning("failed to write meta.json sidecar: %s", e)
 
     # 避免打印含 emoji 的 title 炸 gbk 终端
     print(json.dumps(meta, ensure_ascii=True, indent=2))
@@ -62,7 +104,7 @@ def cmd_download(args):
 def cmd_transcribe(args):
     """ASR 转录 (本地 faster-whisper)."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from src.asr import extract_audio, transcribe, Segment
+    from src.asr import extract_audio, transcribe, Segment, _VAD_DEFAULTS
     from agent.io import load_segs
 
     out_dir = Path(args.out)
@@ -73,13 +115,37 @@ def cmd_transcribe(args):
         extract_audio(args.video_path, audio)
 
     segs_file = out_dir / "segs.json"
-    if segs_file.exists() and not args.force:
+    # Build current sidecar (this run params) per D-05 / D-07
+    current_sidecar = _build_sidecar(
+        cli={"whisper": args.whisper},
+        func={
+            "language": None,
+            "vad_filter": True,
+            "min_silence_duration_ms": _VAD_DEFAULTS["min_silence_duration_ms"],
+            "condition_on_previous_text": False,
+            "beam_size": 5,
+        },
+        tools={
+            "faster_whisper": _get_faster_whisper_version(),
+            "ffmpeg": _get_ffmpeg_version(),
+        },
+    )
+
+    decision = "regen"  # default if file missing
+    if segs_file.exists():
+        old_sidecar = read_sidecar(segs_file)
+        decision = cache_decision(
+            old_sidecar, current_sidecar, "segs.json", forced=args.force,
+        )
+
+    if decision in ("reuse", "warn_then_reuse"):
         print(f"cached: {segs_file}")
         segs_data = load_segs(segs_file)
     else:
+        # decision is regen or regen_forced
         segs = transcribe(audio, model_size=args.whisper, language=None)
         segs_data = [asdict(s) for s in segs]
-        segs_file.write_text(json.dumps(segs_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
 
     print(f"segments: {len(segs_data)}")
     if segs_data:
@@ -90,14 +156,40 @@ def cmd_transcribe(args):
 def cmd_aggregate(args):
     """段落聚合."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from agent.asr_v2 import aggregate_paragraphs, paragraphs_to_dicts
-    from agent.io import load_segs
+    from agent.asr_v2 import aggregate_paragraphs, paragraphs_to_dicts, _DEFAULTS
+    from agent.io import load_segs, load_paragraphs
 
     segs = load_segs(args.segs_json)
-    paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
     out = Path(args.out)
-    out.write_text(json.dumps(paragraphs_to_dicts(paras), ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"{len(segs)} segments -> {len(paras)} paragraphs")
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Build current sidecar
+    current_sidecar = _build_sidecar(
+        cli={"gap": args.gap},
+        func={
+            "gap_threshold": args.gap,
+            "max_para_duration": _DEFAULTS["max_para_duration"],
+            "sentence_gap": _DEFAULTS["sentence_gap"],
+        },
+        tools={},  # pure Python, no external tool
+    )
+
+    decision = "regen"
+    if out.exists():
+        old_sidecar = read_sidecar(out)
+        forced = bool(getattr(args, "force", False))
+        decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
+
+    if decision in ("reuse", "warn_then_reuse"):
+        print(f"cached: {out}")
+        paras_data = load_paragraphs(out)
+        print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
+    else:
+        paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
+        paras_data = paragraphs_to_dicts(paras)
+        write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
+        print(f"{len(segs)} segments -> {len(paras)} paragraphs")
+
     print(f"output: {out}")
 
 
