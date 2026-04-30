@@ -127,68 +127,70 @@ Explicit exclusions with reasoning. Anti-features cross-checked against `PROJECT
 
 ## Traceability
 
-Empty initially — populated by `/gsd-roadmapper` during ROADMAP.md creation.
+Populated by `/gsd-roadmapper` 2026-04-30. Phases derived 1:1 from requirement categories per `.planning/research/SUMMARY.md`.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PRE-01 | TBD | Pending |
-| PRE-02 | TBD | Pending |
-| PRE-03 | TBD | Pending |
-| PRE-04 | TBD | Pending |
-| PRE-05 | TBD | Pending |
-| RES-01 | TBD | Pending |
-| RES-02 | TBD | Pending |
-| RES-03 | TBD | Pending |
-| RES-04 | TBD | Pending |
-| RES-05 | TBD | Pending |
-| RES-06 | TBD | Pending |
-| RES-07 | TBD | Pending |
-| RES-08 | TBD | Pending |
-| SRC-01 | TBD | Pending |
-| SRC-02 | TBD | Pending |
-| SRC-03 | TBD | Pending |
-| SRC-04 | TBD | Pending |
-| SRC-05 | TBD | Pending |
-| SRC-06 | TBD | Pending |
-| SRC-07 | TBD | Pending |
-| SRC-08 | TBD | Pending |
-| SRC-09 | TBD | Pending |
-| SRC-10 | TBD | Pending |
-| SRC-11 | TBD | Pending |
-| SRC-12 | TBD | Pending |
-| SRC-13 | TBD | Pending |
-| FPS-01 | TBD | Pending |
-| FPS-02 | TBD | Pending |
-| FPS-03 | TBD | Pending |
-| FPS-04 | TBD | Pending |
-| FPS-05 | TBD | Pending |
-| FPS-06 | TBD | Pending |
-| FPS-07 | TBD | Pending |
-| TEACH-01 | TBD | Pending |
-| TEACH-02 | TBD | Pending |
-| TEACH-03 | TBD | Pending |
-| TEACH-04 | TBD | Pending |
-| TEACH-05 | TBD | Pending |
-| TEACH-06 | TBD | Pending |
-| TEACH-07 | TBD | Pending |
-| TEACH-08 | TBD | Pending |
-| TEACH-09 | TBD | Pending |
-| TEACH-10 | TBD | Pending |
-| TEACH-11 | TBD | Pending |
-| TEACH-12 | TBD | Pending |
-| TEACH-13 | TBD | Pending |
-| PARA-01 | TBD | Pending |
-| PARA-02 | TBD | Pending |
-| PARA-03 | TBD | Pending |
-| PARA-04 | TBD | Pending |
-| PARA-05 | TBD | Pending |
-| PARA-06 | TBD | Pending |
+| PRE-01 | Phase 1 | Pending |
+| PRE-02 | Phase 1 | Pending |
+| PRE-03 | Phase 1 | Pending |
+| PRE-04 | Phase 1 | Pending |
+| PRE-05 | Phase 1 | Pending |
+| RES-01 | Phase 2 | Pending |
+| RES-02 | Phase 2 | Pending |
+| RES-03 | Phase 2 | Pending |
+| RES-04 | Phase 2 | Pending |
+| RES-05 | Phase 2 | Pending |
+| RES-06 | Phase 2 | Pending |
+| RES-07 | Phase 2 | Pending |
+| RES-08 | Phase 2 | Pending |
+| SRC-01 | Phase 3 | Pending |
+| SRC-02 | Phase 3 | Pending |
+| SRC-03 | Phase 3 | Pending |
+| SRC-04 | Phase 3 | Pending |
+| SRC-05 | Phase 3 | Pending |
+| SRC-06 | Phase 3 | Pending |
+| SRC-07 | Phase 3 | Pending |
+| SRC-08 | Phase 3 | Pending |
+| SRC-09 | Phase 3 | Pending |
+| SRC-10 | Phase 3 | Pending |
+| SRC-11 | Phase 3 | Pending |
+| SRC-12 | Phase 3 | Pending |
+| SRC-13 | Phase 3 | Pending |
+| FPS-01 | Phase 4 | Pending |
+| FPS-02 | Phase 4 | Pending |
+| FPS-03 | Phase 4 | Pending |
+| FPS-04 | Phase 4 | Pending |
+| FPS-05 | Phase 4 | Pending |
+| FPS-06 | Phase 4 | Pending |
+| FPS-07 | Phase 4 | Pending |
+| TEACH-01 | Phase 5 | Pending |
+| TEACH-02 | Phase 5 | Pending |
+| TEACH-03 | Phase 5 | Pending |
+| TEACH-04 | Phase 5 | Pending |
+| TEACH-05 | Phase 5 | Pending |
+| TEACH-06 | Phase 5 | Pending |
+| TEACH-07 | Phase 5 | Pending |
+| TEACH-08 | Phase 5 | Pending |
+| TEACH-09 | Phase 5 | Pending |
+| TEACH-10 | Phase 5 | Pending |
+| TEACH-11 | Phase 5 | Pending |
+| TEACH-12 | Phase 5 | Pending |
+| TEACH-13 | Phase 5 | Pending |
+| PARA-01 | Phase 6 | Pending |
+| PARA-02 | Phase 6 | Pending |
+| PARA-03 | Phase 6 | Pending |
+| PARA-04 | Phase 6 | Pending |
+| PARA-05 | Phase 6 | Pending |
+| PARA-06 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 51 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 51 ⚠️ (will be resolved by gsd-roadmapper)
+- v1 requirements: 52 total (5 PRE + 8 RES + 13 SRC + 7 FPS + 13 TEACH + 6 PARA)
+- Mapped to phases: 52 (100%) ✓
+- Unmapped: 0 ✓
+
+> Note: The earlier "51 total" stat was an arithmetic miscount (sum of category subtotals = 52). Corrected here on roadmap creation.
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after initial definition*
+*Last updated: 2026-04-30 — traceability populated by gsd-roadmapper (52 reqs → 6 phases, 100% coverage)*
