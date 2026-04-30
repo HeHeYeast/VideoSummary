@@ -97,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-29 after initialization*
+*Last updated: 2026-04-30 — Phase 1 complete (regression baseline frozen; agent.io schema-tolerant loaders landed; encoding audit + Windows zh-CN docs shipped). No Active requirements moved to Validated yet — Phase 1 is gating infrastructure that ENABLES "现有路径 backward-compatible" but does not tick it off until later phases land without breaking baselines.*
