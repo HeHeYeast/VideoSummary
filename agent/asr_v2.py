@@ -25,10 +25,21 @@ class Paragraph:
 _SENTENCE_END = re.compile(r"[.!?。！？…]+\s*$")
 
 
+# Phase 2 RES-01: expose defaults as constants so sidecar can capture them.
+# Phase 5 TEACH-06 will introduce a PROFILES dict that flips these. Do NOT
+# inline the defaults back into the signature -- sidecar code reads _DEFAULTS.
+_DEFAULTS = {
+    "gap_threshold": 1.5,
+    "max_para_duration": 30.0,
+    "sentence_gap": 0.8,
+}
+
+
 def aggregate_paragraphs(
     segs: list[dict],
-    gap_threshold: float = 1.5,
-    max_para_duration: float = 30.0,
+    gap_threshold: float = _DEFAULTS["gap_threshold"],
+    max_para_duration: float = _DEFAULTS["max_para_duration"],
+    sentence_gap: float = _DEFAULTS["sentence_gap"],
 ) -> list[Paragraph]:
     """将原始 segments 聚合成段落.
 
@@ -78,7 +89,7 @@ def aggregate_paragraphs(
             if gap > gap_threshold:
                 should_split = True
             # 条件2: 前一句以句末标点结尾 且 间隔 > 0.8s
-            elif gap > 0.8 and _SENTENCE_END.search(current_texts[-1]):
+            elif gap > sentence_gap and _SENTENCE_END.search(current_texts[-1]):
                 should_split = True
             # 条件3: 段落时长超过上限
             elif duration > max_para_duration:

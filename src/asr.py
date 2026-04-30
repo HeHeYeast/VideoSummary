@@ -38,6 +38,14 @@ class Segment:
     text: str
 
 
+# Phase 2 RES-01: expose VAD defaults so sidecar can capture them.
+# Phase 5 TEACH-12 will tighten these for profile=podcast. Do NOT inline
+# the defaults back into the function body -- sidecar code reads _VAD_DEFAULTS.
+_VAD_DEFAULTS = {
+    "min_silence_duration_ms": 500,
+}
+
+
 def extract_audio(video_path: str | Path, out_path: str | Path) -> Path:
     out_path = Path(out_path)
     cmd = [
@@ -52,7 +60,8 @@ def extract_audio(video_path: str | Path, out_path: str | Path) -> Path:
 def transcribe(audio_path: str | Path,
                model_size: str = "small",
                language: str | None = None,
-               initial_prompt: str | None = None) -> list[Segment]:
+               initial_prompt: str | None = None,
+               min_silence_duration_ms: int = _VAD_DEFAULTS["min_silence_duration_ms"]) -> list[Segment]:
     """转录. model_size: tiny/base/small/medium/large-v3.
 
     8GB 显存默认 small (中文够用且快); 质量优先用 medium 或 large-v3.
@@ -70,7 +79,7 @@ def transcribe(audio_path: str | Path,
         str(audio_path),
         language=language,
         vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 500},
+        vad_parameters={"min_silence_duration_ms": min_silence_duration_ms},
         condition_on_previous_text=False,
         initial_prompt=initial_prompt,
         beam_size=5,
