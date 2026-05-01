@@ -102,9 +102,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: CLAUDE.md classification + format-spec lock + exemplar skeletons + plan.md/depth_plan.md artifacts (TEACH-01, TEACH-02, TEACH-03, TEACH-04, TEACH-05)
-- [ ] 05-02: `aggregate --profile` + `PROFILES` constant + whisper repetition guard + per-profile VAD tuning (TEACH-06, TEACH-07, TEACH-11, TEACH-12)
-- [ ] 05-03: `diarize` opt-in subcommand + UI-demo & podcast CLAUDE.md skeletons + `chapters.json` (TEACH-08, TEACH-09, TEACH-10, TEACH-13)
+- [ ] 05-01-PLAN.md — CLAUDE.md `## 视频类型变奏` 章节 + 4 模式分类 + format-spec lock + 4-8 份 hand-authored skeleton + plan.md/depth_plan.md docs (TEACH-01, TEACH-02, TEACH-03, TEACH-04, TEACH-05) [Wave 1, autonomous]
+- [ ] 05-02-PLAN.md — agent/asr_v2.py + src/asr.py PROFILES dict + agent/tools.py --profile flag + whisper_repetition_guard + transcribe_warnings.json + 17 archive byte-equal regression (TEACH-06, TEACH-07, TEACH-11, TEACH-12) [Wave 1, autonomous, parallel with 05-01]
+- [ ] 05-03-PLAN.md — User-run pyannote spike + agent/diarize.py + cmd_diarize opt-in CLI + CLAUDE.md UI demo 4 sub-rules + podcast skeleton + chapters.json + Pyannote setup 章节 + WR-02 VTT priority fold-in (TEACH-08, TEACH-09, TEACH-10, TEACH-13 + WR-02) [Wave 2, NOT autonomous — Task 1 is user-run spike + Task 6 is human-verify checkpoint]
 **UI hint**: no
 
 ### Phase 6: Multi-Agent Parallelism (Nice-to-Have, ship-or-skip)
