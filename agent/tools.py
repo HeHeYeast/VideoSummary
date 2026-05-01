@@ -80,63 +80,73 @@ def _emit_event(out_dir: Path, stage: str, status: str,
     append_event(state_log, stage=stage, status=status, params_hash=h, details=details)
 
 
-def cmd_download(args):
-    """下载视频. 自动识别 B 站 / 抖音."""
+def cmd_ingest(args):
+    """Ingest video from URL or local path. Phase 3 SRC-03 canonical entry point.
+
+    Routes via agent.url_router.route() to the appropriate Source class.
+    Centralizes meta.json write + sidecar through agent.io.write_json_atomic
+    (Phase 2 D-09 single-landing-point — RESEARCH §"Architecture Patterns Pattern 5").
+
+    NOTE: stage name is hard-coded "download" (NOT "ingest") so state.jsonl events
+    remain comparable across pre-/post-Phase-3 archives — RESEARCH Pitfall 5,
+    anchored at _DOCTOR_ARTIFACTS line 64.
+    """
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from agent.io import write_sidecar
+    from agent.url_router import route
+
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    # Phase 2 RES-05: emit started event (sidecar not yet built -- empty params_hash).
-    # Truncate URL for log brevity (avoid leaking long douyin tracking params).
+    # Phase 2 RES-05: emit started event with truncated URL for log brevity.
     _emit_event(work_dir, "download", "started",
-                details={"url": args.url[:120]})
+                details={"url_or_path": str(args.url)[:120]})
 
-    sidecar = None  # built only on success path so we can hash it for the completed event
+    sidecar = None
     try:
-        url = args.url.lower()
-        if "douyin.com" in url:
-            # 抖音走自建 downloader (a_bogus 签名)
-            from agent.douyin_downloader import download_douyin
-            # cookies 文件默认在项目根
-            cookies_file = os.getenv("DOUYIN_COOKIES_FILE",
-                                      str(Path(__file__).parent.parent / "www.douyin.com_cookies.txt"))
-            if not Path(cookies_file).exists():
-                log.warning("抖音 cookies 文件不存在: %s (可能导致下载失败)", cookies_file)
-                cookies_file = None
-            meta = download_douyin(args.url, work_dir,
-                                   cookies_file=cookies_file, skip_if_cached=True)
-            platform = "douyin"
-        else:
-            # B 站 / YouTube / 其他走 yt-dlp
-            from src.download import download
-            meta = download(args.url, work_dir, skip_if_cached=True)
-            platform = "bilibili_or_other"
+        # 1. Route URL/path to source class
+        source = route(args.url)
+        log.info("source: %s", source.name)
 
-        # Phase 2 RES-01: write sidecar for meta.json (D-04 -- newly-written
-        # artifacts always carry sidecars). meta.json itself is written by the
-        # downloader; we only attach the sidecar here. Archive meta.json without
-        # sidecar follows D-01 path (warn but don't regen).
+        # 2. Delegate fetch to source (writes video.mp4 + an initial meta.json
+        #    via legacy module's own write_text — that's OK; we re-write atomically below).
+        meta = source.fetch(args.url, work_dir, skip_if_cached=True)
+
+        # 3. Centralized meta.json write through agent.io.write_json_atomic.
+        #    The legacy module already wrote meta.json with 7-key (bilibili/generic)
+        #    or 9-key (douyin) shape; this re-write atomically replaces it with
+        #    the augmented dict (legacy keys + Phase 3 additive fields at end).
+        #    Sidecar comes for free (Phase 2 D-04).
         meta_path = work_dir / "meta.json"
-        if meta_path.exists():
-            sidecar = _build_sidecar(
-                cli={},
-                func={"skip_if_cached": True, "platform": platform},
-                tools={"ffmpeg": _get_ffmpeg_version()},
-            )
-            try:
-                write_sidecar(meta_path, sidecar)
-            except OSError as e:
-                log.warning("failed to write meta.json sidecar: %s", e)
+        sidecar = _build_sidecar(
+            cli={},
+            func={"skip_if_cached": True, "source": source.name},
+            tools={"ffmpeg": _get_ffmpeg_version()},
+        )
+        write_json_atomic(meta_path, meta, sidecar_params=sidecar)
 
         _emit_event(work_dir, "download", "completed", sidecar=sidecar,
-                    details={"platform": platform})
-        # 避免打印含 emoji 的 title 炸 gbk 终端
+                    details={"source": source.name})
+
+        # ASCII-safe print to survive default GBK Windows terminals (CLAUDE.md L41-44).
         print(json.dumps(meta, ensure_ascii=True, indent=2))
     except Exception as e:
         _emit_event(work_dir, "download", "failed", sidecar=sidecar,
                     details={"error_type": type(e).__name__, "error": str(e)[:200]})
         raise
+
+
+def cmd_download(args):
+    """[backward-compat alias] 下载视频. 转 cmd_ingest 处理 (Phase 3 SRC-03 D-07).
+
+    The existing `download` subcommand is preserved as a permanent alias to
+    `ingest` for the documented 5-command CLI surface (CLAUDE.md L11-17 +
+    PROJECT.md K3 backward-compat).
+
+    Observable behavior is identical to ingest on B站/抖音 URLs (verified via
+    Phase 1 baselines BV132wizyEEB / BV1C9QCBdE1U / douyin_trae_ai — see
+    RESEARCH §"Byte-Identical Regression Strategy").
+    """
+    return cmd_ingest(args)
 
 
 def cmd_transcribe(args):
@@ -498,8 +508,12 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     # ── 核心命令 (本地, ¥0) ──
-    p = sub.add_parser("download", help="下载视频")
+    p = sub.add_parser("download", help="下载视频 (= ingest 别名)")
     p.add_argument("url")
+    p.add_argument("--out", required=True)
+
+    p = sub.add_parser("ingest", help="多源 ingest (B站/抖音/YouTube/本地 mp4) — Phase 3 canonical")
+    p.add_argument("url", help="URL or local path")
     p.add_argument("--out", required=True)
 
     p = sub.add_parser("transcribe", help="ASR 转录 (本地)")
@@ -548,6 +562,7 @@ def main():
 
     cmds = {
         "download": cmd_download,
+        "ingest": cmd_ingest,  # NEW (Phase 3 SRC-03 D-05)
         "transcribe": cmd_transcribe,
         "aggregate": cmd_aggregate,
         "extract_frames": cmd_extract_frames,
