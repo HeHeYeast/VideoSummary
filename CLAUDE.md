@@ -192,7 +192,679 @@ depth_plan.md 内容是**章节级 token 预算 + 重点段落标记**，目的�
 
 ### 4 模式 skeleton（exemplar prior）
 
-> 此处为 placeholder。具体 8 份 skeleton（4 模式 × 2 份）由 plan 05-01 task 2 嵌入。
+> **使用方式**：你在 Phase 2 决定 mode 之后，写作时**参照对应 mode 的 2 份 skeleton 做章节切分 + 段落形态**。**不**复制粘贴。exemplar 是 prior（先验形态），不是模板（template）。每份 skeleton 都从已归档 corpus reshape，保留 4 项 format-spec 不变量。
+>
+> **每模式 2 份的设计原因**：单份 skeleton 容易让 Claude 锚定为"唯一正解"；2 份不同节奏（短 vs 长 / 步骤型 vs 概念型 / 单一线索 vs 多线索）能撑出真实变奏空间，避免 P1.3 "every video looks the same" 退化。
+
+#### Mode: replicate-guide（复刻指南，17 archived 主流）
+
+##### Skeleton 1：短小步骤型（节奏快、每节 1 操作 + 1 截图 + 1 行 why）
+
+<!-- 来源: output/BV132wizyEEB/summary.md (reshape, 1:14 视频；典型"跟我做出来"节奏) -->
+
+```markdown
+# 1 分钟搞定全套像素风游戏美术：AI 绘画 + 自动抠图全流程
+
+> UP主：今天又被Godot打了 | 时长：1:14 | [B站链接](https://www.bilibili.com/video/BV132wizyEEB)
+
+---
+
+## 一、用 Gemini 生成像素风场景地图
+
+[00:00:06] **打开 Gemini，用提示词生成初始场景**
+
+提示词的关键是先给 AI 设定角色，再描述要生成的地图类型。你直接复制下面这段：
+
+> 你是一名资深的像素场景画师，你将根据描述的场景生成一个 topdown 类型的俯视视角的全景像素风场景，不会出现人物。帮我生成一个冒险家协会的内景
+
+![](frames/seg_0005_000002.jpg)
+
+*要点*：明确指定"像素场景画师"角色 + "topdown 俯视视角" + "全景像素风" + "不会出现人物" 4 个约束条件，缺一个出来的画面都会跑偏。
+
+---
+
+## 二、迭代修改场景细节
+
+[00:00:19] **告诉 AI 具体修改需求，并禁止其他改变**
+
+直接用自然语言描述要修改的内容。**关键技巧**：明确说"其余地方禁止改变"，防止 AI 在修改一处时把其他地方也改了。
+
+第一轮修改提示词：
+
+> 把左下角的门去掉，然后右上角的楼梯去掉，其余地方禁止改变
+
+![](frames/seg_0015_000003.jpg)
+
+*为什么这么做*：Gemini 在 image-edit 模式下默认会把整图重 generate；加"禁止改变"是把它锁定到 inpaint 行为。
+
+---
+
+## 三、提取场景中的物品素材
+
+[00:00:33] **用提示词让 AI 将物品单独提取出来**
+
+提示词：
+
+> 请将场景中的物件单独提取（地板之上的家具），并有序排列，物件与物件之间保持一定距离，避免后期提取的时候混淆。物件的大小与原场景一致。并且用一个纯色的区别于物件颜色背景色填充。
+
+![](frames/seg_0031_000002.jpg)
+
+*关键*：要求 AI 使用**与物品不同颜色的纯色背景**，这样后期可以通过底色轻松抠图。
+
+---
+
+## 四、成果展示
+
+[00:01:02] **将素材导入 Godot 引擎**
+
+最终效果：所有 AI 生成的像素风素材直接导入 Godot 游戏引擎中使用。
+
+![](frames/seg_0052_000004.jpg)
+```
+
+##### Skeleton 2：长流程多步骤型（节奏稳、章节带"为什么这么做"小段 + 完整代码尾节）
+
+<!-- 来源: output/douyin_trae_ai/summary.md (reshape, 4:12 视频；TRAE SOLO 配置 → 命令创建 → 实操) -->
+
+```markdown
+# 搭建全网千万收藏的 AI 第二大脑：TRAE SOLO 实战教程
+
+> 来源：抖音 @数字游牧人 Samuel · 时长 4:12 · [原视频](https://v.douyin.com/D4_5dfVmsIo/)
+>
+> 关键词：TRAE SOLO、Compound Engineering、MTC 模式、个人知识库
+
+## 这篇教程讲什么
+
+跟着 UP 主一步步在 TRAE SOLO 桌面端搭出一套「摄取 → 消化 → 输出」的 AI 第二大脑。学完你会得到 3 条可复用的自定义命令 + 装好的 4 个 skill。
+
+---
+
+## 一、先理解核心理念：Compound Engineering
+
+[00:00:05] **什么是 Compound Engineering**
+
+![](frames/seg_0000_000001.jpg)
+
+四步循环：**Plan → Work → Review → Compound**。**关键一步**是 Compound——把这次经验写回系统，让下次更容易。
+
+| 步骤 | 你做什么 |
+| --- | --- |
+| Plan | 先规划、拆解任务 |
+| Work | 让 AI 完成执行 |
+| Review | 人或 AI 把关质量 |
+| Compound | 把判断写回系统 |
+
+*为什么这么做*：复利不发生在模型里，复利发生在你有没有把判断留下来。
+
+---
+
+## 二、进入 TRAE SOLO 桌面端：打开命令面板
+
+[00:01:28] **步骤 1：选本地文件夹作为 AI workspace**
+
+![](frames/seg_0000_000008.jpg)
+
+切换到 **MTC 模式**，新建项目（命名 `LLM Wiki`），**指定一个本地文件夹作为 AI workspace**——后面所有 `raw/`、`wiki/`、`outputs/` 都会写在这里。
+
+[00:01:38] **步骤 2：进入设置 → 命令面板**
+
+![](frames/seg_0088_000001.jpg)
+
+点击左下角头像 → 设置 → 左侧菜单的 **命令** 项。初次进来右边是空的，要在这里创建三条命令：**摄取**、**消化**、**输出**。
+
+*为什么用命令而不是每次手输 prompt*：命令可以保存指令、描述、技能绑定，下次在对话框里打 `/` 就能调出来。
+
+---
+
+## 三、创建三条自定义命令
+
+[00:01:43] **步骤 3：编辑「输出-知识卡片」命令**
+
+![](frames/seg_0088_000003.jpg)
+
+重点字段：
+
+- **命令名称**：`输出-知识卡片`
+- **描述**：`用于基于 /wiki 中已沉淀的知识生成一张知识卡片。`
+- **说明**（核心 prompt）：
+
+```text
+你负责围绕具体任务调用知识库内容进行输出，请先读取 /wiki 下相关条目，
+再生成一张知识卡片。输出必须明确依赖了哪些知识条目；如果知识不足，
+要指出缺口和补充内容，而不是硬编造。
+```
+
+*整段 prompt 的结构*：① 任务是什么 ② 读哪个目录 ③ 输出写到哪 ④ 不足要补缺口不准硬编造 ⑤ 跑完回写新笔记。
+
+---
+
+## 四、完整代码 / 配置（按文件列出）
+
+### `commands/输出-知识卡片.md`
+
+```text
+你负责围绕具体任务调用知识库内容进行输出，请先读取 /wiki 下相关条目，再生成一张知识卡片...
+```
+
+### `commands/摄取.md`
+
+```text
+读入外部 URL/文件，抓取内容，按来源归档到 /raw 下，并把元数据写成 front-matter...
+```
+```
+
+#### Mode: concept-explanation（原理讲解）
+
+##### Skeleton 1：核心问题 → 反直觉答案 → 最小例证 → 应用边界
+
+<!-- 来源: output/douyin_ai_kb/summary.md (reshape, 2:02 视频；Karpathy LLM Wiki 范式) -->
+
+```markdown
+# 复刻 Karpathy 的个人知识库管理范式：LLM Wiki
+
+> 来源：抖音 @Bryan · 时长 2:02
+>
+> 一句话：把碎片知识**编译**成生产力系统，而不是囤在收藏夹里发霉。
+
+---
+
+## 核心问题：你的收藏夹为什么没救
+
+[00:00:00] **现象：读过 1005 篇，转化率 0.1%**
+
+![](frames/seg_0000_000001.jpg)
+
+你的收藏夹里躺着无数深度好文，但真正遇到复杂 bug 或架构决策时，大脑里只能搜到一堆碎片。这不是因为你读得少，而是因为**碎片化阅读只带来"学到了"的虚假快感**。
+
+> *核心问题*：没有体系，就没有生产力。
+
+---
+
+## 反直觉答案：编译，而非存储
+
+[00:00:38] **一条公式看懂这套方法**
+
+![](frames/seg_0000_000005.jpg)
+
+传统知识管理是"**存储**"——PDF 混乱堆、链接收藏夹、笔记碎片全部堆在 L1 Raw 层，然后就没有然后了。
+
+Karpathy 的范式是"**编译**"——让 LLM 把 L1 Raw 重新编写成 L2 Wiki 层的系统化文档，背后的公式：
+
+```text
+Knowledge = Σ(Fragments) × Compiler
+```
+
+*为什么这是反直觉*：单纯累加碎片（Σ Fragments）不会自动产生知识，必须乘上一个 Compiler（你 + LLM 组成的编译器），才能把它们织入**已有的逻辑网络**。
+
+---
+
+## 最小例证：三文件夹
+
+[00:01:05] **物理隔离：建立 `~/llm-wiki` 三文件夹**
+
+![](frames/seg_0000_000008.jpg)
+
+```text
+~/llm-wiki/
+├── raw/     # 1. 高信号原始稿
+├── wiki/    # 2. 系统化知识（双链）
+└── lab/     # 3. 物理直觉复现
+```
+
+*为什么这么分*：`/raw` 把"收藏"门槛拉高，本身就是第一道过滤器；`/wiki` 是编译产物层；`/lab` 是动手区——把理论跑一遍手感才真正沉淀下来。
+
+---
+
+## 应用边界：什么时候这套方法不灵
+
+- **企业级知识库**：体量大 + 多人维护 → RAG 仍是主力
+- **给 AI 看的复杂场景**：AI 需要 git 快照式版本 wiki，不是单视图
+- **临界复杂点**：到一定规模 agent 自己也维护不动了
+
+*核心**判断**：个人和中等规模它打爆 RAG；超出这个范围请回 RAG。
+```
+
+##### Skeleton 2：从一份代码教程切片出"如果只讲原理会怎么写"
+
+<!-- 来源: output/douyin_claude_code_hooks/summary.md 的概念部分 (reshape，剥离实操只留原理) -->
+
+```markdown
+# Claude Code Hooks 原理：为什么事件驱动比手动触发好得多
+
+> 来源：抖音 @大东软件 (原视频是教程，本 skeleton 把它的"原理段"切片重写)
+
+---
+
+## 核心问题：写完代码忘记 lint，提交前没做安全扫描，怎么办？
+
+[00:00:00] **手动触发的根本问题**
+
+![](frames/seg_0000_000001.jpg)
+
+很多开发流程里的麻烦事——lint、格式化、安全扫描、提交前检查——并不是忘了做，而是**每次都要手动记得**。靠自觉就一定会漏。
+
+> *核心问题*：人脑不该承担"记得每次执行重复任务"的负担。
+
+---
+
+## 反直觉答案：把流程挂在事件上，而不是挂在意志上
+
+[00:00:10] **事件驱动 vs 意志驱动**
+
+![](frames/seg_0000_000002.jpg)
+
+| 模型 | 触发方式 | 出错率 |
+|---|---|---|
+| 意志驱动 | "我记得 commit 前跑一下 scan" | 高（人会忘） |
+| 事件驱动 | "Claude 每次写完文件 → 自动 scan" | 0（系统不忘） |
+
+*为什么是反直觉的*：直觉上你会想"我得养成 commit 前 scan 的习惯"。但好流程不是练习记忆，而是**把记忆外包给系统**。
+
+---
+
+## 最小例证：4 类 hook × 4 类事件 = 16 种组合，最常用的就 1 种
+
+[00:00:50] **PostToolUse + Write|Edit matcher**
+
+![](frames/seg_0000_000008.jpg)
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{"type": "command", "command": "./scan-secrets.sh"}]
+    }]
+  }
+}
+```
+
+*这就是"事件驱动"的最小落地形态*：3 行 JSON，0 行业务代码，永久生效。
+
+---
+
+## 应用边界：什么场景**不该**用 hook
+
+- **一次性脚本**：写一个 hook 比手动跑一次还慢
+- **需要语义理解的任务**：用 Prompt 类 hook 不用 Command 类
+- **跨系统联动**：用 HTTP hook 调外部 webhook 而不是 Command
+
+*核心判断*：hook 是给"重复 + 必做"的事用的，给"偶尔 + 可选"的事用 hook 是过度工程。
+```
+
+#### Mode: extension-applications（延展应用）
+
+##### Skeleton 1：4 类工具横向罗列 + 各自适用边界 + 总评
+
+<!-- 来源: output/douyin_claude_code_hooks/summary.md (reshape, 1:08 视频；4 hook 类型 × 4 触发事件横向对比) -->
+
+```markdown
+# Claude Code 系列教程第 6 期：Hooks 事件驱动自动化
+
+> 来源：抖音 @大东软件 · 时长 1:08
+>
+> 同一个 Hook 系统在 4 类不同任务上的应用对比。
+
+---
+
+## 本期你将学到
+
+- Hooks 在 4 类不同任务上各自怎么配
+- 4 类工具（Command / Prompt / HTTP / Agent）各自的适用边界
+- 如何在 1 分钟里挑对工具类型
+
+---
+
+## [00:00:10] 场景对比一览
+
+![](frames/seg_0000_000003.jpg)
+
+| 工具类型 | 适用场景 | 反例（不要用它） |
+|---|---|---|
+| **Command** | 跑 lint / 跑测试 / 跑 shell 脚本 | 需要语义理解的复杂判断 |
+| **Prompt** | 让模型对变更做自我审查 | 单纯调外部 API（用 HTTP） |
+| **HTTP** | 发 Slack 通知 / 写 CI / 调 webhook | 本地文件操作（直接 Command） |
+| **Agent** | 让独立 agent 做复核 / 复杂决策 | 简单 lint（杀鸡用牛刀） |
+
+*总评*：Command 占 80% 实战需求，剩下 20% 才需要 Prompt / HTTP / Agent。**先默认 Command，再按场景升级**。
+
+---
+
+## 场景 1：写完文件自动扫描敏感信息（Command + PostToolUse）
+
+[00:00:50] **最经典的安全场景**
+
+![](frames/seg_0000_000008.jpg)
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{"type": "command", "command": "./scan-secrets.sh"}]
+    }]
+  }
+}
+```
+
+*边界*：只在 Write/Edit 后跑（Read 不会触发）；scan 时间 < 200ms 才适合，更慢就要异步化。
+
+---
+
+## 场景 2：让 AI 对自己写的代码做自我审查（Prompt + PostToolUse）
+
+[00:01:00] **何时升级到 Prompt 类型**
+
+```yaml
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      type: prompt
+      prompt: "审视刚才写入的文件 $TOOL_FILE，列出 3 个可能的安全风险"
+```
+
+*边界*：只在改动核心文件时启用，否则每次写文件都被 LLM "审视"一遍 token 爆炸。
+
+---
+
+## 场景 3：任务完成后通知团队（HTTP + Stop）
+
+[00:01:05] **跨系统场景**
+
+```yaml
+hooks:
+  Stop:
+    - type: http
+      url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+      payload: {"text": "Claude Code 任务完成"}
+```
+
+*边界*：仅团队协作场景；个人使用 Stop hook 没意义。
+
+---
+
+## 场景 4：让另一个 agent 独立审稿（Agent + Stop）
+
+```yaml
+hooks:
+  Stop:
+    - type: agent
+      agent: code-reviewer
+      input: $LAST_DIFF
+```
+
+*边界*：成本最高（启动子 agent ~ 数秒 + 上下文 token），只用于 PR 级别复核。
+
+---
+
+## 4 场景总评：怎么挑？
+
+```text
+日常 80% — Command + PostToolUse
+质量 15% — Prompt + PostToolUse  
+通知  4% — HTTP + Stop
+复核  1% — Agent + Stop（成本最高）
+```
+
+按"出现频率 × 单次成本"决策，不要 over-engineer。
+```
+
+##### Skeleton 2：同一概念在不同应用场景串讲
+
+<!-- 来源: output/douyin_trae_ai/summary.md (reshape，TRAE SOLO 的 3 种命令分别支撑 3 个场景的横向罗列形态) -->
+
+```markdown
+# 一套 Compound Engineering 的 3 种落地：摄取 / 消化 / 输出
+
+> 来源：抖音 @数字游牧人 Samuel · 时长 4:12
+>
+> 同一个理念在 3 个不同任务上的应用串讲。
+
+---
+
+## 共同底色：Compound Engineering 是什么
+
+[00:00:05] **核心理念**
+
+![](frames/seg_0000_000001.jpg)
+
+四步循环 **Plan → Work → Review → Compound**。**关键**：每次任务都把经验沉淀成下一次任务的起点。
+
+下面 3 个场景都是这个理念的具体落地，**注意它们的共性 + 各自的差异**。
+
+---
+
+## 场景 1：摄取（把 YouTube 视频扒成本地笔记）
+
+[00:01:58] **MTC 模式 + youtube-transcript skill**
+
+![](frames/seg_0088_000005.jpg)
+
+```text
+/摄取 https://www.youtube.com/watch?v=rmvDxxNuBlg
+```
+
+agent 自动做 3 件事：调用 `youtube-transcript` → 抓字幕 → 归档到 `/raw`。
+
+*这一步的 Compound 是什么*：原始 transcript + UP 主自己的元数据 → 永久可复用资产。
+
+---
+
+## 场景 2：消化（把 raw 编译成 wiki）
+
+[00:02:30] **遍历 raw 提取知识点 → 写 wiki**
+
+```text
+/消化
+```
+
+agent 遍历 `/raw` 里最近变动的文件，抽取知识点，**按 Atomic Notes 拆分**写入 `/wiki`，互相建立反向链接。
+
+*与场景 1 的差异*：
+- 场景 1 是"抓"——读外部数据
+- 场景 2 是"写"——产出结构化知识
+- 共同点：都把这次产物保存为下次的输入
+
+---
+
+## 场景 3：输出（基于 wiki 生成知识卡片）
+
+[00:03:15] **拉 wiki 拼回答 → 写 outputs**
+
+```text
+/输出-知识卡片 主题: Compound Engineering
+```
+
+agent 读取 `/wiki` 下相关条目，再生成一张知识卡片，要求**输出必须明确依赖了哪些知识条目**。
+
+*与场景 1/2 的差异*：场景 3 是"消费"环节，但**它仍然 Compound**——回写新发现的缺口到 `/wiki`。
+
+---
+
+## 3 场景边界对比
+
+| 场景 | 输入 | 输出 | Compound 形式 |
+|---|---|---|---|
+| 摄取 | 外部 URL | `/raw/*` | 元数据 + 来源标记 |
+| 消化 | `/raw/*` | `/wiki/*` | atomic notes + 反向链接 |
+| 输出 | 任务 + `/wiki/*` | `/outputs/*` | 缺口回写 wiki |
+
+*整体判断*：3 个命令各自独立，但共享同一个底层 workspace（你的本地文件夹）。**这就是 Compound——状态共享 + 单向流动**。
+```
+
+#### Mode: interview-distillation（访谈萃取）
+
+##### Skeleton 1：speaker turns + key claims + timestamp-navigable quotes（无 frames，blockquote 替代图片）
+
+<!-- 来源: output/douyin_karpathy_llm_wiki/summary.md (reshape, 4:02 UP 主对 Karpathy gist 的判断+反方三连击；最贴合访谈萃取形态) -->
+
+```markdown
+# Karpathy 又被吹爆，但这次可能真不是炒作
+
+> **视频信息**：抖音 @小宇玩 AI · 时长 4:02 · 中文解说 · 观点分享/技术判断
+> **核心结论**：Karpathy 的 75 行 gist "LLM Wiki" 方法本身并不新——很多人已经跑了几个月。真正新的是他**第一次给它起了个名字**。
+
+---
+
+## [00:00:00] UP 主开场：方法不新，命名才新
+
+> [00:00:00] UP 主："又火了、又颠覆了、又震惊了。"
+>
+> *他自己的判断*：这方法真不新，Karpathy 做的只是一件小事——第一次给它起了个名字。但起完名字 48 小时，三个开源项目抢着给它写实现。**这就是命名的力量。**
+
+> [00:00:18] Karpathy 原话："Every query is rediscovering knowledge."
+> （每次查询都在重新发现知识。）
+
+*提炼*：UP 主把这条 gist 的爆点从"内容创新"改判为"命名创新"。这是判断他和其他"吹爆党"的分水岭。
+
+---
+
+## [00:00:28] 第一刀：RAG 的顺序搞反了
+
+> [00:00:28] UP 主："RAG 老路的问题——你问 NotebookLM 一个问题，它的动作是临时去文件堆里捞段落，拼答案，问完就忘，下次又从零捞一遍。"
+
+UP 主总结的"三层结构"正解：
+
+| 层 | 内容 | LLM 的权限 |
+|---|---|---|
+| **Raw sources** | 论文、文章、报告，真理之源 | **只读不写** |
+| **Wiki** | Markdown 页面 | **全权拥有** |
+| **Schema** | `CLAUDE.md` 之类 | 告诉 LLM "你是 wiki 管理员" |
+
+> [00:00:54] Karpathy gist 原文："The schema is the key configuration file — it's what makes the LLM a disciplined wiki maintainer rather than a generic chatbot."
+
+---
+
+## [00:01:25] 最狠的比方：新员工 vs 图书管理员
+
+> [00:01:25] UP 主："RAG = 新员工。每次问问题都请一个新员工，现场翻文件柜。翻完他走了，啥都没留下。"
+>
+> [00:01:32] UP 主："LLM wiki = 图书管理员。他不会累。每来一本新书主动整理、交叉索引、标冲突。"
+
+*独家证据*：UP 主补了一句 Karpathy 自己就跑了一个主题研究 wiki，**100 篇文章、40 万字**。
+
+---
+
+## [00:02:23] 反方三连击（UP 主"判断者人设"）
+
+> [00:02:25] Hacker News @kubb（戳得最狠）："这方法不是无懈可击的。到一个临界复杂点就会崩——agent 维护不动了，开发者也看不懂了。"
+
+> [00:02:35] Obsidian CEO @kepano（官方打补丁）："别直接在个人 vault 上跑 agents，会污染你真实的思考。给 agent 单独开一个'混乱 vault'玩。"
+>
+> 关键词：**mitigate contamination**。
+
+> [00:02:48] B 站 11 赞本土吐槽："如果 wiki 的读者是 AI 不是人，AI 需要的是 git 快照式的版本 wiki，不是单一视图。"
+
+**UP 主的最终判断**：
+
+> [00:02:55] "这套真有效，但不是圣经。**个人和中等规模**它打爆 RAG。**企业级**和**给 AI 看的复杂场景**，RAG 还是主力。"
+
+---
+
+## [00:03:21] 收口：1945 年那个问题
+
+> [00:03:21] UP 主："1945 年 Vannevar Bush 提出 Memex——一个个人知识网络。Bush 画出了方向，但他解决不了一个问题：谁来维护？过去 80 年这个位置是空的。"
+>
+> [00:03:42] UP 主结论："**LLM 终于补上了这一块。**"
+
+---
+
+## 关键引文速查（按时间戳跳转）
+
+- `[00:00:18]` Karpathy: "Every query is rediscovering knowledge."
+- `[00:00:54]` Karpathy: "Schema is what makes LLM a disciplined wiki maintainer."
+- `[00:02:25]` @kubb: "到一个临界复杂点就会崩。"
+- `[00:02:35]` @kepano: "Mitigate contamination."
+- `[00:03:42]` UP 主: "LLM 终于补上了这一块。"
+```
+
+##### Skeleton 2：同一访谈按 chapters.json 切片（plan 03 引入 chapters.json 时的形态）
+
+<!-- 来源: output/douyin_karpathy_llm_wiki/summary.md (reshape — 同一访谈按 chapters.json 4 章节而非 speaker turn 组织) -->
+
+```markdown
+# LLM Wiki 范式深入：4 章节版（chapters.json 驱动）
+
+> **视频信息**：抖音 @小宇玩 AI · 时长 4:02
+> **本 skeleton 演示**：当 `output/<slug>/chapters.json` 存在时，按章节而非按 speaker turn 组织
+>
+> **chapters.json 形态预览**（plan 03 落地）：
+> ```json
+> {"chapters":[
+>   {"start":0,   "end":85,  "topic":"为什么 75 行 gist 突然炸了"},
+>   {"start":85,  "end":170, "topic":"三层结构 + 三个动作"},
+>   {"start":170, "end":260, "topic":"反方三连击"},
+>   {"start":260, "end":242, "topic":"收口与判断"}
+> ]}
+> ```
+
+---
+
+## 第 1 章 [00:00:00–00:01:25]：为什么 75 行 gist 突然炸了
+
+**核心命题**：方法不新，命名才新。
+
+UP 主开场就抛出反共识立场：自己已经这么干了几个月，所以 Karpathy 这条 gist 的爆点不在"内容创新"而在"命名创新"。
+
+> [00:00:18] Karpathy: "Every query is rediscovering knowledge."
+
+*章节小结*：这一章回答的是"为什么这件事值得讲"，定下了 UP 主"判断者"的姿态——不吹不黑，看本质。
+
+---
+
+## 第 2 章 [00:01:25–00:02:23]：三层结构 + 三个动作
+
+**核心命题**：RAG 是"新员工现查现忘"，LLM Wiki 是"图书管理员持续整理"。
+
+| 层 | 角色 | LLM 权限 |
+|---|---|---|
+| Raw | 真理之源 | 只读 |
+| Wiki | 编译产物 | 全权 |
+| Schema | 行为规范 | LLM 自己读它 |
+
+三个动作：**Ingest**（写入式更新而不是索引）/ **Query**（读编译好的 wiki）/ **Lint**（定期体检）。
+
+*章节小结*：这一章是 UP 主对 Karpathy 原 gist 的核心论证压缩。**注意**：节奏快但每个概念都要在前一章基础上叠。
+
+---
+
+## 第 3 章 [00:02:23–00:04:20]：反方三连击
+
+**核心命题**：UP 主特地把"判断者人设"立稳——他**不**做吹捧。
+
+> [00:02:25] @kubb (Hacker News)："临界复杂点就会崩。"
+>
+> [00:02:35] @kepano (Obsidian CEO)："给 agent 单独开个'混乱 vault'。"
+>
+> [00:02:48] B 站 @某用户："Wiki 给 AI 读时需要 git 快照而非单一视图。"
+
+UP 主立场：
+
+> [00:02:55] "个人和中等规模它打爆 RAG；企业级 RAG 仍是主力。"
+
+*章节小结*：这一章是全片"信息密度"最高的部分。如果只精读一章，选这章。
+
+---
+
+## 第 4 章 [00:04:20–00:04:02]：1945 年的旧问题与新答案
+
+**核心命题**：Vannevar Bush 的 Memex 设想 1945 年就提出，缺的是"维护者"。LLM 是那个缺失的环。
+
+> [00:03:42] UP 主结论："读一次，留一辈子。"
+
+*章节小结*：传统知识管理软件 80 年里都没解决"持续维护"问题。LLM 改变的不是工具形态，是**自动化维护这件事终于变得可行**。
+
+---
+
+## 章节级关键判断
+
+- 第 1 章：本质是命名学，不是方法学
+- 第 2 章：编译 ≠ 索引，权限分层是关键
+- 第 3 章：方法有清晰的边界，企业级请回 RAG
+- 第 4 章：80 年缺口被 LLM 填上
+
+*整体节奏*：UP 主用 4 章把"判断 → 论证 → 反驳 → 收口"四个动作压在 4 分钟内，节奏极紧。如果你做长访谈萃取，建议章节数 5-8 个，单章 5-15 分钟。
+```
 
 ---
 
