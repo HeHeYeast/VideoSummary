@@ -478,6 +478,40 @@ def cmd_extract_frames_batch(args):
             ) from e
 
 
+def cmd_detect_scenes(args):
+    """Phase 4 FPS-05. Decision support for Claude when authoring the schedule artifact.
+
+    Runs PySceneDetect ContentDetector and writes a scenes JSON describing
+    detected scene boundaries. Stdout reports total count + median duration so
+    Claude can immediately gauge whether results are over-segmented (median < 2s
+    on a tutorial video → re-run with --threshold 35 per RESEARCH Pitfall P4).
+
+    K5 enforcement (locked at CONTEXT line 10 + PROJECT.md "Decision authority"):
+    this handler writes ONLY the scenes artifact and NEVER auto-promotes scene
+    boundaries into segment plans. The locked acceptance test asserts this
+    function's source contains no reference to the schedule artifact filename.
+    """
+    from agent.scenes import detect_scenes
+
+    out = Path(args.out)
+    _validate_out_path(out)
+
+    log.info("running PySceneDetect on %s (threshold=%.1f)",
+             args.video, args.threshold)
+    scenes = detect_scenes(args.video, threshold=args.threshold)
+
+    obj = {"version": 1, "video": Path(args.video).name, "scenes": scenes}
+    write_json_atomic(out, obj)
+
+    if scenes:
+        durations = sorted(s["end"] - s["start"] for s in scenes)
+        median = durations[len(durations) // 2]
+    else:
+        median = 0.0
+    print(f"detected {len(scenes)} scenes; median duration = {median:.1f}s")
+    print(f"output: {out}")
+
+
 def cmd_list_frames(args):
     """列出帧文件."""
     d = Path(args.dir)
@@ -720,6 +754,18 @@ def main():
         help="bypass segment-level resume; re-run all non-skip segments",
     )
 
+    p = sub.add_parser(
+        "detect_scenes",
+        help="决策支持: PySceneDetect 输出 scenes.json (FPS-05; 工具不自动写 schedule)",
+    )
+    p.add_argument("video", help="path to video file")
+    p.add_argument("--out", required=True, help="path to output scenes.json")
+    p.add_argument(
+        "--threshold", type=float, default=27.0,
+        help="ContentDetector threshold (default 27.0; raise to 35-40 to suppress "
+             "over-segmentation on screen recordings — RESEARCH Pitfall P4)",
+    )
+
     p = sub.add_parser("list_frames", help="列出帧文件")
     p.add_argument("dir")
 
@@ -753,6 +799,7 @@ def main():
         "aggregate": cmd_aggregate,
         "extract_frames": cmd_extract_frames,
         "extract_frames_batch": cmd_extract_frames_batch,  # Phase 4 FPS-01/02/03
+        "detect_scenes": cmd_detect_scenes,  # Phase 4 FPS-05
         "list_frames": cmd_list_frames,
         "cleanup_frames": cmd_cleanup_frames,
         "classify_frame": cmd_classify_frame,

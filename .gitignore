@@ -13,3 +13,5 @@ vendor/
 # (zh-CN Windows: _validate_out_path rejects CJK in default %TEMP% so we
 # create a per-test tmpdir under tests/ which is repo-root ASCII-safe).
 tests/_tmp_batch/
+tests/_tmp_scenes/
+tests/_tmp_silence/
