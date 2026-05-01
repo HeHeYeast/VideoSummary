@@ -113,6 +113,89 @@ YouTube ingest 在国内默认连不通（GFW + 2026 SABR + PO Token 三重阻�
 
 ---
 
+## 视频类型变奏
+
+> 这一节是 `/summarize-video` 8 阶段主干的**变奏带（adaptive layer）**，不是替代品。Phase 1 / 3 / 7 / 8 不分叉；只有 Phase 2 末尾要选 mode、Phase 4-6 写作时按 mode 微调形态。**核心原则：内容自适应，形式不变。**
+
+### 模式分类（Phase 2 末尾步骤）
+
+读完 `paragraphs.json` 之后，你必须在 `output/<slug>/plan.md` 顶端写出 4 行模式判断 + primary + optional secondary 结论。**4 个 mode 标签 byte-equal**（不允许改名、不允许省略下划线、不允许新增）：
+
+- `replicate-guide` — 复刻指南（17 archived 主流；UP 全程 hands-on 教你"跟我做出来"）
+- `concept-explanation` — 原理讲解（"为什么是这样" / 反直觉答案 / 核心问题 → 最小例证）
+- `extension-applications` — 延展应用（同一工具 / 同一概念在 3-5 个场景里横向罗列 + 边界对比）
+- `interview-distillation` — 访谈萃取（播客 / 嘉宾对话 / speaker turns + 关键引文 + 时间戳导航）
+
+判断格式（写在 plan.md 正文里，front-matter 之外）：
+
+```
+replicate-guide:        70%  — UP 全程在 IDE 里 hands-on coding
+concept-explanation:    20%  — 开头 30s 讲了"ECS 是什么"
+extension-applications: 5%   — 没有跨工具对比
+interview-distillation: 5%   — 单人，无嘉宾
+
+primary: replicate-guide
+secondary: concept-explanation
+```
+
+**Fallback 规则**（**必须** 默认走，避免分类瘫痪）：4 模式百分比无明显主导（最高 < 50%）或无法分清 → primary 写 `replicate-guide`。理由：与 17 archived 风格一致，user 已熟悉，是"最低惊讶"安全选择。
+
+**Mode 切换允许在写作中途**：写到 Phase 6 一半发现 mode 误判 → 编辑 `plan.md` 把 mode 字段改掉，并加一行 `mode_switched_at: HH:MM:SS reason: <为什么改>`，重写已写部分。这是 P1.5 "wrong depth wastes tokens" 的兜底。**不**走 user-pause-confirm 流程（K2：Claude is decider）。
+
+### plan.md 必写（Phase 2 末尾产物）
+
+`output/<slug>/plan.md` = **顶部 5 字段 YAML front-matter + free-form Markdown 正文**。Phase 2 末尾必写。
+
+```yaml
+---
+mode: replicate-guide                    # 4 模式之一，byte-equal
+secondary_mode: concept-explanation      # 4 模式之一 或 null
+classification_evidence: |               # 多行字符串，4 模式各自占比的依据
+  70% 代码演示，30% 概念引入 ("ECS 是什么")，UP 全程 hands-on coding
+fps_strategy_summary: 代码段 fps 0.4 / UI 段 fps 0.2 / 闲聊跳过   # 自由字符串
+estimated_sections: 6                    # 整数，预估章节数（含引言/收尾）
+---
+
+# Phase 2 判断笔记
+
+（free-form Markdown 正文：可以写"这条视频值得抽哪些段、哪些段可以跳、为什么选这个 mode、有没有什么坑要小心"——不强 schema，写错也不让工具崩。）
+```
+
+**特殊规则**：
+- **Mandatory in Phase 2**：写完 Phase 2 必须 `output/<slug>/plan.md` 存在
+- **Missing 不强 fail**（K3 backward-compat）：17 archived 没有 plan.md，老 re-run 路径打 `WARNING: plan.md missing — pre-Phase-5 archive，跳过 mode-aware 写作` 但**不 fatal**
+- **Free-form, no schema enforcement**：5 字段写错（拼错 mode 名 / estimated_sections 写成字符串）→ 工具不强校验；下游写作时你自己 sanity-check
+- **`<plan.md>.params.json` sidecar**：Phase 2 RES-01 模式自动生成，仅记录 `{"created_at": ..., "mode": ..., "secondary_mode": ...}`。cache 层级不参与 regen 判断（plan 是 Claude 写的，无参数 hash 概念）
+
+### depth_plan.md 可选（仅 token-expensive 视频）
+
+`output/<slug>/depth_plan.md` 是**独立可选文件**，触发条件：
+
+1. **视频时长 > 30 min**，或
+2. **estimated_sections > 50**，或
+3. user 手动 `touch output/<slug>/.need_depth_plan` 强制启用（无需 user-pause-confirm，Claude is decider）
+
+depth_plan.md 内容是**章节级 token 预算 + 重点段落标记**，目的是写正文之前先确认"哪些段值得花 token，哪些段一笔带过"。Schema 同 plan.md（free-form Markdown + 顶部 YAML），不强校验。
+
+**判断标准**（Claude 自判）：你在 Phase 2 通读 paragraphs.json 后觉得"这条视频写满会爆 context"或"重点 / 闲聊比例严重失衡需要预算"——写一份 depth_plan.md。否则跳过。
+
+### 格式锁定（无论哪个 mode，4 项不变量）
+
+**这是 format-spec lock。不论 primary 是哪个 mode，summary.md 必须满足以下 4 项；违反一项就是质量退化（P1.2 退化路径）：**
+
+1. **时间戳格式**：`[HH:MM:SS]`，必须 8 字符（`[01:23:45]` ✓ / `[1:23]` ✗ / `[83:45]` ✗ / `12:34` ✗）
+2. **代码 fence 必带显式语言**：```` ```gdscript ```` / ```` ```python ```` / ```` ```bash ```` / ```` ```json ```` / ```` ```yaml ````。**不能裸 fence**（```` ``` ```` 后接代码）。即便是 shell 输出也写 ```` ```text ```` 或 ```` ```console ````
+3. **图片嵌入**：`![](frames/seg_xxxx_xxxxxx.jpg)` 相对路径。**不能** absolute 路径（`![](D:/.../frames/...)` ✗）；**不能** 空 alt 含截图（OK 但放在 frames/ 目录下，非占位 placeholder）
+4. **第二人称指令式**："你 + 动词"（"你打开 settings.json" ✓ / "我们打开 settings.json" ✗ / "settings.json 被打开" ✗）
+
+锁死语：**内容自适应；形式不变。** 这 4 项是 17 archived 已建立的"读起来是 videoSummary 出品"的视觉指纹。
+
+### 4 模式 skeleton（exemplar prior）
+
+> 此处为 placeholder。具体 8 份 skeleton（4 模式 × 2 份）由 plan 05-01 task 2 嵌入。
+
+---
+
 ## /summarize-video 完整工作流
 
 当用户说"总结这个视频"或给出 B 站 URL 时，**严格按以下步骤执行**。
@@ -147,6 +230,8 @@ python -m agent.tools aggregate output/BVxxx/segs.json --out output/BVxxx/paragr
 - 哪些时间段信息密集、哪些可以跳过
 - 决定分段抽帧策略（下一步用）
 
+**2.4** 输出模式判断 + 写 plan.md（详见 § 视频类型变奏 → 模式分类）。从 4 模式（`replicate-guide` / `concept-explanation` / `extension-applications` / `interview-distillation`）选 primary + optional secondary，落到 `output/<slug>/plan.md` 顶部 5 字段 YAML front-matter；模糊 fallback 到 `replicate-guide`；写到一半误判可以改 mode 字段 + `mode_switched_at` 标记。
+
 ### Phase 3: 智能抽帧（你决定参数）
 
 **根据 Phase 2 的判断分段抽帧**。关键原则：
@@ -180,12 +265,16 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 
 **补充抽帧**：如果发现某个关键操作没有截图，可以对那个时间点重新抽帧（更高 fps 或更精确的 start/end）。
 
+> **mode 提示**：`interview-distillation` 时帧用量极少（每章节 1-2 帧，详见 § 视频类型变奏）；`extension-applications` 中 UI demo 子规则有 4 项（pixel-text 不确定性 / tooltip 遮挡 / 光标不可见 / 4K --width override），由后续 plan 03 落地（详见 § 视频类型变奏 → skeleton 内的 mode-specific 章节）。其余 mode 按本 phase 主流程。
+
 ### Phase 5: 规划大纲
 
 基于字幕 + 帧理解，决定章节结构：
 - 按自然教学步骤切分
 - 每节标题用动词短语
 - **输出大纲给用户确认**（子 agent 执行时可跳过直接写）
+
+> **mode 提示**：`concept-explanation` 大纲走"核心问题 → 反直觉答案 → 最小例证 → 应用边界"流；`interview-distillation` 走 chapters.json + speaker turns（plan 03 引入 chapters.json schema）；`extension-applications` 大纲是横向罗列（场景 1 / 场景 2 / 场景 3 + 边界对比）。其余 mode 按本 phase 主流程。
 
 ### Phase 6: 逐节写作
 
@@ -204,6 +293,8 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 // 从截图精确抄录
 ​```
 ```
+
+> **mode 提示**：`replicate-guide` 是默认风格（17 archived 主流，本 phase 上方 markdown 模板就是它）。`concept-explanation` 不放完整代码块，只放概念图和最小例证；`extension-applications` 按场景横向罗列；`interview-distillation` 用 blockquote 替代图片（`> [HH:MM:SS] 嘉宾名："核心引文"`）。具体形态见 § 视频类型变奏 → 4 模式 skeleton。
 
 ### Phase 7: 完整代码 + 输出
 
