@@ -86,6 +86,7 @@ _DOCTOR_ARTIFACTS = [
     ("meta.json", "download"),
     ("segs.json", "transcribe"),
     ("paragraphs.json", "aggregate"),
+    ("diarization.json", "diarize"),  # Phase 5 TEACH-08 (opt-in; missing == "—" in doctor table)
 ]
 
 
@@ -722,6 +723,126 @@ def cmd_detect_silence(args):
     print(f"output: {out}")
 
 
+def cmd_diarize(args):
+    """Phase 5 TEACH-08 / D-13..D-17. Speaker diarization (opt-in via pyannote.audio).
+
+    Thin CLI wrapper around agent.diarize.diarize_audio. Responsibilities:
+      1. Read HF_TOKEN from .env; raise clean RuntimeError if absent (D-15)
+      2. ffprobe duration probe + 60min+ AND no-CUDA gate (D-16 字面 verbatim)
+      3. Phase 2 sidecar / state.jsonl idiom (Phase 2 D-07/D-09)
+      4. Write diarization.json with schema {version: 1, turns: [...]} (D-13)
+
+    K5 enforcement: this handler writes ONLY the diarization artifact and NEVER
+    auto-promotes speaker turns into chapters or segment plans — chapters.json
+    remains Claude-written (CLAUDE.md '## 视频类型变奏' Podcast skeleton).
+
+    Threat model (T-05-03-08): HF_TOKEN never logged.
+    """
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from agent.diarize import diarize_audio
+
+    out_path = Path(args.out)
+    _validate_out_path(out_path)
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. HF_TOKEN guard (D-15) — load_dotenv was called at process start
+    hf_token = os.environ.get("HF_TOKEN", "").strip()
+    if not hf_token:
+        raise RuntimeError(
+            "HF_TOKEN not set; see CLAUDE.md '## Pyannote diarization 设置（首次设置，可选）'"
+        )
+
+    # 2. audio file existence check
+    audio_path = Path(args.audio_wav)
+    if not audio_path.exists():
+        raise RuntimeError(f"audio file not found: {audio_path}")
+
+    # 3. ffprobe duration probe (audio.wav has no video stream — use bare ffprobe
+    # not agent.sources._common.ffprobe_video which requires a video stream).
+    duration_s = 0.0
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-print_format", "json",
+             "-show_format", str(audio_path)],
+            check=True, capture_output=True, text=True,
+            encoding="utf-8", timeout=5.0, shell=False,
+        )
+        info = json.loads(result.stdout)
+        raw = info.get("format", {}).get("duration", "0")
+        try:
+            duration_s = float(raw)
+        except (TypeError, ValueError):
+            duration_s = 0.0
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            FileNotFoundError, json.JSONDecodeError) as e:
+        log.warning("ffprobe duration probe failed on %s: %s; skipping duration gate",
+                    audio_path, e)
+
+    # 4. CUDA detect (lazy)
+    has_cuda = False
+    try:
+        import torch  # noqa: WPS433 — lazy import per opt-in idiom
+        has_cuda = bool(torch.cuda.is_available())
+    except ImportError:
+        pass
+
+    # 5. 60min+ AND no-CUDA gate (D-16 字面 verbatim Chinese prompt + default-N)
+    if duration_s > 3600 and not has_cuda and not args.allow_long:
+        # Threat T-05-03-07 mitigation: default N, user must explicitly type 'y'.
+        print(
+            "WARNING: 60min+ 音频在 CPU 上 pyannote 预计 3-5× wall time"
+            "（约 3-5h）。建议 (1) 切片处理 (2) 跳过 diarization 让 Claude "
+            "从内容推断 (3) 等待 GPU 机器再跑。继续？(y/N)"
+        )
+        try:
+            ans = input().strip().lower()
+        except EOFError:
+            ans = ""
+        if ans != "y":
+            raise RuntimeError("diarize aborted by user (60min+ CPU gate; D-16)")
+
+    # 6. Phase 2 sidecar idiom — diarize 也走 sidecar/state.jsonl
+    state_dir = out_dir
+    current_sidecar = _build_sidecar(
+        cli={"audio_wav": str(audio_path), "allow_long": bool(args.allow_long)},
+        func={
+            "model": "pyannote/speaker-diarization-community-1",
+            "device": "cuda" if has_cuda else "cpu",
+            "duration_s": duration_s,
+        },
+        # pyannote.audio version 探测略过：lazy import; audio model 是 user 接受协议下载的,
+        # 不强制 hash. (HF_TOKEN never goes into sidecar — T-05-03-08.)
+        tools={},
+    )
+    _emit_event(state_dir, "diarize", "started", sidecar=current_sidecar)
+
+    try:
+        turns = diarize_audio(
+            audio_path, hf_token=hf_token, allow_long=bool(args.allow_long),
+        )
+        payload = {"version": 1, "turns": turns}
+        write_json_atomic(out_path, payload, sidecar_params=current_sidecar)
+        _emit_event(
+            state_dir, "diarize", "completed", sidecar=current_sidecar,
+            details={"turns_count": len(turns), "duration_s": duration_s},
+        )
+        speakers = sorted({t["speaker_id"] for t in turns})
+        print(f"diarization: {len(turns)} turns")
+        suffix = "..." if len(speakers) > 5 else ""
+        print(
+            f"speakers: {len(speakers)} unique "
+            f"({', '.join(speakers[:5])}{suffix})"
+        )
+        print(f"output: {out_path}")
+    except Exception as e:
+        _emit_event(
+            state_dir, "diarize", "failed", sidecar=current_sidecar,
+            details={"error_type": type(e).__name__, "error": str(e)[:200]},
+        )
+        raise
+
+
 def cmd_list_frames(args):
     """列出帧文件."""
     d = Path(args.dir)
@@ -1002,6 +1123,18 @@ def main():
     p.add_argument("video", help="path to video file")
     p.add_argument("--out", required=True, help="path to output silence_map.json")
 
+    p = sub.add_parser(
+        "diarize",
+        help="Speaker diarization via pyannote.audio (TEACH-08; opt-in — "
+             "需 pip install -r requirements-optional.txt + HF_TOKEN in .env)",
+    )
+    p.add_argument("audio_wav", help="path to audio.wav (16kHz mono PCM preferred)")
+    p.add_argument("--out", required=True, help="path to diarization.json output")
+    p.add_argument(
+        "--allow-long", action="store_true",
+        help="skip 60min+ CPU warning gate (D-16); for automated batch runs",
+    )
+
     p = sub.add_parser("list_frames", help="列出帧文件")
     p.add_argument("dir")
 
@@ -1037,6 +1170,7 @@ def main():
         "extract_frames_batch": cmd_extract_frames_batch,  # Phase 4 FPS-01/02/03
         "detect_scenes": cmd_detect_scenes,  # Phase 4 FPS-05
         "detect_silence": cmd_detect_silence,  # Phase 4 FPS-06
+        "diarize": cmd_diarize,  # NEW Phase 5 TEACH-08 (opt-in pyannote)
         "list_frames": cmd_list_frames,
         "cleanup_frames": cmd_cleanup_frames,
         "classify_frame": cmd_classify_frame,
