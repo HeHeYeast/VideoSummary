@@ -83,6 +83,44 @@ YouTube ingest 在国内默认连不通（GFW + 2026 SABR + PO Token 三重阻�
 
 > **注意：** `agent/sources/__init__.py` 的 `SOURCES` 列表顺序是 most-specific-first：DouyinSource → YouTubeSource → BilibiliSource → LocalSource → GenericSource（LocalSource 在 03-03 加入）。**不要改动顺序** — 抖音 URL 必须先匹配 DouyinSource（走 vendor crawler），否则会路由到 yt-dlp 的 broken 抖音路径。
 
+## Pyannote diarization 设置（首次设置，可选）
+
+> 仅播客 / 访谈类视频需要；不打算处理这类视频可跳过。**Phase 5 spike 默认走 degrade 路径**（CLAUDE.md `## 视频类型变奏 → Podcast / interview 模式骨架` 让 Claude 从内容线索推断说话人）。本节是给愿意装 GPU + HF token 的进阶用户用的。
+
+1. **安装 opt-in 依赖**（拉 ~700MB torch + pyannote 权重）：
+   ```bash
+   pip install -r requirements-optional.txt   # 包含 pyannote.audio + torch + silero-vad
+   ```
+
+2. **申请 HF token + 接受 community-1 协议**：
+   - 注册 https://huggingface.co/
+   - 接受 community-1 model 协议：https://huggingface.co/pyannote/speaker-diarization-community-1
+   - 在 https://huggingface.co/settings/tokens 创建 read-only token
+   - 写入项目根 `.env`：`HF_TOKEN=hf_xxxxxx`（**不要 commit `.env`**；`.gitignore` 已覆盖）
+
+3. **CPU vs GPU**：
+   - Windows 11 + CPU + 60min+ 音频预计 wall time 3-5h（参考 SPIKE.md 实测比例）
+   - `diarize` CLI 启动会探测 ffprobe duration；> 60min AND 无 CUDA 时打 WARNING 提示，**默认 N 拒绝执行**——你必须显式输 `y` 才继续
+   - 推荐：等 GPU 机器再跑 / 切片处理 / 直接用 `## 视频类型变奏 → Podcast / interview 模式骨架` 的内容线索推断兜底
+
+4. **跑 diarization**：
+   ```bash
+   python -m agent.tools diarize output/<slug>/audio.wav --out output/<slug>/diarization.json
+   ```
+   产出 schema：`{"version": 1, "turns": [{"start": 0.0, "end": 12.5, "speaker_id": "SPEAKER_00"}, ...]}`。`speaker_id` 是 pyannote 抽象 ID（`SPEAKER_00` / `SPEAKER_01`），**不是**真实姓名（真实姓名解析留作 v2）。
+
+5. **跑批自动化场景**（如 CI / cron）：加 `--allow-long` 跳过 60min+ CPU 提示门：
+   ```bash
+   python -m agent.tools diarize <audio.wav> --out <d.json> --allow-long
+   ```
+   仅在 GPU 机器或愿意接受 5h+ wall time 的批跑场景使用。
+
+> **WARNING 字面**（D-16 锁定）：
+>
+> ```
+> WARNING: 60min+ 音频在 CPU 上 pyannote 预计 3-5× wall time（约 3-5h）。建议 (1) 切片处理 (2) 跳过 diarization 让 Claude 从内容推断 (3) 等待 GPU 机器再跑。继续？(y/N)
+> ```
+
 ## Windows zh-CN 终端设置（推荐）
 
 中文 Windows 默认 GBK 终端会在打印含 emoji / 非 ASCII 的视频标题时炸出
@@ -866,6 +904,140 @@ UP 主立场：
 *整体节奏*：UP 主用 4 章把"判断 → 论证 → 反驳 → 收口"四个动作压在 4 分钟内，节奏极紧。如果你做长访谈萃取，建议章节数 5-8 个，单章 5-15 分钟。
 ```
 
+### UI 操作演示子规则（适用 replicate-guide / extension-applications 模式 — TEACH-09）
+
+> 当 mode=`replicate-guide` 或 `extension-applications` 且视频内容是非代码类 UI 软件操作（如 Photoshop / Figma / Trae / Claude Code 桌面端 / Premiere 等），按以下 4 子规则增强写作精度。代码类视频（IDE 内 hands-on）**不**适用——代码 fence + 多模态精确抄录是更强的工具。
+
+1. **Pixel-text 不确定引用** — UI 软件用 proportional 字体 + 抗锯齿，多模态识别准度低于 monospace 代码截图。
+   - 指令 Claude `quote-with-uncertainty`：用 blockquote 加可信度备注
+   - 写法示例：`> 该控件大致写着"图层不透明度"（多帧交叉验证后置信度中等）`
+   - 不要伪造确定的引文（**不注水不编造**红线）；置信度低就明示 `（pixel-text 模糊，建议 user 在原视频对照）`
+
+2. **Tooltip 遮挡检测**
+   - 发现 tooltip 遮目标 → 用 `extract_frames --start <T-0.5> --end <T+0.5> --fps 4` 补抽前/后 0.5s 帧
+   - 都遮 → 标 `*该值视图被 tooltip 遮挡，未取得*`，**不要猜值**
+   - 例：滑块拖动时 tooltip 飘在数值上方 → 拿 tooltip 出现前 0.5s 的静态值
+
+3. **光标不可见兜底**
+   - 黑光标在黑 UI / 系统截屏不含光标 → 从前后帧 panel state diff 推点击位置
+   - 命名一律按控件 label/icon（如"图层面板的眼睛图标" / "工具栏第 3 个钢笔图标"），**禁空间方位**（不写"屏幕左上角" / "中间偏右"）
+   - 例：`你点击 [图层面板] 的 [小眼睛图标]，关闭该图层显示`
+
+4. **`--width 1280/1920` 4K override**
+   - 4K 录屏（3840×2160 或 2560×1440）抽 frame 时若 `default_scale: "854:-1"`（schedule.json 默认值）输出过小（< 800px 宽）会丢可读性
+   - 解决：schedule.json 加 `"default_scale": "1280:-1"` 或 `"1920:-1"` 提示
+   - 例：4K 屏录的 Photoshop UI：
+     ```json
+     {"version": 1, "default_scale": "1920:-1", "segments": [...]}
+     ```
+
+### Podcast / interview 模式骨架（适用 interview-distillation 模式 — TEACH-10 / TEACH-13）
+
+> 当 mode=`interview-distillation` 时按以下骨架走，**不**改 `/summarize-video` 主流程 8 阶段（per D-21）。本骨架是 spike degrade 路径的形态：不依赖 `pyannote` diarization，由 Claude 从内容线索推断说话人。
+
+#### Step 1: chapters.json 取代段落聚合作为结构单位
+
+`silence-gap` 聚合（`agent/asr_v2.py:aggregate_paragraphs`）对 60min 闲聊体不灵；改用 Claude 直出 `output/<slug>/chapters.json`：
+
+```json
+{
+  "version": 1,
+  "video": "video.mp4",
+  "chapters": [
+    {"start": 0.0, "end": 540.0, "topic_title": "开场 + 嘉宾介绍",
+     "summary_line": "Lex 介绍 Karpathy 在 OpenAI 的 history 与本期话题"},
+    {"start": 540.0, "end": 1820.0, "topic_title": "ECS 之争",
+     "summary_line": "OOP vs 数据导向; Karpathy 反对 ECS 是 over-engineering"}
+  ]
+}
+```
+
+字段说明：
+
+- `start` / `end`：浮点秒，章节时间窗
+- `topic_title`：章节主题（10-20 字，动词或名词短语；避免空泛 "讨论 X"）
+- `summary_line`：一句话核心立场（10-30 字；提炼章节最关键的判断 / 引文 / 反差）
+- `speaker_id?`：**可选** 字符串字段（degrade 路径不写；future GPU-diarization 路径填 pyannote 的 `SPEAKER_NN`）
+
+Claude 通读 `paragraphs.json` 后判断章节切分（不是工具计算）；用 `Write` 工具写入 `output/<slug>/chapters.json`。**不**走 `python -m agent.tools chapters` 子命令——chapters.json 是 Claude-written artifact。
+
+#### Step 2: 抽帧极少 — 每章节 1-2 帧（D-19 锁定）
+
+不完全 skip frames（保留视觉锚点 — 讲者表情 / 嘉宾切换 / 屏幕分享）。schedule.json 形态：
+
+```json
+{
+  "version": 1,
+  "default_scale": "854:-1",
+  "segments": [
+    {"start": 0.0, "end": 540.0, "fps": 0.05, "label": "ch01-intro"},
+    {"start": 540.0, "end": 1820.0, "fps": 0.005, "label": "ch02-ecs"}
+  ]
+}
+```
+
+按章节框定 `start`/`end`，每章节 1-2 帧由 `fps × duration` 自动控制（0.05 fps × 540s ≈ 27 帧；0.005 fps × 21min ≈ 6 帧覆盖 1280s）。完全 skip 留作 v2 `--no-frames` flag。
+
+#### Step 3: 输出用 blockquote 替代图片嵌入
+
+```markdown
+## 第一章：ECS 之争
+
+> [00:09:00] **Karpathy**："ECS 在 GPU shader 上有意义；但 game state 里你只是在重新发明一遍 OOP 的 dispatch table。"
+
+Karpathy 反对的不是性能论点，而是抽象层次错位：游戏对象的生命周期模式是行为 + 状态强耦合的，硬拆数据层和系统层只是延迟了 dispatch 这件事。
+
+> [00:11:30] **Lex**："但有些 high-perf engine 比如 Bevy 用得很彻底..."
+
+> [00:11:45] **Karpathy**："那是 Rust 借用检查器的副产品，不是 ECS 的胜利。"
+```
+
+格式锁定（4 项不变量仍然适用 — 见 `### 格式锁定`）：
+
+- `[HH:MM:SS]` 时间戳必须 8 字符
+- 第二人称指令式（podcast 不强求——引文用第一人称、提炼用第二人称叙述也可）
+- blockquote 引文 + 引号内是字面引文（不要改写嘉宾原话；改写的话用斜体提炼包裹，明示这是你提炼）
+- 每章节标题下方可选 inline 一帧 `![](frames/seg_xxxx_xxxxxx.jpg)` 作为视觉切分参考——但**不在每段引文下嵌图**
+
+#### Step 4: 从内容线索推断说话人（degrade 路径主流程 — D-14）
+
+> **degrade 路径的核心**：Claude 多模态本身可从内容线索推断说话人切换，**不**依赖 pyannote diarization。除非 user 主动跑 `python -m agent.tools diarize` 并产出 diarization.json，否则 Claude 用以下 5 条线索推断：
+
+1. **开场白**："欢迎来到 X 节目，今天嘉宾是 Y" → 主持人 = X 节目主，嘉宾 = Y
+2. **谁问谁答**：句末是问号 / "你怎么看" / "可以聊聊..." → 提问者；句末是断言 / "我认为" / 数据陈述 → 回答者
+3. **提问语气 vs 回答语气**：开放式问题 + 短句 = 主持人；展开 + 引用历史 + 长句 = 嘉宾
+4. **嘉宾名 from intro**：开场 30s 内主持人通常会说 "今天我请到 X" — 把 X 锁定为嘉宾说话人
+5. **blockquote attribution**：写出来时一律用 `> [HH:MM:SS] **嘉宾名**："..."` 形式标 attribution；**实在分不清**用 `> [HH:MM:SS] **speaker_id="?"**："..."` 占位（不要瞎猜身份）
+
+degrade 路径示例（无 diarization.json）：
+
+```markdown
+> [00:00:18] **主持人 Lex**："Today I'm honored to talk to Andrej Karpathy."
+> [00:00:25] **Karpathy**：（接话，长句展开他在 OpenAI 的早期经历）
+> [00:01:42] **speaker_id="?"**："Wait, was that Slack bot you mentioned really running in production?"
+> [00:01:48] **Karpathy**："Yeah, three weeks. Then we noticed the GPU bill."
+```
+
+第 3 行用 `speaker_id="?"` 是因为短打断不能确定是 Lex 还是另一位嘉宾——明示比瞎猜好。
+
+#### Step 5（可选）: diarization.json 提供 speaker_id
+
+> 如 user 已跑 `python -m agent.tools diarize <audio.wav> --out diarization.json`（pyannote opt-in），Claude 读取 `diarization.json` 后能把 `speaker_id` 与 `chapters.json` 时间窗对齐，更准确推断每段话谁说的。
+
+匹配规则：对每个 blockquote 的 `[HH:MM:SS]` 时间戳，在 `diarization.json.turns[]` 中找包含该时间点的 turn，把 `speaker_id` 替换 `?` 占位 → 写出 `> [00:01:42] **SPEAKER_01**："..."`。然后由 Claude 根据上下文（第 4 步线索）把 `SPEAKER_01` 这种抽象 ID 进一步映射为真实姓名（Lex / Karpathy）——**真实姓名映射仍由 Claude 推断，pyannote 只给抽象 ID**。
+
+#### VTT fold-in（D-32 — 与 Phase 3 subtitle_origin 联动）
+
+> **如果 `meta.json.subtitle_origin == "creator"` 且 mode == "interview-distillation"**：VTT 字幕已是 creator-uploaded 高质量来源（YouTube 创作者上传的人工字幕，95%+ 准确度），**Claude 可直接信任引用，不需要 ASR 重跑**。直接读 `output/<slug>/video.<lang>.vtt`，按时间戳引文使用。这比 faster-whisper ASR 在长访谈上的 70-85% 准确度高得多（PITFALLS P3.3）。
+
+VTT 优先级（locked at `agent/sources/youtube.py` Phase 5 D-31 / WR-02）：`zh-Hans > zh-Hant > zh > en > 任何 manual > 任何 auto-generated`。yt-dlp 按列表顺序匹配 manual subs 优先；manual 全无时按相同顺序匹配 auto-gen 兜底。
+
+判别 origin（已落地 Phase 3 SRC-08）：
+
+- `meta.json.subtitle_origin == "creator"` → manual / creator-uploaded VTT，**直接信任引用**
+- `meta.json.subtitle_origin == "auto"` → auto-generated 字幕，与 ASR 同等可信度，照常 ASR 重跑
+- `meta.json.subtitle_origin == "none"` → 无 VTT，必走 ASR 路径（faster-whisper + `--profile podcast`）
+
 ---
 
 ## /summarize-video 完整工作流
@@ -937,7 +1109,7 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 
 **补充抽帧**：如果发现某个关键操作没有截图，可以对那个时间点重新抽帧（更高 fps 或更精确的 start/end）。
 
-> **mode 提示**：`interview-distillation` 时帧用量极少（每章节 1-2 帧，详见 § 视频类型变奏）；`extension-applications` 中 UI demo 子规则有 4 项（pixel-text 不确定性 / tooltip 遮挡 / 光标不可见 / 4K --width override），由后续 plan 03 落地（详见 § 视频类型变奏 → skeleton 内的 mode-specific 章节）。其余 mode 按本 phase 主流程。
+> **mode 提示**：`interview-distillation` 时帧用量极少（每章节 1-2 帧，详见 § 视频类型变奏 → Podcast / interview 模式骨架 → Step 2）；`replicate-guide` / `extension-applications` 中 UI demo 类视频按 4 子规则增强写作精度（pixel-text 不确定性 / tooltip 遮挡 / 光标不可见 / 4K --width override，详见 § 视频类型变奏 → UI 操作演示子规则）。其余 mode 按本 phase 主流程。
 
 ### Phase 5: 规划大纲
 
@@ -946,7 +1118,7 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 - 每节标题用动词短语
 - **输出大纲给用户确认**（子 agent 执行时可跳过直接写）
 
-> **mode 提示**：`concept-explanation` 大纲走"核心问题 → 反直觉答案 → 最小例证 → 应用边界"流；`interview-distillation` 走 chapters.json + speaker turns（plan 03 引入 chapters.json schema）；`extension-applications` 大纲是横向罗列（场景 1 / 场景 2 / 场景 3 + 边界对比）。其余 mode 按本 phase 主流程。
+> **mode 提示**：`concept-explanation` 大纲走"核心问题 → 反直觉答案 → 最小例证 → 应用边界"流；`interview-distillation` 走 chapters.json + speaker turns（详见 § 视频类型变奏 → Podcast / interview 模式骨架 → Step 1 chapters.json schema）；`extension-applications` 大纲是横向罗列（场景 1 / 场景 2 / 场景 3 + 边界对比）。其余 mode 按本 phase 主流程。
 
 ### Phase 6: 逐节写作
 
