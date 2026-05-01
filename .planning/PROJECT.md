@@ -24,6 +24,7 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 - ✓ cleanup_frames 删除未引用帧 — existing
 - ✓ 全流程 ¥0（无付费 API 依赖）— existing
 - ✓ 文件级 idempotent 缓存（按 artifact 存在与否短路）— existing
+- ✓ **参数感知 + 原子写 + 可恢复的 artifact 重用** — atomic-write (tempfile + os.replace) + `<artifact>.params.json` sidecar + `state.jsonl` 事件日志 + `derived_state` reducer + `doctor` 子命令 + Windows PermissionError 重试 — Phase 2 (RES-01..RES-08 全部 satisfied)
 
 ### Active
 
@@ -33,7 +34,7 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 - [ ] **抽帧策略自动化** — Claude 读完字幕直出"分段 fps schedule"由工具批量执行，去掉人工凭感觉算 start/end 的摩擦（决策仍 Claude，只是降低操作成本）
 - [ ] **新输入源** — YouTube + 通用 yt-dlp 平台 + 本地 mp4 文件路径（不依赖 URL）
 - [ ] **新视频类型** — 操作演示（非代码类软件 UI）+ 播客 / 访谈（画面价值低，依赖音频结构组织内容）
-- [ ] **中间产物失败可复用** — 任一阶段失败 / 换参 / 换策略后重跑能复用前序 artifact，不丢工作
+- [x] **中间产物失败可复用** — 任一阶段失败 / 换参 / 换策略后重跑能复用前序 artifact，不丢工作（Phase 2 完成：sidecar 参数比对 + atomic write + state.jsonl event log）
 - [ ] **现有路径 backward-compatible** — 新增能力一律 opt-in 增量叠加；老 CLI、output/ 目录约定、/summarize-video 工作流仍可用，能"快速回退到当前方案"
 - [ ] **多 agent 并行**（Nice-to-have） — 多 Claude Code 终端处理不同视频互不干扰，做不到不阻塞 v1
 
@@ -98,3 +99,5 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-04-30 — Phase 1 complete (regression baseline frozen; agent.io schema-tolerant loaders landed; encoding audit + Windows zh-CN docs shipped). No Active requirements moved to Validated yet — Phase 1 is gating infrastructure that ENABLES "现有路径 backward-compatible" but does not tick it off until later phases land without breaking baselines.*
+
+*2026-05-01 — Phase 2 complete (Resume Infrastructure & Cache Correctness). Validated 13/13 must-haves: 5 ROADMAP Success Criteria + 8 RES-XX requirements. Atomic JSON writes (tempfile + os.replace + 3×0.5s PermissionError retry), 3-segment sidecar (cli/func/tools) with severity-split cache decision, JSON Lines `state.jsonl` event log + corruption-tolerant `derived_state` reducer, `doctor` 5-column read-only subcommand + `--json` flag, and `docs/schema-migration.md` runbook. Active requirement "中间产物失败可复用" moved to Validated (live-tested whisper small→medium triggers loud regen). Code review found 0 critical / 6 warning / 6 info (advisory follow-ups, none invalidate goal achievement). 17-archive backward-compat preserved: missing-sidecar path → loud warning + reuse cache (D-01); state.jsonl absent → file-existence cache fallback (D-03).*
