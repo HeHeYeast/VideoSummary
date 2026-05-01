@@ -67,9 +67,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: `agent/sources/` package + `url_router.py` + `ingest` subcommand + `download` shim + `meta.json` source field (SRC-01, SRC-02, SRC-03, SRC-04)
-- [ ] 03-02: YouTube layer — preflight classifier, proxy forwarding, version warning, subtitle_origin, yt-dlp pin, Deno docs (SRC-05, SRC-06, SRC-07, SRC-08, SRC-13)
-- [ ] 03-03: Local mp4 + ffprobe preflight + uniform `-vsync vfr` (SRC-09, SRC-10, SRC-11, SRC-12)
+- [x] 03-01: `agent/sources/` package + `url_router.py` + `ingest` subcommand + `download` shim + `meta.json` source field (SRC-01, SRC-02, SRC-03, SRC-04)
+- [x] 03-02: YouTube layer — preflight classifier, proxy forwarding, version warning, subtitle_origin, yt-dlp pin, Deno docs (SRC-05, SRC-06, SRC-07, SRC-08, SRC-13)
+- [x] 03-03: Local mp4 + ffprobe preflight + uniform `-vsync vfr` (SRC-09, SRC-10, SRC-11, SRC-12)
 **UI hint**: no
 
 ### Phase 4: Frame fps Automation (`schedule.json` + `extract_frames_batch`)
