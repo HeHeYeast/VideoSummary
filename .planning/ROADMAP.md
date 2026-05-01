@@ -49,9 +49,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Atomic writes + PermissionError retry + `<artifact>.params.json` sidecar pattern (RES-01, RES-02, RES-03, RES-04)
-- [ ] 02-02: `agent/state.py` append-only event log + `derived_state(events)` reducer + file-existence fallback (RES-05, RES-06)
-- [ ] 02-03: `doctor` subcommand + schema-migration runbook (RES-07, RES-08)
+- [x] 02-01: Atomic writes + PermissionError retry + `<artifact>.params.json` sidecar pattern (RES-01, RES-02, RES-03, RES-04)
+- [x] 02-02: `agent/state.py` append-only event log + `derived_state(events)` reducer + file-existence fallback (RES-05, RES-06)
+- [x] 02-03: `doctor` subcommand + schema-migration runbook (RES-07, RES-08)
 **UI hint**: no
 
 ### Phase 3: Source Refactor + New Sources (YouTube + Local mp4 + Generic)
