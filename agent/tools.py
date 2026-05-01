@@ -151,7 +151,10 @@ def cmd_ingest(args):
         #    Failure (no audio) raises RuntimeError with remux suggestion.
         #    Success augments meta with codec/container/fps_mode (additive at end —
         #    preserves legacy prefix per RESEARCH Pitfall 6).
-        video_path = work_dir / "video.mp4"
+        #    WR-01 fix: read meta["video_path"] not literal "video.mp4" — yt-dlp may
+        #    serve .webm/.mkv/.flv when YouTube format chain prefers them.
+        video_path_str = meta.get("video_path") or str(work_dir / "video.mp4")
+        video_path = Path(video_path_str)
         if video_path.exists():
             ffprobe_info = ffprobe_video(video_path)
             meta = {**meta,
