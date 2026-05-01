@@ -85,8 +85,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: `agent/scheduler.py` + `extract_frames_batch` CLI + strict validation + resume integration (FPS-01, FPS-02, FPS-03, FPS-04, FPS-07)
-- [ ] 04-02: `detect_scenes` + `detect_silence` decision-support subcommands (FPS-05, FPS-06)
+- [x] 04-01: `agent/scheduler.py` + `extract_frames_batch` CLI + strict validation + resume integration (FPS-01, FPS-02, FPS-03, FPS-04, FPS-07)
+- [x] 04-02: `detect_scenes` + `detect_silence` decision-support subcommands (FPS-05, FPS-06)
 **UI hint**: no
 
 ### Phase 5: Adaptive Output + UI Demos + Podcasts
