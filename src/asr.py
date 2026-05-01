@@ -38,11 +38,34 @@ class Segment:
     text: str
 
 
-# Phase 2 RES-01: expose VAD defaults so sidecar can capture them.
-# Phase 5 TEACH-12 will tighten these for profile=podcast. Do NOT inline
-# the defaults back into the function body -- sidecar code reads _VAD_DEFAULTS.
+# Phase 5 TEACH-12 / D-26..D-28: profile-aware VAD.
+# tutorial = current behavior baseline (D-29 byte-equal target).
+# podcast  = looser VAD (skips long silences, reduces whisper hallucinations
+#            on > 30s silences per PITFALLS P6.2).
+# NOTE: D-28 originally specified tutorial=200 but Phase 2 baseline was 500.
+# Path C taken (CONTEXT 05-02 PLAN task 4 fallback): tutorial preserved at 500
+# to keep 17-archive segs.json byte-equal; podcast tightens to 800 + threshold
+# 0.6. The profile-system still ships; only the tutorial values are anchored
+# at Phase 2 baseline.
+PROFILES: dict[str, dict[str, float]] = {
+    "tutorial": {
+        "vad_min_silence_ms": 500,
+        "vad_threshold": 0.5,
+    },
+    "podcast": {
+        "vad_min_silence_ms": 800,
+        "vad_threshold": 0.6,
+    },
+}
+
+# Backward-compat alias for agent/tools.py:cmd_transcribe sidecar抓取
+# (Phase 2 D-05 字段链 — _VAD_DEFAULTS["min_silence_duration_ms"] is the
+# sidecar.func.min_silence_duration_ms 取值源).
+# Note: PROFILES uses key vad_min_silence_ms (D-28 锁定);
+# _VAD_DEFAULTS keeps legacy key min_silence_duration_ms so cmd_transcribe
+# 不会 KeyError.
 _VAD_DEFAULTS = {
-    "min_silence_duration_ms": 500,
+    "min_silence_duration_ms": PROFILES["tutorial"]["vad_min_silence_ms"],
 }
 
 
@@ -61,11 +84,43 @@ def transcribe(audio_path: str | Path,
                model_size: str = "small",
                language: str | None = None,
                initial_prompt: str | None = None,
-               min_silence_duration_ms: int = _VAD_DEFAULTS["min_silence_duration_ms"]) -> list[Segment]:
+               *,
+               profile: str | None = None,
+               min_silence_duration_ms: int | None = None,
+               vad_threshold: float | None = None) -> list[Segment]:
     """转录. model_size: tiny/base/small/medium/large-v3.
 
+    Phase 5 TEACH-12: profile= 'tutorial'|'podcast' VAD 调档.
+    profile='tutorial' (default): VAD min_silence_ms=500 / threshold=0.5
+        (Phase 2 baseline preserved per Task 4 Path C — D-29 backward-compat).
+    profile='podcast': VAD min_silence_ms=800 / threshold=0.6 (per CONTEXT D-28
+        path-C fallback values).
+    显式 min_silence_duration_ms / vad_threshold 参数 override profile.
+
     8GB 显存默认 small (中文够用且快); 质量优先用 medium 或 large-v3.
+
+    Raises:
+        ValueError: profile 不在 PROFILES 中
     """
+    # 1. 解析 profile -> 默认值字典
+    if profile is None:
+        profile = "tutorial"
+    if profile not in PROFILES:
+        raise ValueError(
+            f"unknown profile {profile!r}; choose from {sorted(PROFILES)}"
+        )
+    p = PROFILES[profile]
+
+    # 2. 显式参数 override
+    eff_min_silence_ms = (
+        min_silence_duration_ms
+        if min_silence_duration_ms is not None
+        else p["vad_min_silence_ms"]
+    )
+    eff_threshold = (
+        vad_threshold if vad_threshold is not None else p["vad_threshold"]
+    )
+
     from faster_whisper import WhisperModel
     import os
     # Windows 缺 cuBLAS/cuDNN 时 CUDA 推理会炸; 默认 CPU.
@@ -79,7 +134,10 @@ def transcribe(audio_path: str | Path,
         str(audio_path),
         language=language,
         vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": min_silence_duration_ms},
+        vad_parameters={
+            "min_silence_duration_ms": eff_min_silence_ms,
+            "threshold": eff_threshold,
+        },
         condition_on_previous_text=False,
         initial_prompt=initial_prompt,
         beam_size=5,
