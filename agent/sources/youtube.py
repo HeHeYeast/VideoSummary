@@ -272,10 +272,20 @@ class YouTubeSource:
             if candidate.exists():
                 video_file = candidate
                 break
+        # D-31 explicit-priority loop: fs glob order (NTFS alphabetical) puts
+        # 'video.en.vtt' before 'video.zh-Hans.vtt' — that reverses the lang
+        # priority. Pick by exact name in priority order, fall back to sorted
+        # glob for auto-caption variants (e.g. 'video.zh-Hans-orig.vtt').
         sub_file = None
-        for f in target_dir.glob("video.*.vtt"):
-            sub_file = f
-            break
+        for lang in ("zh-Hans", "zh-Hant", "zh", "en"):
+            candidate = target_dir / f"video.{lang}.vtt"
+            if candidate.exists():
+                sub_file = candidate
+                break
+        if sub_file is None:
+            for f in sorted(target_dir.glob("video.*.vtt")):
+                sub_file = f
+                break
 
         # 4. Build legacy 7-key meta in canonical order (same shape as src/download.py)
         legacy_meta = {
