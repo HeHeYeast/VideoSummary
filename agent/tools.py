@@ -97,6 +97,15 @@ def cmd_ingest(args):
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
 
+    # Phase 3 SRC-07: log yt-dlp version + warn if > 90 days old (D-15).
+    # Lazy import — YouTubeSource owns the version check helper because it's
+    # the source most affected by yt-dlp drift; cheap when called from any path.
+    try:
+        from agent.sources.youtube import warn_if_yt_dlp_stale
+        warn_if_yt_dlp_stale()
+    except ImportError:
+        pass  # yt-dlp not installed; sources will fail at fetch() with clearer error
+
     # Phase 2 RES-05: emit started event with truncated URL for log brevity.
     _emit_event(work_dir, "download", "started",
                 details={"url_or_path": str(args.url)[:120]})

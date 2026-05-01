@@ -38,6 +38,42 @@ python -m agent.tools cleanup_frames <dir> --keep f1.jpg f2.jpg ...
 
 注意：抖音 cookies 每几天失效，失败时重新导出。yt-dlp 的 douyin extractor 长期 broken（不支持 a_bogus），所以必须走 vendor crawler。
 
+## YouTube 支持（首次设置，可选）
+
+> 首次设置 YouTube ingest 时按本节配置；不需要 YouTube 直接抓取的话，跳过本节，直接用本地 mp4 兜底（见末尾）。
+
+YouTube ingest 在国内默认连不通（GFW + 2026 SABR + PO Token 三重阻断）。如果需要从 YouTube 直接 ingest，按以下步骤设置；否则用 LocalSource 兜底（自己下载到本地后跑 `python -m agent.tools ingest "D:\videos\local.mp4" --out output/xxx`）。
+
+1. **配置 HTTPS_PROXY**（必须）：
+   ```bash
+   # PowerShell（当前 session）
+   $env:HTTPS_PROXY = "http://127.0.0.1:7890"
+   # 或永久（Windows）
+   [Environment]::SetEnvironmentVariable("HTTPS_PROXY", "http://127.0.0.1:7890", "User")
+   ```
+   ingest 时会自动按 HTTPS_PROXY > HTTP_PROXY 优先级转发给 yt-dlp（empty string 不会传）。
+
+2. **导出 YouTube cookies**（推荐）：
+   - 装 Chrome 插件 "Get cookies.txt LOCALLY"
+   - 访问 https://www.youtube.com/ 后点插件 → Export → 另存为 `youtube_cookies.txt`
+   - 之后 yt-dlp 自动从浏览器/cookies 文件读取（具体路径优先级见 src/download.py）
+
+3. **PO Token 支持**（YouTube 2026 SABR 之后部分视频强制要求；可选）：
+   ```bash
+   winget install DenoLand.Deno
+   pip install yt-dlp-get-pot
+   ```
+   `Deno` 和 `yt-dlp-get-pot` 不进 `requirements.txt`，是 opt-in。装完之后 yt-dlp 会自动检测。
+
+4. **验证**：
+   ```bash
+   python -m agent.tools ingest "https://www.youtube.com/watch?v=<id>" --out output/test_yt
+   ```
+
+注意：失败时 ingest 会按 5 类分类报错（`gfw_blocked` / `cookies_stale` / `po_token_required` / `yt_dlp_outdated` / `other`），照着中文 hint 修复对应环节即可。如果 5 类都搞不定，最稳的兜底是「自己用浏览器/IDM 下到本地，然后 `ingest <local-path>`」。
+
+> **注意：** `agent/sources/__init__.py` 的 `SOURCES` 列表顺序是 most-specific-first：DouyinSource → YouTubeSource → BilibiliSource → LocalSource → GenericSource（LocalSource 在 03-03 加入）。**不要改动顺序** — 抖音 URL 必须先匹配 DouyinSource（走 vendor crawler），否则会路由到 yt-dlp 的 broken 抖音路径。
+
 ## Windows zh-CN 终端设置（推荐）
 
 中文 Windows 默认 GBK 终端会在打印含 emoji / 非 ASCII 的视频标题时炸出
