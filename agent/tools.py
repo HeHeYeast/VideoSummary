@@ -9,6 +9,7 @@
   python -m agent.tools aggregate <segs_json> --out <paragraphs_json>
   python -m agent.tools list_frames <dir>
   python -m agent.tools cleanup_frames <dir> --keep <f1.jpg> <f2.jpg> ...
+  python -m agent.tools doctor <dir> [--json]   # 只读扫描工件状态 (Phase 2 RES-07)
 
 帧理解/OCR 由 Claude Code 直接 Read 图片完成 (多模态, Max 计划 ¥0).
 以下命令仅在 context 不够或需要批量预筛选时作为后备:
@@ -36,7 +37,7 @@ from agent.io import (
     _get_faster_whisper_version,
     now_iso,
 )
-from agent.state import append_event, params_hash
+from agent.state import append_event, params_hash, read_events, derived_state
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
@@ -54,6 +55,17 @@ def _build_sidecar(*, cli: dict, func: dict, tools: dict) -> dict:
         "captured_at": now_iso(),
         "schema_version": 1,
     }
+
+
+# Phase 2 RES-07: artifacts doctor reports on, mapped to the stage that produces them.
+# Order matters -- table rows are emitted in this order.
+# Locked by 02-CONTEXT D-16; frames/ subdir intentionally omitted (no per-frame sidecar
+# per D-08; segment-level events deferred to Phase 4 per D-14).
+_DOCTOR_ARTIFACTS = [
+    ("meta.json", "download"),
+    ("segs.json", "transcribe"),
+    ("paragraphs.json", "aggregate"),
+]
 
 
 def _emit_event(out_dir: Path, stage: str, status: str,
@@ -317,6 +329,128 @@ def cmd_cleanup_frames(args):
         raise
 
 
+def cmd_doctor(args):
+    """只读扫描 output/<slug>/ 工件状态 (Phase 2 RES-07).
+
+    Prints a 5-column ASCII table by default, or JSON with --json.
+    Read-only: does NOT write or modify any sidecar / artifact (D-17).
+    Does append a doctor event to state.jsonl as audit trail (best-effort
+    via append_event; OSError is swallowed so doctor stays diagnostic).
+    """
+    from datetime import datetime, timezone
+
+    # Phase 2 RES-07 + CLAUDE.md zh-CN: ensure stdout can print ✓/✗/— even on
+    # default GBK Windows terminals (project's recommended fix is chcp 65001 +
+    # PYTHONUTF8=1, but doctor must work on the bare zh-CN cmd that 17 archives
+    # were originally produced on; reconfigure is best-effort and silent on
+    # platforms where it's not supported).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
+
+    slug_dir = Path(args.dir)
+    if not slug_dir.exists() or not slug_dir.is_dir():
+        log.error("directory not found: %s", slug_dir)
+        sys.exit(2)
+
+    state_log = slug_dir / "state.jsonl"
+
+    # Read events FIRST so state_log_status reflects the file's pre-doctor state
+    # (per acceptance: archive without state.jsonl must report "missing", not "ok"
+    # synthesized by our own audit-trail append). Then emit the started event.
+    events, state_log_status = read_events(state_log)
+    state = derived_state(events)
+
+    # Audit trail (best-effort; corrupt/missing handled by append_event silently).
+    # Per RESOLVED Q5: doctor MAY append its own events; failure is silent so
+    # doctor's read-only-diagnosis primary contract is preserved.
+    append_event(state_log, stage="doctor", status="started")
+    # derived_state already carries forward the most-recent non-empty params_hash
+    # per stage (02-02 D-14 reducer contract), so state[stage]["params_hash"] is
+    # the right field for the comparison below.
+
+    rows = []
+    for artifact_name, stage in _DOCTOR_ARTIFACTS:
+        artifact_path = slug_dir / artifact_name
+        exists = artifact_path.exists()
+        if exists:
+            mtime_iso = datetime.fromtimestamp(
+                artifact_path.stat().st_mtime, tz=timezone.utc
+            ).isoformat()
+        else:
+            mtime_iso = "—"
+
+        # Sidecar lookup -- doctor reads the LIVE sidecar contents and
+        # recomputes params_hash on them (RESEARCH Pitfall 5: do not trust
+        # the stored hash in state.jsonl alone; user could have edited the
+        # sidecar). If sidecar is missing OR corrupt, fall through to "—".
+        sidecar_dict = None
+        live_hash = None
+        try:
+            sidecar_dict = read_sidecar(artifact_path)
+        except (json.JSONDecodeError, OSError) as e:
+            log.warning("sidecar read failed for %s: %s", artifact_path.name, e)
+            sidecar_dict = None
+        if sidecar_dict is not None:
+            live_hash = params_hash(sidecar_dict)
+
+        # last_state (state.jsonl most-recent status for the stage)
+        stage_state = state.get(stage)
+        last_state = stage_state["status"] if stage_state else None
+        stored_hash = stage_state["params_hash"] if stage_state else None
+
+        # params_hash_match per D-16: ✓ / ✗ / — (— if no sidecar OR no state entry)
+        if live_hash is None or stored_hash is None:
+            ph_match = "—"
+        else:
+            ph_match = "✓" if live_hash == stored_hash else "✗"
+
+        rows.append({
+            "name": artifact_name,
+            "exists": exists,
+            "mtime": mtime_iso,
+            "params_hash_match": ph_match,
+            "last_state": last_state if last_state else "—",
+            "sidecar": sidecar_dict,  # JSON output includes this; ASCII output omits
+        })
+
+    if args.json:
+        out = {
+            "slug": slug_dir.name,
+            "artifacts": rows,
+            "state_log_status": state_log_status,
+        }
+        # Match project idiom: ensure_ascii=False so 中文/✓/✗/— print clean
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+    else:
+        # ASCII table (D-15: no color, no rich, plain ASCII).
+        # Use simple `+---+` borders for readability.
+        print(f"slug: {slug_dir.name}    state.jsonl: {state_log_status}")
+        headers = ["artifact", "exists", "mtime", "params_hash_match", "last_state"]
+        # Compute column widths
+        cells = [headers]
+        for r in rows:
+            cells.append([
+                r["name"],
+                "✓" if r["exists"] else "✗",
+                r["mtime"],
+                r["params_hash_match"],
+                r["last_state"],
+            ])
+        widths = [max(len(str(row[i])) for row in cells) for i in range(len(headers))]
+        sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+        print(sep)
+        for i, row in enumerate(cells):
+            line = "| " + " | ".join(str(row[j]).ljust(widths[j]) for j in range(len(headers))) + " |"
+            print(line)
+            if i == 0:
+                print(sep)
+        print(sep)
+
+    append_event(state_log, stage="doctor", status="completed")
+
+
 def cmd_classify_frame(args):
     """[后备] 用 VE API 分类单帧. 通常不需要——Claude Code 直接看图更准."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -393,6 +527,10 @@ def main():
     p.add_argument("dir")
     p.add_argument("--keep", nargs="*", default=[])
 
+    p = sub.add_parser("doctor", help="只读扫描 output/<slug>/ 工件状态 (Phase 2 RES-07)")
+    p.add_argument("dir", help="output/<slug>/ 目录")
+    p.add_argument("--json", action="store_true", help="输出 JSON (替代 ASCII 表)")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -417,6 +555,7 @@ def main():
         "cleanup_frames": cmd_cleanup_frames,
         "classify_frame": cmd_classify_frame,
         "ocr_frame": cmd_ocr_frame,
+        "doctor": cmd_doctor,  # NEW (Phase 2 RES-07)
     }
     cmds[args.command](args)
 
