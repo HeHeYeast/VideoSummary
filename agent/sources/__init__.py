@@ -26,16 +26,18 @@ class Source(Protocol):
 # Order matters — most-specific-first per CONTEXT D-02
 # Plan 03-01 registered: Douyin, Bilibili, Generic.
 # Plan 03-02 inserts YouTubeSource between Douyin and Bilibili (most-specific position).
-# Plan 03-03 will append LocalSource (between Bilibili and Generic).
+# Plan 03-03 inserts LocalSource between Bilibili and Generic (just before sentinel).
 from agent.sources.douyin   import DouyinSource
 from agent.sources.youtube  import YouTubeSource
 from agent.sources.bilibili import BilibiliSource
+from agent.sources.local    import LocalSource
 from agent.sources.generic  import GenericSource
 
 SOURCES: list[Source] = [
     DouyinSource(),
     YouTubeSource(),  # 03-02: between Douyin and Bilibili — most-specific position
     BilibiliSource(),
+    LocalSource(),    # 03-03: between Bilibili and Generic; LocalSource.match() rejects URLs
     GenericSource(),  # MUST stay last — sentinel match() returns True
 ]
 
@@ -54,4 +56,7 @@ assert _SEEN_NAMES.index("youtube") < _SEEN_NAMES.index("generic"), \
     "YouTubeSource must come before GenericSource"
 assert _SEEN_NAMES.index("bilibili") < _SEEN_NAMES.index("generic"), \
     "BilibiliSource must come before GenericSource"
+assert "local" in _SEEN_NAMES, "LocalSource missing from SOURCES"
+assert _SEEN_NAMES.index("local") < _SEEN_NAMES.index("generic"), \
+    "LocalSource must come before GenericSource (mp4 paths would otherwise route to yt-dlp)"
 del _SEEN_NAMES
