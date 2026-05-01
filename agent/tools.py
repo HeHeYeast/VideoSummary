@@ -22,6 +22,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from dataclasses import asdict
@@ -55,6 +56,26 @@ def _build_sidecar(*, cli: dict, func: dict, tools: dict) -> dict:
         "captured_at": now_iso(),
         "schema_version": 1,
     }
+
+
+# Phase 3 SRC-10 D-19 (broadened per RESEARCH Pitfall 2 — Discretion):
+# CJK Unified + Compatibility + Hiragana + Katakana + Fullwidth Forms.
+# Narrow [一-鿿] misses Katakana/Hiragana/Fullwidth which all hit the
+# same ffmpeg subprocess GBK code-page hazard on Windows zh-CN.
+_CJK_PAT = re.compile(r"[一-鿿豈-﫿぀-ゟ゠-ヿ＀-￯]")
+
+
+def _validate_out_path(out_path) -> None:
+    """Reject CJK in --out per CONTEXT D-19 (broadened per RESEARCH Pitfall 2).
+
+    Validates BEFORE any subprocess is invoked so the user gets a clean Python
+    ValueError instead of opaque ffmpeg corruption later.
+    """
+    if _CJK_PAT.search(str(out_path)):
+        raise ValueError(
+            f"CJK characters in --out path break ffmpeg subprocess on Windows zh-CN; "
+            f"use ASCII-only path under output/ (got {out_path!r})"
+        )
 
 
 # Phase 2 RES-07: artifacts doctor reports on, mapped to the stage that produces them.
@@ -93,6 +114,12 @@ def cmd_ingest(args):
     """
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from agent.url_router import route
+    from agent.sources._common import ffprobe_video  # Phase 3 SRC-11 (03-03)
+
+    # Phase 3 SRC-10 D-19: CJK rejection BEFORE work_dir.mkdir or any subprocess.
+    # Broadened pattern covers CJK Unified + Compat + Hiragana + Katakana + Fullwidth
+    # (RESEARCH Pitfall 2 + CONTEXT Discretion).
+    _validate_out_path(args.out)
 
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +147,23 @@ def cmd_ingest(args):
         #    via legacy module's own write_text — that's OK; we re-write atomically below).
         meta = source.fetch(args.url, work_dir, skip_if_cached=True)
 
-        # 3. Centralized meta.json write through agent.io.write_json_atomic.
+        # 3. Phase 3 SRC-11 D-21: ffprobe preflight on EVERY source's output.
+        #    Failure (no audio) raises RuntimeError with remux suggestion.
+        #    Success augments meta with codec/container/fps_mode (additive at end —
+        #    preserves legacy prefix per RESEARCH Pitfall 6).
+        video_path = work_dir / "video.mp4"
+        if video_path.exists():
+            ffprobe_info = ffprobe_video(video_path)
+            meta = {**meta,
+                    "codec": ffprobe_info["codec"],
+                    "container": ffprobe_info["container"],
+                    "fps_mode": ffprobe_info["fps_mode"]}
+            # Update duration if ffprobe got a real value and meta's duration is 0
+            # (LocalSource always returns 0; YouTube/B站 already have real duration).
+            if not meta.get("duration") and ffprobe_info.get("duration_s"):
+                meta["duration"] = ffprobe_info["duration_s"]
+
+        # 4. Centralized meta.json write through agent.io.write_json_atomic.
         #    The legacy module already wrote meta.json with 7-key (bilibili/generic)
         #    or 9-key (douyin) shape; this re-write atomically replaces it with
         #    the augmented dict (legacy keys + Phase 3 additive fields at end).
@@ -295,7 +338,10 @@ def cmd_extract_frames(args):
 
         prefix = f"seg_{int(args.start):04d}_"
         pattern = str(out_dir / f"{prefix}%06d.jpg")
-        cmd += ["-vf", f"fps={args.fps},scale=854:-1", "-q:v", "4", pattern]
+        # Phase 3 SRC-12 D-23: -vsync vfr applied uniformly so VFR sources (OBS/iPhone)
+        # don't drop or duplicate frames silently. No fps_mode gating — even videos
+        # detected as CFR benefit (RESEARCH Pitfall 1: detection is informational only).
+        cmd += ["-vsync", "vfr", "-vf", f"fps={args.fps},scale=854:-1", "-q:v", "4", pattern]
 
         subprocess.run(cmd, check=True, capture_output=True)
 
