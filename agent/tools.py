@@ -364,6 +364,120 @@ def cmd_extract_frames(args):
         raise
 
 
+def cmd_extract_frames_batch(args):
+    """Phase 4 FPS-01/02/03/04. Batch frame extraction from schedule.json.
+
+    Per CONTEXT D-09..D-13: load + validate schedule, iterate segments, emit
+    per-segment started/completed/failed events, segment-level resume via
+    state.jsonl, --force bypass. Filename grammar `seg_<start>_<index>.jpg`
+    preserved (D-10).
+
+    K5 enforcement (locked at CONTEXT line 10 + Discretion / RESEARCH Anti-
+    Patterns): this function does NOT read the scene-cuts artifact and does
+    NOT auto-promote that artifact (or the silence map) into a schedule.
+    The silence-map artifact is allowed as a *validation input* only (D-07
+    /D-08 silence-coverage check), never to generate or modify segments.
+    Verified by a static-source K5 check in tests.
+    """
+    from agent.scheduler import Schedule, ScheduleValidationError
+    from agent.state import derived_segment_state, read_events
+    from agent.sources._common import ffprobe_video
+
+    out_dir = Path(args.out)
+    _validate_out_path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    schedule_path = Path(args.schedule)
+    schedule = Schedule.from_json(schedule_path)
+
+    # D-05.2: duration via ffprobe of the schedule.video field, resolved
+    # relative to the schedule.json directory.
+    video_path = (schedule_path.parent / schedule.video).resolve()
+    probe = ffprobe_video(video_path)
+    duration_s = probe["duration_s"]
+
+    # D-07/D-08: silence_map.json is an OPTIONAL input to validate. We READ
+    # it for validation only, never to modify segments (K5 boundary).
+    silence_map_path = schedule_path.parent / "silence_map.json"
+    silence_map = (
+        json.loads(silence_map_path.read_text(encoding="utf-8"))
+        if silence_map_path.exists()
+        else None
+    )
+    schedule.validate(duration_s=duration_s, silence_map=silence_map)
+
+    # Resume: state.jsonl lives in output/<slug>/, frames/ is a subdir below.
+    state_dir = out_dir.parent
+    if args.force:
+        completed: set[int] = set()
+    else:
+        events, _status = read_events(state_dir / "state.jsonl")
+        completed = derived_segment_state(events, stage="extract_frames_batch")
+
+    for i, seg in enumerate(schedule.segments):
+        if i in completed:
+            log.info(
+                "segment %d already completed, skipping (use --force to redo)", i
+            )
+            continue
+
+        if seg.skip:
+            _emit_event(
+                state_dir, "extract_frames_batch", "started",
+                details={"segment_index": i, "start": seg.start,
+                         "end": seg.end, "skip": True},
+            )
+            _emit_event(
+                state_dir, "extract_frames_batch", "completed",
+                details={"segment_index": i, "start": seg.start,
+                         "end": seg.end, "skip": True, "frames_count": 0},
+            )
+            print(f"[seg {i}] {seg.start}s-{seg.end}s SKIP")
+            continue
+
+        _emit_event(
+            state_dir, "extract_frames_batch", "started",
+            details={"segment_index": i, "start": seg.start, "end": seg.end},
+        )
+        try:
+            cmd = ["ffmpeg", "-y"]
+            if seg.start > 0:
+                cmd += ["-ss", str(seg.start)]
+            cmd += ["-i", str(video_path)]
+            if seg.end > 0:
+                cmd += ["-t", str(seg.end - max(seg.start, 0))]
+            prefix = f"seg_{int(seg.start):04d}_"
+            pattern = str(out_dir / f"{prefix}%06d.jpg")
+            # Phase 3 SRC-12 D-23: -vsync vfr applied uniformly (matches
+            # cmd_extract_frames argv shape — FPS-07 grammar preservation).
+            cmd += [
+                "-vsync", "vfr",
+                "-vf", f"fps={seg.fps},scale={schedule.default_scale}",
+                "-q:v", str(schedule.default_quality), pattern,
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+            files = sorted(out_dir.glob(f"{prefix}*.jpg"))
+            _emit_event(
+                state_dir, "extract_frames_batch", "completed",
+                details={"segment_index": i, "start": seg.start,
+                         "end": seg.end, "frames_count": len(files)},
+            )
+            print(f"[seg {i}] {seg.start}s-{seg.end}s @ fps={seg.fps}: "
+                  f"{len(files)} frames")
+        except subprocess.CalledProcessError as e:
+            _emit_event(
+                state_dir, "extract_frames_batch", "failed",
+                details={"segment_index": i, "start": seg.start,
+                         "end": seg.end,
+                         "error_type": type(e).__name__,
+                         "error": (e.stderr.decode("utf-8", errors="replace")
+                                   if e.stderr else str(e))[:200]},
+            )
+            raise RuntimeError(
+                f"extract_frames_batch segment {i} failed: {e}"
+            ) from e
+
+
 def cmd_list_frames(args):
     """列出帧文件."""
     d = Path(args.dir)
@@ -592,6 +706,20 @@ def main():
     p.add_argument("--start", type=float, default=0)
     p.add_argument("--end", type=float, default=0, help="0=到结尾")
 
+    p = sub.add_parser(
+        "extract_frames_batch",
+        help="批量抽帧 (Phase 4 FPS-01/02/03 — schedule.json drives ffmpeg per segment)",
+    )
+    p.add_argument("--schedule", required=True, help="path to schedule.json")
+    p.add_argument(
+        "--out", required=True,
+        help="frames/ output dir under output/<slug>/",
+    )
+    p.add_argument(
+        "--force", action="store_true",
+        help="bypass segment-level resume; re-run all non-skip segments",
+    )
+
     p = sub.add_parser("list_frames", help="列出帧文件")
     p.add_argument("dir")
 
@@ -624,6 +752,7 @@ def main():
         "transcribe": cmd_transcribe,
         "aggregate": cmd_aggregate,
         "extract_frames": cmd_extract_frames,
+        "extract_frames_batch": cmd_extract_frames_batch,  # Phase 4 FPS-01/02/03
         "list_frames": cmd_list_frames,
         "cleanup_frames": cmd_cleanup_frames,
         "classify_frame": cmd_classify_frame,

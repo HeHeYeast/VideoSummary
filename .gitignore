@@ -9,3 +9,7 @@ venv/
 output/
 *cookies*.txt
 vendor/
+# Phase 4 test scratchpad — see tests/test_extract_frames_batch.py
+# (zh-CN Windows: _validate_out_path rejects CJK in default %TEMP% so we
+# create a per-test tmpdir under tests/ which is repo-root ASCII-safe).
+tests/_tmp_batch/
