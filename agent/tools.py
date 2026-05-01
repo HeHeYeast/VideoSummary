@@ -844,6 +844,13 @@ def cmd_diarize(args):
 
     out_path = Path(args.out)
     _validate_out_path(out_path)
+    # REVIEW WR-03: audio_wav is also a subprocess argv (ffprobe + pyannote
+    # downstream); same CJK-on-zh-CN-Windows hazard as --out (D-19). Validate
+    # before the ffprobe duration probe so user gets a clean ValueError instead
+    # of opaque "duration probe failed; skipping gate" → confusing pyannote
+    # mojibake stack trace.
+    audio_path = Path(args.audio_wav)
+    _validate_out_path(audio_path)
     out_dir = out_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -855,7 +862,6 @@ def cmd_diarize(args):
         )
 
     # 2. audio file existence check
-    audio_path = Path(args.audio_wav)
     if not audio_path.exists():
         raise RuntimeError(f"audio file not found: {audio_path}")
 
