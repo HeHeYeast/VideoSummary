@@ -3,6 +3,11 @@
 
 Phase 3 SRC-05 / SRC-06 / SRC-07 / SRC-08 / SRC-13.
 
+Phase 5 D-31 / WR-02: VTT lang priority zh-Hans > zh-Hant > zh > en (folded
+from Phase 3 deferred WR-02 — fix isolated; podcast mode benefits per CONTEXT
+D-32: when subtitle_origin == 'creator' AND mode == 'interview-distillation',
+CLAUDE.md skeleton instructs Claude to trust VTT directly without ASR re-run).
+
 Failure modes (ordered by classifier priority — see RESEARCH §"Ordering Rationale"):
   1. po_token_required — SABR rollout 2026; install Deno + yt-dlp-get-pot
   2. cookies_stale     — re-export YouTube cookies.txt
@@ -243,9 +248,12 @@ class YouTubeSource:
         opts = {
             "format": "bv*[height<=720]+ba/b[height<=720]/best",
             "outtmpl": str(target_dir / "video.%(ext)s"),
-            "writesubtitles": True,
-            "writeautomaticsub": True,
-            "subtitleslangs": ["zh-CN", "zh", "en"],
+            "writesubtitles": True,             # manual subs 优先
+            "writeautomaticsub": True,          # auto-gen 兜底
+            # Phase 5 D-31 / WR-02: 优先级 zh-Hans > zh-Hant > zh > en > manual-any > auto-any
+            # yt-dlp 按 list 顺序匹配 manual; 若 manual 全无, 按相同顺序匹配 auto.
+            # 'zh-CN' 是非标准 alias, 改为标准 BCP-47 'zh-Hans' (简体中文); 'zh-Hant' 是繁体.
+            "subtitleslangs": ["zh-Hans", "zh-Hant", "zh", "en"],
             "subtitlesformat": "vtt",
             "writeinfojson": True,
             "quiet": False,
