@@ -207,20 +207,25 @@ def cmd_download(args):
 def cmd_transcribe(args):
     """ASR 转录 (本地 faster-whisper)."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from src.asr import extract_audio, transcribe, Segment, _VAD_DEFAULTS
+    from src.asr import extract_audio, transcribe, Segment, PROFILES
     from agent.io import load_segs
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
+    profile_dict = PROFILES[args.profile]
+
     segs_file = out_dir / "segs.json"
-    # Build current sidecar (this run params) per D-05 / D-07
+    # Build current sidecar (this run params) per D-05 / D-07 + Phase 5 D-27
     current_sidecar = _build_sidecar(
-        cli={"whisper": args.whisper},
+        cli={"whisper": args.whisper, "profile": args.profile},
         func={
+            "profile": args.profile,
             "language": None,
             "vad_filter": True,
-            "min_silence_duration_ms": _VAD_DEFAULTS["min_silence_duration_ms"],
+            "min_silence_duration_ms": profile_dict["vad_min_silence_ms"],
+            "vad_threshold": profile_dict["vad_threshold"],
             "condition_on_previous_text": False,
             "beam_size": 5,
         },
@@ -251,12 +256,21 @@ def cmd_transcribe(args):
             segs_data = load_segs(segs_file)
         else:
             # decision is regen or regen_forced
-            segs = transcribe(audio, model_size=args.whisper, language=None)
+            segs = transcribe(
+                audio, model_size=args.whisper, language=None,
+                profile=args.profile,
+            )
             segs_data = [asdict(s) for s in segs]
             write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
 
+            # Phase 5 TEACH-11 / D-22..D-25: repetition guard (旁路, 不删 segs.json)
+            warnings_data = whisper_repetition_guard(segs_data)
+            if warnings_data:
+                _emit_repetition_warnings(out_dir, warnings_data)
+
         _emit_event(out_dir, "transcribe", "completed", sidecar=current_sidecar,
-                    details={"segs_count": len(segs_data), "decision": decision})
+                    details={"segs_count": len(segs_data), "decision": decision,
+                             "profile": args.profile})
 
         print(f"segments: {len(segs_data)}")
         if segs_data:
@@ -271,7 +285,7 @@ def cmd_transcribe(args):
 def cmd_aggregate(args):
     """段落聚合."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from agent.asr_v2 import aggregate_paragraphs, paragraphs_to_dicts, _DEFAULTS
+    from agent.asr_v2 import aggregate_paragraphs, paragraphs_to_dicts, PROFILES
     from agent.io import load_segs, load_paragraphs
 
     segs = load_segs(args.segs_json)
@@ -280,13 +294,18 @@ def cmd_aggregate(args):
     # state.jsonl lives alongside paragraphs.json (same output/<slug>/ dir).
     state_dir = out.parent
 
-    # Build current sidecar
+    # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
+    profile_dict = PROFILES[args.profile]
+    eff_gap = args.gap if args.gap is not None else profile_dict["gap_threshold"]
+
+    # Build current sidecar (Phase 5 D-27: profile进 cli + func)
     current_sidecar = _build_sidecar(
-        cli={"gap": args.gap},
+        cli={"profile": args.profile, "gap": args.gap},
         func={
-            "gap_threshold": args.gap,
-            "max_para_duration": _DEFAULTS["max_para_duration"],
-            "sentence_gap": _DEFAULTS["sentence_gap"],
+            "profile": args.profile,
+            "gap_threshold": eff_gap,
+            "max_para_duration": profile_dict["max_para_duration"],
+            "sentence_gap": profile_dict["sentence_gap"],
         },
         tools={},  # pure Python, no external tool
     )
@@ -305,18 +324,153 @@ def cmd_aggregate(args):
             paras_data = load_paragraphs(out)
             print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
         else:
-            paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
+            paras = aggregate_paragraphs(
+                segs, profile=args.profile, gap_threshold=args.gap,
+            )
             paras_data = paragraphs_to_dicts(paras)
             write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
-            print(f"{len(segs)} segments -> {len(paras)} paragraphs")
+            print(f"{len(segs)} segments -> {len(paras)} paragraphs (profile={args.profile})")
 
         _emit_event(state_dir, "aggregate", "completed", sidecar=current_sidecar,
-                    details={"paragraphs_count": len(paras_data), "decision": decision})
+                    details={"paragraphs_count": len(paras_data), "decision": decision,
+                             "profile": args.profile})
         print(f"output: {out}")
     except Exception as e:
         _emit_event(state_dir, "aggregate", "failed", sidecar=current_sidecar,
                     details={"error_type": type(e).__name__, "error": str(e)[:200]})
         raise
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 5 TEACH-11 / D-22..D-25: whisper repetition guard (旁路检测).
+# Algorithm (D-22 字面):
+#   - 单 segment 内 3-gram 连续重复 > 3× → flag
+#   - 跨 ≤3 相邻 segments 内 3-gram 连续重复 > 3× → flag (去重单段已 flag 的)
+# Output (D-23 字面 schema): list of warning dicts -> transcribe_warnings.json
+# Redline (D-24): never auto-delete from segs.json; never mutate input list.
+# Operation: O(n_chars) per video; no DoS risk (whisper segs ≤ ~30s × ~3 segs).
+# ─────────────────────────────────────────────────────────────────────────────
+_REPETITION_THRESHOLD = 3   # > 3 = 4 次或更多 (D-22 字面)
+_CONTEXT_CHARS = 200        # context_before/after 默认 200 字符 (Claude Discretion in D-25)
+
+
+def _count_consecutive_trigrams(text: str) -> dict[str, int]:
+    """字符级 3-gram 连续 run-length 统计.
+
+    Sliding window stride=1: 'aaaaa' → {'aaa': 3} (3 个连续 'aaa' starting
+    at i=0,1,2). 'abcabcabcabc' → 不命中（不同 trigram 交替不算"连续"）.
+
+    用于检测 whisper 重复幻觉典型形态 (e.g. '我们这里用我们这里用...').
+    """
+    if len(text) < 3:
+        return {}
+    grams = [text[i:i + 3] for i in range(len(text) - 2)]
+    runs: dict[str, int] = {}
+    cur_gram = grams[0]
+    cur_run = 1
+    for g in grams[1:]:
+        if g == cur_gram:
+            cur_run += 1
+        else:
+            runs[cur_gram] = max(runs.get(cur_gram, 0), cur_run)
+            cur_gram = g
+            cur_run = 1
+    # 最后一段
+    runs[cur_gram] = max(runs.get(cur_gram, 0), cur_run)
+    return runs
+
+
+def _build_context(segs: list[dict], from_idx: int, to_idx: int) -> dict[str, str]:
+    """取 from_idx 之前 ≤200 字符 + to_idx 之后 ≤200 字符 (Claude Discretion in D-25)."""
+    before = ""
+    for i in range(from_idx - 1, -1, -1):
+        before = segs[i].get("text", "") + " " + before
+        if len(before) >= _CONTEXT_CHARS:
+            before = before[-_CONTEXT_CHARS:]
+            break
+    after = ""
+    for i in range(to_idx + 1, len(segs)):
+        after = after + " " + segs[i].get("text", "")
+        if len(after) >= _CONTEXT_CHARS:
+            after = after[:_CONTEXT_CHARS]
+            break
+    return {"before": before.strip(), "after": after.strip()}
+
+
+def whisper_repetition_guard(segs: list[dict]) -> list[dict]:
+    """检测 whisper 重复幻觉 (D-22 算法).
+
+    Args:
+        segs: list of {"start", "end", "text"} from segs.json (read-only;
+            input list never mutated per D-24 红线)
+
+    Returns:
+        list of warning dicts per D-23 schema (空列表 = 无问题).
+        Each warning: {start, end, trigram, count, context_before,
+                       context_after, seg_indices}
+    """
+    warnings: list[dict] = []
+    flagged: set[tuple[int, str]] = set()  # (segment_index, trigram) 已 flag
+
+    # 1. 单 segment 内 3-gram 连续重复
+    for seg_idx, seg in enumerate(segs):
+        text = seg.get("text", "")
+        for gram, run in _count_consecutive_trigrams(text).items():
+            if run > _REPETITION_THRESHOLD:
+                ctx = _build_context(segs, seg_idx, seg_idx)
+                warnings.append({
+                    "start": seg["start"],
+                    "end": seg["end"],
+                    "trigram": gram,
+                    "count": run,
+                    "context_before": ctx["before"],
+                    "context_after": ctx["after"],
+                    "seg_indices": [seg_idx],
+                })
+                flagged.add((seg_idx, gram))
+
+    # 2. 跨 ≤3 邻接 segments (window slide)
+    for window_start in range(len(segs)):
+        window_end = min(window_start + 3, len(segs))
+        if window_end - window_start < 2:
+            continue  # 单 segment 已在步骤 1 处理
+        joined = " ".join(s.get("text", "") for s in segs[window_start:window_end])
+        for gram, run in _count_consecutive_trigrams(joined).items():
+            if run > _REPETITION_THRESHOLD:
+                # 去重: 单 segment 内已 flag 的 (seg_idx, gram) 跳过
+                if any((i, gram) in flagged for i in range(window_start, window_end)):
+                    continue
+                ctx = _build_context(segs, window_start, window_end - 1)
+                warnings.append({
+                    "start": segs[window_start]["start"],
+                    "end": segs[window_end - 1]["end"],
+                    "trigram": gram,
+                    "count": run,
+                    "context_before": ctx["before"],
+                    "context_after": ctx["after"],
+                    "seg_indices": list(range(window_start, window_end)),
+                })
+                for i in range(window_start, window_end):
+                    flagged.add((i, gram))
+
+    return warnings
+
+
+def _emit_repetition_warnings(out_dir: Path, warnings_data: list[dict]) -> None:
+    """D-23 surfacing: stdout warning + transcribe_warnings.json bypass artifact."""
+    n = len(warnings_data)
+    log.warning("WARNING: detected %d suspected whisper repetitions", n)
+    print(f"WARNING: detected {n} suspected whisper repetitions; first 3:")
+    for w in warnings_data[:3]:
+        h, rem = divmod(int(w["start"]), 3600)
+        m, s = divmod(rem, 60)
+        ts = f"{h:02d}:{m:02d}:{s:02d}"
+        print(f'  [{ts}] "{w["trigram"]}" repeated {w["count"]}x')
+    print(f"  -- review {out_dir}/transcribe_warnings.json")
+
+    out_path = out_dir / "transcribe_warnings.json"
+    payload = {"version": 1, "warnings": warnings_data}
+    write_json_atomic(out_path, payload)  # 旁路 artifact, 不写 sidecar (D-23 schema 不含)
 
 
 def cmd_extract_frames(args):
@@ -782,12 +936,30 @@ def main():
     p.add_argument("video_path")
     p.add_argument("--out", required=True)
     p.add_argument("--whisper", default="small")
+    p.add_argument(
+        "--profile", choices=["tutorial", "podcast"], default="tutorial",
+        help="VAD profile (Phase 5 TEACH-12); default 'tutorial' = current behavior",
+    )
     p.add_argument("--force", action="store_true")
 
     p = sub.add_parser("aggregate", help="段落聚合")
     p.add_argument("segs_json")
     p.add_argument("--out", required=True)
-    p.add_argument("--gap", type=float, default=1.5)
+    p.add_argument(
+        "--profile", choices=["tutorial", "podcast"], default="tutorial",
+        help="paragraph profile (Phase 5 TEACH-07); default 'tutorial' = current behavior",
+    )
+    p.add_argument(
+        "--gap", type=float, default=None,
+        help="override gap_threshold; if absent, use PROFILES[profile].gap_threshold",
+    )
+    # Phase 5 deviation Rule 3: --force flag added to aggregate (was implicit
+    # via getattr(args, 'force', False) in cmd_aggregate but not exposed in
+    # argparse). Required by Plan Task 4 regression test runbook.
+    p.add_argument(
+        "--force", action="store_true",
+        help="bypass cache_decision (regen even if sidecar matches)",
+    )
 
     p = sub.add_parser("extract_frames", help="按参数抽帧 (fps/start/end 你决定)")
     p.add_argument("video_path")
