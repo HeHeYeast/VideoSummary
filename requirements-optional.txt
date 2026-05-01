@@ -1,0 +1,19 @@
+# Optional dependencies for the videoSummary expansion milestone.
+# NOT required for the default ¥0 workflow — install only when you need
+# the corresponding subcommand.
+#
+# Phase 4 FPS-06 — detect_silence (silero-vad standalone wrapper).
+# NOTE: silero-vad pulls torch + torchaudio (~700MB total). The default
+# requirements.txt deliberately excludes these because faster-whisper
+# bundles its own SileroVADModel internally via onnxruntime; the standalone
+# silero-vad PyPI package is needed only for the detect_silence CLI which
+# surfaces speech_timestamps as a separate artifact.
+#
+# Without these, `python -m agent.tools detect_silence ...` raises a clean
+# RuntimeError with this exact install hint, and FPS-04 silence-coverage
+# validation degrades to baseline-pass-only check (CONTEXT D-08).
+#
+# Install: pip install -r requirements-optional.txt
+silero-vad>=5.1
+torch>=1.12.0
+torchaudio>=0.12.0

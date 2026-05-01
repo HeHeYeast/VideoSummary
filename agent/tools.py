@@ -512,6 +512,62 @@ def cmd_detect_scenes(args):
     print(f"output: {out}")
 
 
+def cmd_detect_silence(args):
+    """Phase 4 FPS-06. Decision support for Claude when authoring the schedule artifact.
+
+    Runs silero-vad (opt-in dep — install via requirements-optional.txt; pulls
+    torch ~700MB), inverts speech_timestamps to silence intervals (Pitfall P7
+    leading/trailing handled), flags duration > 5s with flagged_for_review:true
+    (D-20), and writes the locked silence-map JSON shape.
+
+    Stdout hint reminds Claude that, when writing the schedule artifact, each
+    flagged interval must be covered by an fps segment (NOT skip), or a
+    low-rate baseline pass per FPS-04 must exist (CONTEXT D-08 fallback).
+
+    K5 enforcement (locked at CONTEXT line 10 + PROJECT.md "Decision authority"):
+    this handler writes ONLY the silence-map artifact and NEVER auto-promotes
+    silence intervals into segment plans. The locked acceptance test asserts
+    this function's source contains no reference to the schedule artifact
+    filename — hence the deliberately generic phrasing ("fps segment") below.
+    """
+    from agent.silence import detect_silence, ensure_audio_wav
+    from agent.sources._common import ffprobe_video
+
+    out = Path(args.out)
+    _validate_out_path(out)
+
+    probe = ffprobe_video(args.video)
+    duration_s = probe["duration_s"]
+    if duration_s <= 0:
+        raise RuntimeError(
+            f"could not determine duration of {args.video}; ffprobe returned 0"
+        )
+
+    # silence-map artifact lives beside other slug artifacts.
+    slug_dir = out.parent
+    slug_dir.mkdir(parents=True, exist_ok=True)
+    audio_wav = ensure_audio_wav(args.video, slug_dir)
+
+    intervals = detect_silence(audio_wav, duration_s=duration_s)
+
+    obj = {
+        "version": 1,
+        "video": Path(args.video).name,
+        "silence_intervals": intervals,
+    }
+    write_json_atomic(out, obj)
+
+    flagged = sum(1 for iv in intervals
+                  if iv.get("flagged_for_review") is True)
+    print(f"Found {len(intervals)} silence intervals; {flagged} flagged > 5s.")
+    print(
+        "When writing the schedule artifact, ensure each flagged interval is "
+        "covered by an fps segment (NOT skip), or add a low-rate baseline pass "
+        "per FPS-04."
+    )
+    print(f"output: {out}")
+
+
 def cmd_list_frames(args):
     """列出帧文件."""
     d = Path(args.dir)
@@ -766,6 +822,14 @@ def main():
              "over-segmentation on screen recordings — RESEARCH Pitfall P4)",
     )
 
+    p = sub.add_parser(
+        "detect_silence",
+        help="决策支持: silero-vad 输出 silence_map.json (FPS-06; "
+             "需 pip install -r requirements-optional.txt)",
+    )
+    p.add_argument("video", help="path to video file")
+    p.add_argument("--out", required=True, help="path to output silence_map.json")
+
     p = sub.add_parser("list_frames", help="列出帧文件")
     p.add_argument("dir")
 
@@ -800,6 +864,7 @@ def main():
         "extract_frames": cmd_extract_frames,
         "extract_frames_batch": cmd_extract_frames_batch,  # Phase 4 FPS-01/02/03
         "detect_scenes": cmd_detect_scenes,  # Phase 4 FPS-05
+        "detect_silence": cmd_detect_silence,  # Phase 4 FPS-06
         "list_frames": cmd_list_frames,
         "cleanup_frames": cmd_cleanup_frames,
         "classify_frame": cmd_classify_frame,

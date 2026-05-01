@@ -19,6 +19,15 @@ python -m agent.tools cleanup_frames <dir> --keep f1.jpg f2.jpg ...
 **帧理解不需要 API** — 直接 `Read output/xxx/frames/xxx.jpg` 看图片。
 你是多模态模型，能精确读取代码截图中的每一行。这比任何 OCR API 都准确。
 
+## 决策支持工具（Phase 4，可选）
+
+两条只读工具，给 Claude 写 `schedule.json` 时提供 ground truth — **工具不自动改 schedule**（K5「Claude is decider」原则）：
+
+- `python -m agent.tools detect_scenes <video> --out output/<slug>/scenes.json` — PySceneDetect 输出场景切换时间线（默认依赖，~80MB）
+- `python -m agent.tools detect_silence <video> --out output/<slug>/silence_map.json` — silero-vad 输出静音区间，>5s 标 `flagged_for_review:true`（opt-in 依赖）
+
+`detect_silence` 需要 `pip install -r requirements-optional.txt`（拉 torch ~700MB）。不安装也能用 `extract_frames_batch`：FPS-04 退化为只检 baseline pass（schedule 必须包含一个覆盖全片的 `fps ≤ 0.1` 段，详见 Phase 4 CONTEXT D-08）。
+
 ## 抖音支持（首次设置）
 
 抖音 URL 的下载链路和 B 站不同，需要一次性设置：
