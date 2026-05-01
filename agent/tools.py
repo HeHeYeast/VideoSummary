@@ -36,6 +36,7 @@ from agent.io import (
     _get_faster_whisper_version,
     now_iso,
 )
+from agent.state import append_event, params_hash
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
@@ -55,6 +56,18 @@ def _build_sidecar(*, cli: dict, func: dict, tools: dict) -> dict:
     }
 
 
+def _emit_event(out_dir: Path, stage: str, status: str,
+                *, sidecar: dict | None = None, details: dict | None = None) -> None:
+    """Emit one event to out_dir/state.jsonl. Best-effort.
+
+    append_event swallows its own OSError -> log.warning. sidecar is hashed via
+    params_hash; if None, params_hash is empty string.
+    """
+    state_log = out_dir / "state.jsonl"
+    h = params_hash(sidecar) if sidecar else ""
+    append_event(state_log, stage=stage, status=status, params_hash=h, details=details)
+
+
 def cmd_download(args):
     """下载视频. 自动识别 B 站 / 抖音."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -62,43 +75,56 @@ def cmd_download(args):
     work_dir = Path(args.out)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    url = args.url.lower()
-    if "douyin.com" in url:
-        # 抖音走自建 downloader (a_bogus 签名)
-        from agent.douyin_downloader import download_douyin
-        # cookies 文件默认在项目根
-        cookies_file = os.getenv("DOUYIN_COOKIES_FILE",
-                                  str(Path(__file__).parent.parent / "www.douyin.com_cookies.txt"))
-        if not Path(cookies_file).exists():
-            log.warning("抖音 cookies 文件不存在: %s (可能导致下载失败)", cookies_file)
-            cookies_file = None
-        meta = download_douyin(args.url, work_dir,
-                               cookies_file=cookies_file, skip_if_cached=True)
-        platform = "douyin"
-    else:
-        # B 站 / YouTube / 其他走 yt-dlp
-        from src.download import download
-        meta = download(args.url, work_dir, skip_if_cached=True)
-        platform = "bilibili_or_other"
+    # Phase 2 RES-05: emit started event (sidecar not yet built -- empty params_hash).
+    # Truncate URL for log brevity (avoid leaking long douyin tracking params).
+    _emit_event(work_dir, "download", "started",
+                details={"url": args.url[:120]})
 
-    # Phase 2 RES-01: write sidecar for meta.json (D-04 -- newly-written
-    # artifacts always carry sidecars). meta.json itself is written by the
-    # downloader; we only attach the sidecar here. Archive meta.json without
-    # sidecar follows D-01 path (warn but don't regen).
-    meta_path = work_dir / "meta.json"
-    if meta_path.exists():
-        sidecar = _build_sidecar(
-            cli={},
-            func={"skip_if_cached": True, "platform": platform},
-            tools={"ffmpeg": _get_ffmpeg_version()},
-        )
-        try:
-            write_sidecar(meta_path, sidecar)
-        except OSError as e:
-            log.warning("failed to write meta.json sidecar: %s", e)
+    sidecar = None  # built only on success path so we can hash it for the completed event
+    try:
+        url = args.url.lower()
+        if "douyin.com" in url:
+            # 抖音走自建 downloader (a_bogus 签名)
+            from agent.douyin_downloader import download_douyin
+            # cookies 文件默认在项目根
+            cookies_file = os.getenv("DOUYIN_COOKIES_FILE",
+                                      str(Path(__file__).parent.parent / "www.douyin.com_cookies.txt"))
+            if not Path(cookies_file).exists():
+                log.warning("抖音 cookies 文件不存在: %s (可能导致下载失败)", cookies_file)
+                cookies_file = None
+            meta = download_douyin(args.url, work_dir,
+                                   cookies_file=cookies_file, skip_if_cached=True)
+            platform = "douyin"
+        else:
+            # B 站 / YouTube / 其他走 yt-dlp
+            from src.download import download
+            meta = download(args.url, work_dir, skip_if_cached=True)
+            platform = "bilibili_or_other"
 
-    # 避免打印含 emoji 的 title 炸 gbk 终端
-    print(json.dumps(meta, ensure_ascii=True, indent=2))
+        # Phase 2 RES-01: write sidecar for meta.json (D-04 -- newly-written
+        # artifacts always carry sidecars). meta.json itself is written by the
+        # downloader; we only attach the sidecar here. Archive meta.json without
+        # sidecar follows D-01 path (warn but don't regen).
+        meta_path = work_dir / "meta.json"
+        if meta_path.exists():
+            sidecar = _build_sidecar(
+                cli={},
+                func={"skip_if_cached": True, "platform": platform},
+                tools={"ffmpeg": _get_ffmpeg_version()},
+            )
+            try:
+                write_sidecar(meta_path, sidecar)
+            except OSError as e:
+                log.warning("failed to write meta.json sidecar: %s", e)
+
+        _emit_event(work_dir, "download", "completed", sidecar=sidecar,
+                    details={"platform": platform})
+        # 避免打印含 emoji 的 title 炸 gbk 终端
+        print(json.dumps(meta, ensure_ascii=True, indent=2))
+    except Exception as e:
+        _emit_event(work_dir, "download", "failed", sidecar=sidecar,
+                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
+        raise
 
 
 def cmd_transcribe(args):
@@ -109,10 +135,6 @@ def cmd_transcribe(args):
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    audio = out_dir / "audio.wav"
-    if not audio.exists():
-        extract_audio(args.video_path, audio)
 
     segs_file = out_dir / "segs.json"
     # Build current sidecar (this run params) per D-05 / D-07
@@ -131,26 +153,42 @@ def cmd_transcribe(args):
         },
     )
 
-    decision = "regen"  # default if file missing
-    if segs_file.exists():
-        old_sidecar = read_sidecar(segs_file)
-        decision = cache_decision(
-            old_sidecar, current_sidecar, "segs.json", forced=args.force,
-        )
+    # Phase 2 RES-05: started event with current params hash so derived_state
+    # can reason about "we attempted transcribe with params H even if it crashed".
+    _emit_event(out_dir, "transcribe", "started", sidecar=current_sidecar)
 
-    if decision in ("reuse", "warn_then_reuse"):
-        print(f"cached: {segs_file}")
-        segs_data = load_segs(segs_file)
-    else:
-        # decision is regen or regen_forced
-        segs = transcribe(audio, model_size=args.whisper, language=None)
-        segs_data = [asdict(s) for s in segs]
-        write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
+    try:
+        audio = out_dir / "audio.wav"
+        if not audio.exists():
+            extract_audio(args.video_path, audio)
 
-    print(f"segments: {len(segs_data)}")
-    if segs_data:
-        print(f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
-    print(f"output: {segs_file}")
+        decision = "regen"  # default if file missing
+        if segs_file.exists():
+            old_sidecar = read_sidecar(segs_file)
+            decision = cache_decision(
+                old_sidecar, current_sidecar, "segs.json", forced=args.force,
+            )
+
+        if decision in ("reuse", "warn_then_reuse"):
+            print(f"cached: {segs_file}")
+            segs_data = load_segs(segs_file)
+        else:
+            # decision is regen or regen_forced
+            segs = transcribe(audio, model_size=args.whisper, language=None)
+            segs_data = [asdict(s) for s in segs]
+            write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
+
+        _emit_event(out_dir, "transcribe", "completed", sidecar=current_sidecar,
+                    details={"segs_count": len(segs_data), "decision": decision})
+
+        print(f"segments: {len(segs_data)}")
+        if segs_data:
+            print(f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
+        print(f"output: {segs_file}")
+    except Exception as e:
+        _emit_event(out_dir, "transcribe", "failed", sidecar=current_sidecar,
+                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
+        raise
 
 
 def cmd_aggregate(args):
@@ -162,6 +200,8 @@ def cmd_aggregate(args):
     segs = load_segs(args.segs_json)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    # state.jsonl lives alongside paragraphs.json (same output/<slug>/ dir).
+    state_dir = out.parent
 
     # Build current sidecar
     current_sidecar = _build_sidecar(
@@ -174,23 +214,32 @@ def cmd_aggregate(args):
         tools={},  # pure Python, no external tool
     )
 
-    decision = "regen"
-    if out.exists():
-        old_sidecar = read_sidecar(out)
-        forced = bool(getattr(args, "force", False))
-        decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
+    _emit_event(state_dir, "aggregate", "started", sidecar=current_sidecar)
 
-    if decision in ("reuse", "warn_then_reuse"):
-        print(f"cached: {out}")
-        paras_data = load_paragraphs(out)
-        print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
-    else:
-        paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
-        paras_data = paragraphs_to_dicts(paras)
-        write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
-        print(f"{len(segs)} segments -> {len(paras)} paragraphs")
+    try:
+        decision = "regen"
+        if out.exists():
+            old_sidecar = read_sidecar(out)
+            forced = bool(getattr(args, "force", False))
+            decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
 
-    print(f"output: {out}")
+        if decision in ("reuse", "warn_then_reuse"):
+            print(f"cached: {out}")
+            paras_data = load_paragraphs(out)
+            print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
+        else:
+            paras = aggregate_paragraphs(segs, gap_threshold=args.gap)
+            paras_data = paragraphs_to_dicts(paras)
+            write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
+            print(f"{len(segs)} segments -> {len(paras)} paragraphs")
+
+        _emit_event(state_dir, "aggregate", "completed", sidecar=current_sidecar,
+                    details={"paragraphs_count": len(paras_data), "decision": decision})
+        print(f"output: {out}")
+    except Exception as e:
+        _emit_event(state_dir, "aggregate", "failed", sidecar=current_sidecar,
+                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
+        raise
 
 
 def cmd_extract_frames(args):
@@ -198,26 +247,41 @@ def cmd_extract_frames(args):
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = ["ffmpeg", "-y"]
-    if args.start > 0:
-        cmd += ["-ss", str(args.start)]
-    cmd += ["-i", args.video_path]
-    if args.end > 0:
-        cmd += ["-t", str(args.end - max(args.start, 0))]
+    # state.jsonl lives in output/<slug>/, frames/ is a subdir below it.
+    # Per D-08 frames/ has no JSON sidecar; per D-14 segment-level events are
+    # deferred to Phase 4. Day-1 grain: one started + one completed per call.
+    state_dir = out_dir.parent
+    details_in = {"fps": args.fps, "start": args.start, "end": args.end}
+    _emit_event(state_dir, "extract_frames", "started", details=details_in)
 
-    prefix = f"seg_{int(args.start):04d}_"
-    pattern = str(out_dir / f"{prefix}%06d.jpg")
-    cmd += ["-vf", f"fps={args.fps},scale=854:-1", "-q:v", "4", pattern]
+    try:
+        cmd = ["ffmpeg", "-y"]
+        if args.start > 0:
+            cmd += ["-ss", str(args.start)]
+        cmd += ["-i", args.video_path]
+        if args.end > 0:
+            cmd += ["-t", str(args.end - max(args.start, 0))]
 
-    subprocess.run(cmd, check=True, capture_output=True)
+        prefix = f"seg_{int(args.start):04d}_"
+        pattern = str(out_dir / f"{prefix}%06d.jpg")
+        cmd += ["-vf", f"fps={args.fps},scale=854:-1", "-q:v", "4", pattern]
 
-    files = sorted(out_dir.glob(f"{prefix}*.jpg"))
-    print(f"extracted: {len(files)} frames ({args.start}s-{args.end}s, fps={args.fps})")
-    for f in files[:5]:
-        ts = args.start + (int(f.stem.split("_")[-1]) - 0.5) / args.fps
-        print(f"  [{ts:.1f}s] {f.name}")
-    if len(files) > 5:
-        print(f"  ... and {len(files) - 5} more")
+        subprocess.run(cmd, check=True, capture_output=True)
+
+        files = sorted(out_dir.glob(f"{prefix}*.jpg"))
+        _emit_event(state_dir, "extract_frames", "completed",
+                    details={**details_in, "frames_count": len(files)})
+
+        print(f"extracted: {len(files)} frames ({args.start}s-{args.end}s, fps={args.fps})")
+        for f in files[:5]:
+            ts = args.start + (int(f.stem.split("_")[-1]) - 0.5) / args.fps
+            print(f"  [{ts:.1f}s] {f.name}")
+        if len(files) > 5:
+            print(f"  ... and {len(files) - 5} more")
+    except Exception as e:
+        _emit_event(state_dir, "extract_frames", "failed",
+                    details={**details_in, "error_type": type(e).__name__, "error": str(e)[:200]})
+        raise
 
 
 def cmd_list_frames(args):
@@ -232,13 +296,25 @@ def cmd_list_frames(args):
 def cmd_cleanup_frames(args):
     """删除未使用的帧, 只保留 --keep 列表中的."""
     d = Path(args.dir)
+    # state.jsonl lives one level up from frames/ subdir.
+    state_dir = d.parent
     keep = set(args.keep) if args.keep else set()
-    removed = 0
-    for f in sorted(d.glob("*.jpg")):
-        if f.name not in keep:
-            f.unlink()
-            removed += 1
-    print(f"removed {removed} frames, kept {len(keep)}")
+    _emit_event(state_dir, "cleanup_frames", "started",
+                details={"keep_count": len(keep)})
+
+    try:
+        removed = 0
+        for f in sorted(d.glob("*.jpg")):
+            if f.name not in keep:
+                f.unlink()
+                removed += 1
+        _emit_event(state_dir, "cleanup_frames", "completed",
+                    details={"removed": removed, "kept": len(keep)})
+        print(f"removed {removed} frames, kept {len(keep)}")
+    except Exception as e:
+        _emit_event(state_dir, "cleanup_frames", "failed",
+                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
+        raise
 
 
 def cmd_classify_frame(args):
