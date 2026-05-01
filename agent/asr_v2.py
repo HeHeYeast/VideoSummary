@@ -25,32 +25,69 @@ class Paragraph:
 _SENTENCE_END = re.compile(r"[.!?。！？…]+\s*$")
 
 
-# Phase 2 RES-01: expose defaults as constants so sidecar can capture them.
-# Phase 5 TEACH-06 will introduce a PROFILES dict that flips these. Do NOT
-# inline the defaults back into the signature -- sidecar code reads _DEFAULTS.
-_DEFAULTS = {
-    "gap_threshold": 1.5,
-    "max_para_duration": 30.0,
-    "sentence_gap": 0.8,
+# Phase 5 TEACH-06 / D-26..D-28: profile-aware aggregation.
+# tutorial = current behavior (byte-equal regression baseline per D-29).
+# podcast  = looser thresholds for breath-shaped longer paragraphs.
+PROFILES: dict[str, dict[str, float]] = {
+    "tutorial": {
+        "gap_threshold": 1.5,
+        "max_para_duration": 30.0,
+        "sentence_gap": 0.8,
+    },
+    "podcast": {
+        "gap_threshold": 2.5,
+        "max_para_duration": 90.0,
+        "sentence_gap": 1.5,
+    },
 }
+
+# Backward-compat alias: external code (e.g. agent/tools.py:cmd_aggregate)
+# imports _DEFAULTS for sidecar抓取. Keep pointing at tutorial values so
+# 17-archive sidecar regen logic unchanged.
+_DEFAULTS = PROFILES["tutorial"]
 
 
 def aggregate_paragraphs(
     segs: list[dict],
-    gap_threshold: float = _DEFAULTS["gap_threshold"],
-    max_para_duration: float = _DEFAULTS["max_para_duration"],
-    sentence_gap: float = _DEFAULTS["sentence_gap"],
+    *,
+    profile: str | None = None,
+    gap_threshold: float | None = None,
+    max_para_duration: float | None = None,
+    sentence_gap: float | None = None,
 ) -> list[Paragraph]:
     """将原始 segments 聚合成段落.
 
+    Phase 5 TEACH-06: 支持 profile='tutorial'|'podcast' 两档默认值.
+
     Args:
         segs: list of {start, end, text} dicts (从 segs.json 加载)
-        gap_threshold: 两个 segment 之间静音间隔超过此值则切段落
-        max_para_duration: 单个段落最大时长, 超过强制切分
+        profile: PROFILES dict key. None 等价于 'tutorial' (D-29 backward-compat).
+        gap_threshold: 显式 override; 优先级高于 profile 解析的默认值
+        max_para_duration: 显式 override; 同上
+        sentence_gap: 显式 override; 同上
 
-    Returns:
-        list of Paragraph
+    优先级 (per CONTEXT D-27):
+        显式参数 > profile 解析的值 > tutorial 默认
+
+    Raises:
+        ValueError: profile 不在 PROFILES 中
     """
+    # 1. 解析 profile -> 默认值字典
+    if profile is None:
+        profile = "tutorial"
+    if profile not in PROFILES:
+        raise ValueError(
+            f"unknown profile {profile!r}; choose from {sorted(PROFILES)}"
+        )
+    p = PROFILES[profile]
+
+    # 2. 显式参数覆盖 profile 值
+    gap_threshold = gap_threshold if gap_threshold is not None else p["gap_threshold"]
+    max_para_duration = (
+        max_para_duration if max_para_duration is not None else p["max_para_duration"]
+    )
+    sentence_gap = sentence_gap if sentence_gap is not None else p["sentence_gap"]
+
     if not segs:
         return []
 
