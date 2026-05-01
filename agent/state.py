@@ -164,3 +164,30 @@ def derived_state(events: list[dict]) -> dict[str, dict]:
         if ev.get("status") == "completed":
             cur["last_completed_at"] = ev.get("ts")
     return state
+
+
+def derived_segment_state(events: list[dict], *, stage: str) -> set[int]:
+    """Return set of segment_index values whose latest event for ``stage`` is status='completed'.
+
+    Phase 4 落地 of Phase 2 D-14. Additive -- derived_state's stage-level shape
+    is unchanged.
+
+    Consumer: agent.tools.cmd_extract_frames_batch resume path (Phase 4 D-11).
+
+    A segment_index is "completed" iff its most-recent event for the given
+    stage has status='completed'. A 'failed' or 'started' event after a
+    previous 'completed' means the segment is being re-attempted -- drop it
+    from the completed set.
+
+    Events without details.segment_index, or for other stages, are ignored.
+    """
+    latest: dict[int, str] = {}
+    for ev in events:
+        if ev.get("stage") != stage:
+            continue
+        details = ev.get("details") or {}
+        idx = details.get("segment_index")
+        if idx is None:
+            continue
+        latest[idx] = ev.get("status")
+    return {i for i, status in latest.items() if status == "completed"}
