@@ -344,15 +344,23 @@ def cmd_aggregate(args):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 5 TEACH-11 / D-22..D-25: whisper repetition guard (旁路检测).
-# Algorithm (D-22 字面):
-#   - 单 segment 内 3-gram 连续重复 > 3× → flag
-#   - 跨 ≤3 相邻 segments 内 3-gram 连续重复 > 3× → flag (去重单段已 flag 的)
+# Algorithm (D-22 broadened per REVIEW WR-02 — D-22 字面 spec under-specifies):
+#   Two complementary detectors run in parallel; either fires → flag.
+#   (a) Consecutive run: 字符级 3-gram run-length > 3× → flag
+#       Catches '啊啊啊啊' / '......' (Whisper char-pad on extended silence).
+#   (b) Density: same 3-gram total count >= 4 AND occupies >60% of joined
+#       text → flag. Catches '我们这里用我们这里用...' (Whisper phrase-repeat
+#       hallucination — the form D-22 docstring example explicitly cited).
+#   Both detectors run on (1) single segment and (2) ≤3 adjacent-seg windows.
 # Output (D-23 字面 schema): list of warning dicts -> transcribe_warnings.json
 # Redline (D-24): never auto-delete from segs.json; never mutate input list.
 # Operation: O(n_chars) per video; no DoS risk (whisper segs ≤ ~30s × ~3 segs).
 # ─────────────────────────────────────────────────────────────────────────────
-_REPETITION_THRESHOLD = 3   # > 3 = 4 次或更多 (D-22 字面)
-_CONTEXT_CHARS = 200        # context_before/after 默认 200 字符 (Claude Discretion in D-25)
+_REPETITION_THRESHOLD = 3      # > 3 = 4 次或更多 (D-22 字面 — consecutive run)
+_DENSITY_MIN_COUNT = 4         # 最少 4 次出现才考虑 density flag (避免短文本误报)
+_DENSITY_COVERAGE = 0.6        # 同一 3-gram 实例覆盖 text 长度 >= 60% 才命中
+                               # (count * 3 / len(text); 对 cycle-len-5 短语正好 60%)
+_CONTEXT_CHARS = 200           # context_before/after 默认 200 字符 (Claude Discretion in D-25)
 
 
 def _count_consecutive_trigrams(text: str) -> dict[str, int]:
@@ -361,7 +369,9 @@ def _count_consecutive_trigrams(text: str) -> dict[str, int]:
     Sliding window stride=1: 'aaaaa' → {'aaa': 3} (3 个连续 'aaa' starting
     at i=0,1,2). 'abcabcabcabc' → 不命中（不同 trigram 交替不算"连续"）.
 
-    用于检测 whisper 重复幻觉典型形态 (e.g. '我们这里用我们这里用...').
+    用于检测 whisper 字符级重复幻觉 (e.g. '啊啊啊啊', '......').
+    NOTE: 短语级幻觉 ('我们这里用我们这里用...') 不命中 — 用
+    `_count_repeated_trigrams` density-based 检测器补足 (REVIEW WR-02).
     """
     if len(text) < 3:
         return {}
@@ -381,6 +391,23 @@ def _count_consecutive_trigrams(text: str) -> dict[str, int]:
     return runs
 
 
+def _count_repeated_trigrams(text: str) -> dict[str, int]:
+    """字符级 3-gram 总出现次数统计 (Counter-style, 非"连续" run).
+
+    Sliding window stride=1: '我们这里用我们这里用我们这里用我们这里用'
+    → {'我们这': 4, '们这里': 4, '这里用': 4, '里用我': 3, '用我们': 3}.
+
+    用于检测 whisper 短语级重复幻觉 (REVIEW WR-02): 同一 3-gram 出现
+    >= _DENSITY_MIN_COUNT 次且占比 > _DENSITY_RATIO of (len(text)/3) → flag.
+    Density threshold (>60%) 防止自然语言虚警 ("the the the" 在长句里仅占
+    极小比例不触发).
+    """
+    if len(text) < 3:
+        return {}
+    from collections import Counter
+    return dict(Counter(text[i:i + 3] for i in range(len(text) - 2)))
+
+
 def _build_context(segs: list[dict], from_idx: int, to_idx: int) -> dict[str, str]:
     """取 from_idx 之前 ≤200 字符 + to_idx 之后 ≤200 字符 (Claude Discretion in D-25)."""
     before = ""
@@ -398,8 +425,36 @@ def _build_context(segs: list[dict], from_idx: int, to_idx: int) -> dict[str, st
     return {"before": before.strip(), "after": after.strip()}
 
 
+def _density_hit(text: str) -> tuple[str, int] | None:
+    """Density-based detector (REVIEW WR-02): 找占比最高且覆盖 >=60% 的 3-gram.
+
+    Coverage = count * 3 / len(text)  (粗略 chars-covered 估算; 重叠位置
+    被高估但 cycle-repeats 中重叠很少, 实际偏差小).
+
+    For '我们这里用'*5 (len=25, cycle=5): best_gram count=5, 5*3/25 = 60% → 命中.
+    For natural language: max trigram count 通常 1-2, coverage <<60% → 不命中.
+
+    Returns (gram, count) on hit, None otherwise. 选择 max-count gram 而非
+    遍历所有 hit, 避免一次重复同时报 5 个高度重叠的 3-gram (e.g.
+    '我们这里用我们这里用...' 中 '我们这'/'们这里'/'这里用' 都会同时命中).
+    """
+    counts = _count_repeated_trigrams(text)
+    if not counts:
+        return None
+    text_len = max(len(text), 1)
+    best_gram, best_count = max(counts.items(), key=lambda kv: kv[1])
+    if best_count >= _DENSITY_MIN_COUNT and (best_count * 3) / text_len >= _DENSITY_COVERAGE:
+        return best_gram, best_count
+    return None
+
+
 def whisper_repetition_guard(segs: list[dict]) -> list[dict]:
-    """检测 whisper 重复幻觉 (D-22 算法).
+    """检测 whisper 重复幻觉 (D-22 算法 + REVIEW WR-02 density 补足).
+
+    Two complementary detectors per (1) single seg and (2) ≤3-seg window:
+      (a) consecutive run-length > 3× → flag (catches '啊啊啊啊')
+      (b) total-occurrence density > 60% with count >= 4 → flag
+          (catches '我们这里用我们这里用...' phrase-repeat)
 
     Args:
         segs: list of {"start", "end", "text"} from segs.json (read-only;
@@ -413,7 +468,7 @@ def whisper_repetition_guard(segs: list[dict]) -> list[dict]:
     warnings: list[dict] = []
     flagged: set[tuple[int, str]] = set()  # (segment_index, trigram) 已 flag
 
-    # 1. 单 segment 内 3-gram 连续重复
+    # 1a. 单 segment 内 3-gram 连续重复 (字符级 hallucination)
     for seg_idx, seg in enumerate(segs):
         text = seg.get("text", "")
         for gram, run in _count_consecutive_trigrams(text).items():
@@ -430,7 +485,28 @@ def whisper_repetition_guard(segs: list[dict]) -> list[dict]:
                 })
                 flagged.add((seg_idx, gram))
 
-    # 2. 跨 ≤3 邻接 segments (window slide)
+    # 1b. 单 segment 内 3-gram 高密度短语级重复 (REVIEW WR-02)
+    for seg_idx, seg in enumerate(segs):
+        text = seg.get("text", "")
+        hit = _density_hit(text)
+        if hit is None:
+            continue
+        gram, count = hit
+        if (seg_idx, gram) in flagged:
+            continue  # 1a 已 flag 同 (seg_idx, gram)
+        ctx = _build_context(segs, seg_idx, seg_idx)
+        warnings.append({
+            "start": seg["start"],
+            "end": seg["end"],
+            "trigram": gram,
+            "count": count,
+            "context_before": ctx["before"],
+            "context_after": ctx["after"],
+            "seg_indices": [seg_idx],
+        })
+        flagged.add((seg_idx, gram))
+
+    # 2a. 跨 ≤3 邻接 segments 连续重复 (window slide)
     for window_start in range(len(segs)):
         window_end = min(window_start + 3, len(segs))
         if window_end - window_start < 2:
@@ -453,6 +529,31 @@ def whisper_repetition_guard(segs: list[dict]) -> list[dict]:
                 })
                 for i in range(window_start, window_end):
                     flagged.add((i, gram))
+
+    # 2b. 跨 ≤3 邻接 segments 高密度短语级重复 (REVIEW WR-02)
+    for window_start in range(len(segs)):
+        window_end = min(window_start + 3, len(segs))
+        if window_end - window_start < 2:
+            continue
+        joined = " ".join(s.get("text", "") for s in segs[window_start:window_end])
+        hit = _density_hit(joined)
+        if hit is None:
+            continue
+        gram, count = hit
+        if any((i, gram) in flagged for i in range(window_start, window_end)):
+            continue
+        ctx = _build_context(segs, window_start, window_end - 1)
+        warnings.append({
+            "start": segs[window_start]["start"],
+            "end": segs[window_end - 1]["end"],
+            "trigram": gram,
+            "count": count,
+            "context_before": ctx["before"],
+            "context_after": ctx["after"],
+            "seg_indices": list(range(window_start, window_end)),
+        })
+        for i in range(window_start, window_end):
+            flagged.add((i, gram))
 
     return warnings
 
