@@ -17,3 +17,15 @@
 silero-vad>=5.1
 torch>=1.12.0
 torchaudio>=0.12.0
+
+# Phase 5 TEACH-08 — diarize CLI (pyannote.audio speaker diarization for podcasts).
+# NOTE: pyannote pulls models from HuggingFace; user must:
+#   1. accept community-1 model agreement at
+#      https://huggingface.co/pyannote/speaker-diarization-community-1
+#   2. set HF_TOKEN in .env (CLAUDE.md "Pyannote diarization 设置" section)
+# Without this and pyannote install, `python -m agent.tools diarize ...` raises
+# RuntimeError with the install hint. Phase 5 plans 01/02 still work.
+#
+# Pin <5.0 to avoid silent breakage on a future major version (4.0 just landed
+# at the 2026 milestone start). Bump after Phase 5 ships.
+pyannote.audio>=4.0,<5.0
