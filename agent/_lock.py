@@ -147,7 +147,16 @@ class FileLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             holder_pid, holder_ts = _read_holder(self.path)
-            if holder_pid > 0 and not _pid_alive(holder_pid):
+            # WR-02: distinguish "no valid holder PID" (corrupt/empty/missing pid
+            # field — _read_holder returns 0) from "stale dead PID" so the log
+            # doesn't misleadingly claim "PID 0 dead" (PID 0 was never alive).
+            if holder_pid <= 0:
+                log.info(
+                    "FileLock: lock file at %s corrupt or stale (no valid PID); taking over",
+                    self.path,
+                )
+                # Fall through to open + lock; holder content gets overwritten below.
+            elif not _pid_alive(holder_pid):
                 log.info(
                     "FileLock: stale lock at %s (holder PID %d dead since %s); taking over",
                     self.path, holder_pid, holder_ts or "<unknown>",
