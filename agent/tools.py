@@ -132,6 +132,14 @@ def cmd_ingest(args):
     NOTE: stage name is hard-coded "download" (NOT "ingest") so state.jsonl events
     remain comparable across pre-/post-Phase-3 archives — RESEARCH Pitfall 5,
     anchored at _DOCTOR_ARTIFACTS line 64.
+
+    NOTE (Phase 6 PARA-02 / WR-03): cmd_ingest is intentionally NOT wrapped in
+    a per-slug .resume.lock. It dispatches to per-source handlers that run
+    their own subprocess flows (yt-dlp / vendor crawler / httpx); a wrap here
+    would either be too coarse (blocking the whole download window) or
+    duplicate the per-slug lock that downstream cmd_transcribe / cmd_aggregate
+    / cmd_extract_frames_batch already acquire. Douyin's vendor config.yaml
+    is still protected by a global FileLock inside download_douyin (PARA-02).
     """
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from agent.url_router import route
