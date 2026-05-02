@@ -24,19 +24,19 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 - ✓ cleanup_frames 删除未引用帧 — existing
 - ✓ 全流程 ¥0（无付费 API 依赖）— existing
 - ✓ 文件级 idempotent 缓存（按 artifact 存在与否短路）— existing
-- ✓ **参数感知 + 原子写 + 可恢复的 artifact 重用** — atomic-write (tempfile + os.replace) + `<artifact>.params.json` sidecar + `state.jsonl` 事件日志 + `derived_state` reducer + `doctor` 子命令 + Windows PermissionError 重试 — Phase 2 (RES-01..RES-08 全部 satisfied)
+- ✓ **参数感知 + 原子写 + 可恢复的 artifact 重用** — atomic-write (tempfile + os.replace) + `<artifact>.params.json` sidecar + `state.jsonl` 事件日志 + `derived_state` reducer + `doctor` 子命令 + Windows PermissionError 重试 — v1.0 Phase 2 (RES-01..RES-08 全部 satisfied)
+- ✓ **新输入源** — YouTube + 通用 yt-dlp 平台 + 本地 mp4；agent/sources/ 注册表 + 5 source classes + 5-class YouTube preflight 分类器 + LocalSource ASCII-safe slug — v1.0 Phase 3 (SRC-01..SRC-13)
+- ✓ **抽帧策略自动化** — Claude-written `schedule.json` + `extract_frames_batch` 段级 resume + FPS-04 silence 强制覆盖 + PySceneDetect/silero-vad 决策支持只读 CLI（K5）— v1.0 Phase 4 (FPS-01..FPS-07)
+- ✓ **自适应教学文档** — 4-mode 分类（replicate-guide / concept-explanation / extension-applications / interview-distillation）+ 8 hand-authored exemplar skeletons + format-spec lock + plan.md/depth_plan.md schema — v1.0 Phase 5 (TEACH-01..TEACH-13)
+- ✓ **新视频类型** — UI 操作演示 4 子规则 + Podcast/interview-distillation skeleton + `--profile podcast` (VAD + paragraph aggregation) + opt-in pyannote diarize CLI（degrade fast-path）+ whisper repetition guard — v1.0 Phase 5
+- ✓ **现有路径 backward-compatible** — 17 archive re-runs byte-identical (D-29 invariant)；老 CLI 5 命令保留可用；新功能全部 opt-in/additive — v1.0 (持续验证 Phases 1-6)
+- ✓ **多 agent 并行（Nice-to-have shipped）** — cross-platform stdlib FileLock + per-slug `.resume.lock` + vendor config 锁 + slug-prefix logs + cookies-in-memory cache — v1.0 Phase 6 (PARA-01..PARA-06)
 
 ### Active
 
-<!-- 本次里程碑要建的能力。所有项默认 opt-in，不破坏现有路径。 -->
+<!-- v1.0 全部交付，无 Active 项；下次里程碑通过 /gsd-new-milestone 重新规划。 -->
 
-- [ ] **自适应教学文档** — Claude 看完视频后自行判断这个选题适合哪些教学维度（复刻指南 / 原理讲解 / 延展应用），按视频性质自动调档，去掉"字幕翻译式"输出
-- [x] **抽帧策略自动化** — Claude 读完字幕直出"分段 fps schedule"由工具批量执行，去掉人工凭感觉算 start/end 的摩擦（决策仍 Claude，只是降低操作成本）（Phase 4 完成：agent/scheduler.py 严格 5-check 校验 + extract_frames_batch CLI 段级 resume + FPS-04 silence-coverage 强制保护 + detect_scenes/detect_silence 决策支持只读 CLI（K5 工具绝不 auto-promote）+ silero-vad 通过 requirements-optional.txt 可选 ~700MB torch）
-- [x] **新输入源** — YouTube + 通用 yt-dlp 平台 + 本地 mp4 文件路径（不依赖 URL）（Phase 3 完成：agent/sources/ 注册表 + url_router + ingest CLI shim + 5-class YouTube preflight 分类器 + LocalSource ASCII-safe slug + ffprobe 统一 preflight + -vsync vfr）
-- [ ] **新视频类型** — 操作演示（非代码类软件 UI）+ 播客 / 访谈（画面价值低，依赖音频结构组织内容）
-- [x] **中间产物失败可复用** — 任一阶段失败 / 换参 / 换策略后重跑能复用前序 artifact，不丢工作（Phase 2 完成：sidecar 参数比对 + atomic write + state.jsonl event log）
-- [ ] **现有路径 backward-compatible** — 新增能力一律 opt-in 增量叠加；老 CLI、output/ 目录约定、/summarize-video 工作流仍可用，能"快速回退到当前方案"
-- [ ] **多 agent 并行**（Nice-to-have） — 多 Claude Code 终端处理不同视频互不干扰，做不到不阻塞 v1
+(none)
 
 ### Out of Scope
 
@@ -74,11 +74,12 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| ¥0 成本作为 hard constraint，优先于教学价值 | Claude Max 已覆盖；用户在 "如果只能保住一个性质" 里明确选 ¥0 而非教学价值 | — Pending |
-| Claude 自适应单文档，而非多档输出（quick-ref/deep-dive 分离） | 用户认为 Claude 看完视频后判断侧重比固定模板合理；保留输出简洁 | — Pending |
-| 老 CLI 与 output/ 目录约定保留，新能力 opt-in 叠加 | 队列里还有 17 条视频要走老路径，新方案不能砸现有归档 | — Pending |
-| 多 agent 并行降级为 Nice-to-have | 用户表态"做不到也没关系"，不能阻塞 v1 | — Pending |
-| Claude Code 决策权不外移（即使引入抽帧自动化） | 与 CLAUDE.md 既有原则一致：工具是肢体，Claude 是大脑 | — Pending |
+| ¥0 成本作为 hard constraint，优先于教学价值 | Claude Max 已覆盖；用户在 "如果只能保住一个性质" 里明确选 ¥0 而非教学价值 | ✓ Good — v1.0 全程未引入任何付费 API |
+| Claude 自适应单文档，而非多档输出（quick-ref/deep-dive 分离） | 用户认为 Claude 看完视频后判断侧重比固定模板合理；保留输出简洁 | ✓ Good — v1.0 Phase 5 落地 4-mode 单文档自适应 |
+| 老 CLI 与 output/ 目录约定保留，新能力 opt-in 叠加 | 队列里还有 17 条视频要走老路径，新方案不能砸现有归档 | ✓ Good — D-29 backward-compat 全程验证 byte-identical |
+| 多 agent 并行降级为 Nice-to-have | 用户表态"做不到也没关系"，不能阻塞 v1 | ✓ Good — v1.0 末期决定 ship 该 NTH（Phase 6 完成）|
+| Claude Code 决策权不外移（即使引入抽帧自动化） | 与 CLAUDE.md 既有原则一致：工具是肢体，Claude 是大脑 | ✓ Good — K5 boundary 在 detect_scenes/silence + chapters.json 全部守住 |
+| Pyannote diarization spike 走 degrade fast-path | 用户在 /gsd-autonomous 中选择跳过 700MB pyannote install + HF token 申请；infrastructure ship 但实测 deferred | — Pending — GPU 机器可未来补 SPIKE.md 并升 accept |
 
 ## Evolution
 
@@ -98,7 +99,11 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-30 — Phase 1 complete (regression baseline frozen; agent.io schema-tolerant loaders landed; encoding audit + Windows zh-CN docs shipped). No Active requirements moved to Validated yet — Phase 1 is gating infrastructure that ENABLES "现有路径 backward-compatible" but does not tick it off until later phases land without breaking baselines.*
+*Last updated: 2026-05-02 after v1.0 milestone (videoSummary v1.0 shipped). 6 phases / 16 plans / 31 tasks. All Active requirements moved to Validated. Audit: 52/52 requirements satisfied, 6/6 phases passed, 4/4 E2E flows verified. See `.planning/MILESTONES.md` and `.planning/milestones/v1.0-MILESTONE-AUDIT.md`. Next milestone via `/gsd-new-milestone`.*
+
+*Earlier evolution log:*
+
+*2026-04-30 — Phase 1 complete (regression baseline frozen; agent.io schema-tolerant loaders landed; encoding audit + Windows zh-CN docs shipped). No Active requirements moved to Validated yet — Phase 1 is gating infrastructure that ENABLES "现有路径 backward-compatible" but does not tick it off until later phases land without breaking baselines.*
 
 *2026-05-01 — Phase 2 complete (Resume Infrastructure & Cache Correctness). Validated 13/13 must-haves: 5 ROADMAP Success Criteria + 8 RES-XX requirements. Atomic JSON writes (tempfile + os.replace + 3×0.5s PermissionError retry), 3-segment sidecar (cli/func/tools) with severity-split cache decision, JSON Lines `state.jsonl` event log + corruption-tolerant `derived_state` reducer, `doctor` 5-column read-only subcommand + `--json` flag, and `docs/schema-migration.md` runbook. Active requirement "中间产物失败可复用" moved to Validated (live-tested whisper small→medium triggers loud regen). Code review found 0 critical / 6 warning / 6 info (advisory follow-ups, none invalidate goal achievement). 17-archive backward-compat preserved: missing-sidecar path → loud warning + reuse cache (D-01); state.jsonl absent → file-existence cache fallback (D-03).*
 
