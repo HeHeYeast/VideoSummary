@@ -39,6 +39,7 @@ from agent.io import (
     now_iso,
 )
 from agent.state import append_event, params_hash, read_events, derived_state
+from agent._lock import FileLock  # Phase 6 PARA-02 — module-level so tests can patch it
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
@@ -214,73 +215,77 @@ def cmd_transcribe(args):
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
-    profile_dict = PROFILES[args.profile]
+    # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent transcribes on
+    # same slug from racing on segs.json + state.jsonl writes. timeout=0 fail-fast
+    # with PID + ISO timestamp. Stale-PID takeover handles Claude Code crash.
+    with FileLock(out_dir / ".resume.lock", timeout=0):
+        # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
+        profile_dict = PROFILES[args.profile]
 
-    segs_file = out_dir / "segs.json"
-    # Build current sidecar (this run params) per D-05 / D-07 + Phase 5 D-27
-    current_sidecar = _build_sidecar(
-        cli={"whisper": args.whisper, "profile": args.profile},
-        func={
-            "profile": args.profile,
-            "language": None,
-            "vad_filter": True,
-            "min_silence_duration_ms": profile_dict["vad_min_silence_ms"],
-            "vad_threshold": profile_dict["vad_threshold"],
-            "condition_on_previous_text": False,
-            "beam_size": 5,
-        },
-        tools={
-            "faster_whisper": _get_faster_whisper_version(),
-            "ffmpeg": _get_ffmpeg_version(),
-        },
-    )
+        segs_file = out_dir / "segs.json"
+        # Build current sidecar (this run params) per D-05 / D-07 + Phase 5 D-27
+        current_sidecar = _build_sidecar(
+            cli={"whisper": args.whisper, "profile": args.profile},
+            func={
+                "profile": args.profile,
+                "language": None,
+                "vad_filter": True,
+                "min_silence_duration_ms": profile_dict["vad_min_silence_ms"],
+                "vad_threshold": profile_dict["vad_threshold"],
+                "condition_on_previous_text": False,
+                "beam_size": 5,
+            },
+            tools={
+                "faster_whisper": _get_faster_whisper_version(),
+                "ffmpeg": _get_ffmpeg_version(),
+            },
+        )
 
-    # Phase 2 RES-05: started event with current params hash so derived_state
-    # can reason about "we attempted transcribe with params H even if it crashed".
-    _emit_event(out_dir, "transcribe", "started", sidecar=current_sidecar)
+        # Phase 2 RES-05: started event with current params hash so derived_state
+        # can reason about "we attempted transcribe with params H even if it crashed".
+        _emit_event(out_dir, "transcribe", "started", sidecar=current_sidecar)
 
-    try:
-        audio = out_dir / "audio.wav"
-        if not audio.exists():
-            extract_audio(args.video_path, audio)
+        try:
+            audio = out_dir / "audio.wav"
+            if not audio.exists():
+                extract_audio(args.video_path, audio)
 
-        decision = "regen"  # default if file missing
-        if segs_file.exists():
-            old_sidecar = read_sidecar(segs_file)
-            decision = cache_decision(
-                old_sidecar, current_sidecar, "segs.json", forced=args.force,
-            )
+            decision = "regen"  # default if file missing
+            if segs_file.exists():
+                old_sidecar = read_sidecar(segs_file)
+                decision = cache_decision(
+                    old_sidecar, current_sidecar, "segs.json", forced=args.force,
+                )
 
-        if decision in ("reuse", "warn_then_reuse"):
-            print(f"cached: {segs_file}")
-            segs_data = load_segs(segs_file)
-        else:
-            # decision is regen or regen_forced
-            segs = transcribe(
-                audio, model_size=args.whisper, language=None,
-                profile=args.profile,
-            )
-            segs_data = [asdict(s) for s in segs]
-            write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
+            if decision in ("reuse", "warn_then_reuse"):
+                print(f"cached: {segs_file}")
+                segs_data = load_segs(segs_file)
+            else:
+                # decision is regen or regen_forced
+                segs = transcribe(
+                    audio, model_size=args.whisper, language=None,
+                    profile=args.profile,
+                )
+                segs_data = [asdict(s) for s in segs]
+                write_json_atomic(segs_file, segs_data, sidecar_params=current_sidecar)
 
-            # Phase 5 TEACH-11 / D-22..D-25: repetition guard (旁路, 不删 segs.json)
-            warnings_data = whisper_repetition_guard(segs_data)
-            if warnings_data:
-                _emit_repetition_warnings(out_dir, warnings_data)
+                # Phase 5 TEACH-11 / D-22..D-25: repetition guard (旁路, 不删 segs.json)
+                warnings_data = whisper_repetition_guard(segs_data)
+                if warnings_data:
+                    _emit_repetition_warnings(out_dir, warnings_data)
 
-        _emit_event(out_dir, "transcribe", "completed", sidecar=current_sidecar,
-                    details={"segs_count": len(segs_data), "decision": decision,
-                             "profile": args.profile})
+            _emit_event(out_dir, "transcribe", "completed", sidecar=current_sidecar,
+                        details={"segs_count": len(segs_data), "decision": decision,
+                                 "profile": args.profile})
 
-        print(f"segments: {len(segs_data)}")
-        if segs_data:
-            print(f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
-        print(f"output: {segs_file}")
-    except Exception as e:
-        _emit_event(out_dir, "transcribe", "failed", sidecar=current_sidecar,
-                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
-        raise
+            print(f"segments: {len(segs_data)}")
+            if segs_data:
+                print(f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
+            print(f"output: {segs_file}")
+        except Exception as e:
+            _emit_event(out_dir, "transcribe", "failed", sidecar=current_sidecar,
+                        details={"error_type": type(e).__name__, "error": str(e)[:200]})
+            raise
 
 
 def cmd_aggregate(args):
@@ -295,51 +300,55 @@ def cmd_aggregate(args):
     # state.jsonl lives alongside paragraphs.json (same output/<slug>/ dir).
     state_dir = out.parent
 
-    # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
-    profile_dict = PROFILES[args.profile]
-    eff_gap = args.gap if args.gap is not None else profile_dict["gap_threshold"]
+    # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent aggregates on
+    # same slug from racing on paragraphs.json + state.jsonl writes. Lock path
+    # is the slug dir (out.parent), NOT the paragraphs.json path itself.
+    with FileLock(state_dir / ".resume.lock", timeout=0):
+        # Phase 5 D-27: profile 解析为具体数值用于 sidecar.func 抓取
+        profile_dict = PROFILES[args.profile]
+        eff_gap = args.gap if args.gap is not None else profile_dict["gap_threshold"]
 
-    # Build current sidecar (Phase 5 D-27: profile进 cli + func)
-    current_sidecar = _build_sidecar(
-        cli={"profile": args.profile, "gap": args.gap},
-        func={
-            "profile": args.profile,
-            "gap_threshold": eff_gap,
-            "max_para_duration": profile_dict["max_para_duration"],
-            "sentence_gap": profile_dict["sentence_gap"],
-        },
-        tools={},  # pure Python, no external tool
-    )
+        # Build current sidecar (Phase 5 D-27: profile进 cli + func)
+        current_sidecar = _build_sidecar(
+            cli={"profile": args.profile, "gap": args.gap},
+            func={
+                "profile": args.profile,
+                "gap_threshold": eff_gap,
+                "max_para_duration": profile_dict["max_para_duration"],
+                "sentence_gap": profile_dict["sentence_gap"],
+            },
+            tools={},  # pure Python, no external tool
+        )
 
-    _emit_event(state_dir, "aggregate", "started", sidecar=current_sidecar)
+        _emit_event(state_dir, "aggregate", "started", sidecar=current_sidecar)
 
-    try:
-        decision = "regen"
-        if out.exists():
-            old_sidecar = read_sidecar(out)
-            forced = bool(getattr(args, "force", False))
-            decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
+        try:
+            decision = "regen"
+            if out.exists():
+                old_sidecar = read_sidecar(out)
+                forced = bool(getattr(args, "force", False))
+                decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
 
-        if decision in ("reuse", "warn_then_reuse"):
-            print(f"cached: {out}")
-            paras_data = load_paragraphs(out)
-            print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
-        else:
-            paras = aggregate_paragraphs(
-                segs, profile=args.profile, gap_threshold=args.gap,
-            )
-            paras_data = paragraphs_to_dicts(paras)
-            write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
-            print(f"{len(segs)} segments -> {len(paras)} paragraphs (profile={args.profile})")
+            if decision in ("reuse", "warn_then_reuse"):
+                print(f"cached: {out}")
+                paras_data = load_paragraphs(out)
+                print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
+            else:
+                paras = aggregate_paragraphs(
+                    segs, profile=args.profile, gap_threshold=args.gap,
+                )
+                paras_data = paragraphs_to_dicts(paras)
+                write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
+                print(f"{len(segs)} segments -> {len(paras)} paragraphs (profile={args.profile})")
 
-        _emit_event(state_dir, "aggregate", "completed", sidecar=current_sidecar,
-                    details={"paragraphs_count": len(paras_data), "decision": decision,
-                             "profile": args.profile})
-        print(f"output: {out}")
-    except Exception as e:
-        _emit_event(state_dir, "aggregate", "failed", sidecar=current_sidecar,
-                    details={"error_type": type(e).__name__, "error": str(e)[:200]})
-        raise
+            _emit_event(state_dir, "aggregate", "completed", sidecar=current_sidecar,
+                        details={"paragraphs_count": len(paras_data), "decision": decision,
+                                 "profile": args.profile})
+            print(f"output: {out}")
+        except Exception as e:
+            _emit_event(state_dir, "aggregate", "failed", sidecar=current_sidecar,
+                        details={"error_type": type(e).__name__, "error": str(e)[:200]})
+            raise
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -642,96 +651,102 @@ def cmd_extract_frames_batch(args):
     out_dir = Path(args.out)
     _validate_out_path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    schedule_path = Path(args.schedule)
-    schedule = Schedule.from_json(schedule_path)
-
-    # D-05.2: duration via ffprobe of the schedule.video field, resolved
-    # relative to the schedule.json directory.
-    video_path = (schedule_path.parent / schedule.video).resolve()
-    probe = ffprobe_video(video_path)
-    duration_s = probe["duration_s"]
-
-    # D-07/D-08: silence_map.json is an OPTIONAL input to validate. We READ
-    # it for validation only, never to modify segments (K5 boundary).
-    silence_map_path = schedule_path.parent / "silence_map.json"
-    silence_map = (
-        json.loads(silence_map_path.read_text(encoding="utf-8"))
-        if silence_map_path.exists()
-        else None
-    )
-    schedule.validate(duration_s=duration_s, silence_map=silence_map)
-
     # Resume: state.jsonl lives in output/<slug>/, frames/ is a subdir below.
     state_dir = out_dir.parent
-    if args.force:
-        completed: set[int] = set()
-    else:
-        events, _status = read_events(state_dir / "state.jsonl")
-        completed = derived_segment_state(events, stage="extract_frames_batch")
 
-    for i, seg in enumerate(schedule.segments):
-        if i in completed:
-            log.info(
-                "segment %d already completed, skipping (use --force to redo)", i
-            )
-            continue
+    # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent
+    # extract_frames_batch on same slug from racing on frames/* + state.jsonl
+    # segment-level events. Lock path is the slug dir (out_dir.parent), NOT
+    # the frames/ subdir. cmd_extract_frames (FPS-07 single-segment helper)
+    # is intentionally NOT locked — it has a different concurrency model.
+    with FileLock(state_dir / ".resume.lock", timeout=0):
+        schedule_path = Path(args.schedule)
+        schedule = Schedule.from_json(schedule_path)
 
-        if seg.skip:
+        # D-05.2: duration via ffprobe of the schedule.video field, resolved
+        # relative to the schedule.json directory.
+        video_path = (schedule_path.parent / schedule.video).resolve()
+        probe = ffprobe_video(video_path)
+        duration_s = probe["duration_s"]
+
+        # D-07/D-08: silence_map.json is an OPTIONAL input to validate. We READ
+        # it for validation only, never to modify segments (K5 boundary).
+        silence_map_path = schedule_path.parent / "silence_map.json"
+        silence_map = (
+            json.loads(silence_map_path.read_text(encoding="utf-8"))
+            if silence_map_path.exists()
+            else None
+        )
+        schedule.validate(duration_s=duration_s, silence_map=silence_map)
+
+        if args.force:
+            completed: set[int] = set()
+        else:
+            events, _status = read_events(state_dir / "state.jsonl")
+            completed = derived_segment_state(events, stage="extract_frames_batch")
+
+        for i, seg in enumerate(schedule.segments):
+            if i in completed:
+                log.info(
+                    "segment %d already completed, skipping (use --force to redo)", i
+                )
+                continue
+
+            if seg.skip:
+                _emit_event(
+                    state_dir, "extract_frames_batch", "started",
+                    details={"segment_index": i, "start": seg.start,
+                             "end": seg.end, "skip": True},
+                )
+                _emit_event(
+                    state_dir, "extract_frames_batch", "completed",
+                    details={"segment_index": i, "start": seg.start,
+                             "end": seg.end, "skip": True, "frames_count": 0},
+                )
+                print(f"[seg {i}] {seg.start}s-{seg.end}s SKIP")
+                continue
+
             _emit_event(
                 state_dir, "extract_frames_batch", "started",
-                details={"segment_index": i, "start": seg.start,
-                         "end": seg.end, "skip": True},
+                details={"segment_index": i, "start": seg.start, "end": seg.end},
             )
-            _emit_event(
-                state_dir, "extract_frames_batch", "completed",
-                details={"segment_index": i, "start": seg.start,
-                         "end": seg.end, "skip": True, "frames_count": 0},
-            )
-            print(f"[seg {i}] {seg.start}s-{seg.end}s SKIP")
-            continue
-
-        _emit_event(
-            state_dir, "extract_frames_batch", "started",
-            details={"segment_index": i, "start": seg.start, "end": seg.end},
-        )
-        try:
-            cmd = ["ffmpeg", "-y"]
-            if seg.start > 0:
-                cmd += ["-ss", str(seg.start)]
-            cmd += ["-i", str(video_path)]
-            if seg.end > 0:
-                cmd += ["-t", str(seg.end - max(seg.start, 0))]
-            prefix = f"seg_{int(seg.start):04d}_"
-            pattern = str(out_dir / f"{prefix}%06d.jpg")
-            # Phase 3 SRC-12 D-23: -vsync vfr applied uniformly (matches
-            # cmd_extract_frames argv shape — FPS-07 grammar preservation).
-            cmd += [
-                "-vsync", "vfr",
-                "-vf", f"fps={seg.fps},scale={schedule.default_scale}",
-                "-q:v", str(schedule.default_quality), pattern,
-            ]
-            subprocess.run(cmd, check=True, capture_output=True)
-            files = sorted(out_dir.glob(f"{prefix}*.jpg"))
-            _emit_event(
-                state_dir, "extract_frames_batch", "completed",
-                details={"segment_index": i, "start": seg.start,
-                         "end": seg.end, "frames_count": len(files)},
-            )
-            print(f"[seg {i}] {seg.start}s-{seg.end}s @ fps={seg.fps}: "
-                  f"{len(files)} frames")
-        except subprocess.CalledProcessError as e:
-            _emit_event(
-                state_dir, "extract_frames_batch", "failed",
-                details={"segment_index": i, "start": seg.start,
-                         "end": seg.end,
-                         "error_type": type(e).__name__,
-                         "error": (e.stderr.decode("utf-8", errors="replace")
-                                   if e.stderr else str(e))[:200]},
-            )
-            raise RuntimeError(
-                f"extract_frames_batch segment {i} failed: {e}"
-            ) from e
+            try:
+                cmd = ["ffmpeg", "-y"]
+                if seg.start > 0:
+                    cmd += ["-ss", str(seg.start)]
+                cmd += ["-i", str(video_path)]
+                if seg.end > 0:
+                    cmd += ["-t", str(seg.end - max(seg.start, 0))]
+                prefix = f"seg_{int(seg.start):04d}_"
+                pattern = str(out_dir / f"{prefix}%06d.jpg")
+                # Phase 3 SRC-12 D-23: -vsync vfr applied uniformly (matches
+                # cmd_extract_frames argv shape — FPS-07 grammar preservation).
+                cmd += [
+                    "-vsync", "vfr",
+                    "-vf", f"fps={seg.fps},scale={schedule.default_scale}",
+                    "-q:v", str(schedule.default_quality), pattern,
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                files = sorted(out_dir.glob(f"{prefix}*.jpg"))
+                _emit_event(
+                    state_dir, "extract_frames_batch", "completed",
+                    details={"segment_index": i, "start": seg.start,
+                             "end": seg.end, "frames_count": len(files)},
+                )
+                print(f"[seg {i}] {seg.start}s-{seg.end}s @ fps={seg.fps}: "
+                      f"{len(files)} frames")
+            except subprocess.CalledProcessError as e:
+                _emit_event(
+                    state_dir, "extract_frames_batch", "failed",
+                    details={"segment_index": i, "start": seg.start,
+                             "end": seg.end,
+                             "error_type": type(e).__name__,
+                             "error": (e.stderr.decode("utf-8", errors="replace")
+                                       if e.stderr else str(e))[:200]},
+                )
+                raise RuntimeError(
+                    f"extract_frames_batch segment {i} failed: {e}"
+                ) from e
 
 
 def cmd_detect_scenes(args):

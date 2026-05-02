@@ -155,10 +155,16 @@ def download_douyin(
             return meta
 
     # 1. Patch cookies 到 vendor config (如果提供了文件)
+    # Phase 6 PARA-02: lock vendor config.yaml read-modify-write cycle so two
+    # concurrent download_douyin calls don't corrupt the global config.yaml
+    # (PITFALLS P8.1). Lock file is sibling to the yaml — survives atomic rewrites.
     if cookies_file:
         cookie_header = _cookies_txt_to_header(cookies_file)
         if cookie_header:
-            _patch_config_cookie(cookie_header)
+            from agent._lock import FileLock
+            lock_path = _CONFIG.parent / ".config.yaml.lock"
+            with FileLock(lock_path, timeout=0):
+                _patch_config_cookie(cookie_header)
 
     # 2. 解析 aweme_id
     log.info("解析 URL: %s", url)
