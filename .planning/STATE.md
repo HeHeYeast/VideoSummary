@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Phase 5 context gathered (Claude 自决 mode)
-last_updated: "2026-05-02T12:04:05.977Z"
-last_activity: 2026-05-02
+milestone: v1.1
+milestone_name: summary-quality
+status: defining_requirements
+stopped_at: Milestone v1.1 started — defining requirements
+last_updated: "2026-05-03T00:00:00.000Z"
+last_activity: 2026-05-03
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-29)
+See: .planning/PROJECT.md (updated 2026-05-03)
 
 **Core value:** 把视频提炼成对学习者真有教学价值的 Markdown 文档（不是字幕翻译），并保持全流程 ¥0。
-**Current focus:** Phase 06 — multi-agent-parallelism
+**Current focus:** v1.1 summary-quality — defining requirements
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
-Status: Executing Phase 06
-Last activity: 2026-05-02
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-03 — Milestone v1.1 summary-quality started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -36,7 +36,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 16
+- Total plans completed: 0 (v1.1 just started; v1.0 archived to MILESTONES.md)
 - Average duration: —
 - Total execution time: —
 
@@ -45,12 +45,6 @@ Progress: [░░░░░░░░░░] 0%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | — | — | — | — |
-| 01 | 3 | - | - |
-| 02 | 3 | - | - |
-| 03 | 3 | - | - |
-| 04 | 2 | - | - |
-| 05 | 3 | - | - |
-| 06 | 2 | - | - |
 
 **Recent Trend:**
 
@@ -64,26 +58,24 @@ Progress: [░░░░░░░░░░] 0%
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Recent decisions affecting v1.1:
 
-- Roadmap (2026-04-30): 6-phase structure mirrors REQUIREMENTS.md categories 1:1 (PRE → RES → SRC → FPS → TEACH → PARA); coarse granularity (≤3 plans/phase) honored
-- Roadmap (2026-04-30): Phase 1 (PRE) is a non-negotiable gating preflight per PITFALLS U1/U2 — locks the 17-archive regression baseline before any feature work
-- Roadmap (2026-04-30): Phase 2 (RES) carries cross-cutting infrastructure (atomic writes, params.json, schema_version, state.json, doctor) — not split into sub-phases per SUMMARY.md
-- Roadmap (2026-04-30): Phase 3 bundles YouTube + Local mp4 + Generic together because Local mp4 is YouTube's graceful fallback when GFW/SABR/PO-token chain fails
-- Roadmap (2026-04-30): Phase 6 (PARA) is genuinely Nice-to-Have per PROJECT.md K Decision row 4 — ships-or-skips cleanly
+- v1.1 锁死 D-01 自包含、D-02 三层校验、D-03 自动化优先（来自 v1.1-CANDIDATES.md，v1.0 实测后用户铁律）
+- v1.1 一次 ship 全部 8 候选 requirements（4 必做 + 2 想做 + 2 顺手）— phase 拆分由 roadmapper 决定
+- D-29 backward-compat 仍守、K5 决策权不外移、老 5 CLI + output/<slug>/ 目录约定保留 — 三条 v1.0 不变量延续到 v1.1
 
 ### Pending Todos
 
-None yet.
+None yet — defining requirements.
 
 ### Blockers/Concerns
 
-- REQUIREMENTS.md Coverage line states "v1 requirements: 51 total" but the traceability table contains 52 entries (5 PRE + 8 RES + 13 SRC + 7 FPS + 13 TEACH + 6 PARA). Authoritative count is 52; coverage stat in REQUIREMENTS.md should be corrected on next edit. Not blocking.
-- Phase 5 needs a pyannote-on-Windows-CPU spike before its plan finalizes (per SUMMARY.md research flag); plan-phase should call this out.
-- Phase 3 may need a yt-dlp anti-bot landscape re-verification at integration time (Q1 2026 changes); plan-phase should call this out.
+- CORR-01 L1 检测的实现路径未定（"Claude prompt-engineered" vs "新工具"）— roadmapper 留 RESEARCH 标记给 plan-phase 决定 ROI
+- CORR-03 复审 agent 的 token 成本预估为 summary 写作的 80-100%，需在 phase 设计时考虑触发条件（不能每篇都自动跑全量）
+- TEACH-A 的 inline 注解 + glossary append 需要写作 prompt 工程，不是新代码 — phase 设计应区分"prompt 工程类"和"代码工具类"
 
 ## Session Continuity
 
-Last session: 2026-05-01T04:20:24.225Z
-Stopped at: Phase 5 context gathered (Claude 自决 mode)
-Resume file: .planning/phases/05-adaptive-output-ui-demos-podcasts/05-CONTEXT.md
+Last session: 2026-05-03 — /gsd-new-milestone v1.1 summary-quality
+Stopped at: Milestone summary confirmed; PROJECT.md + STATE.md written
+Resume file: —

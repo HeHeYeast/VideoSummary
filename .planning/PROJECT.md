@@ -34,9 +34,34 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 
 ### Active
 
-<!-- v1.0 全部交付，无 Active 项；下次里程碑通过 /gsd-new-milestone 重新规划。 -->
+<!-- v1.1 milestone Active requirements — 详见 .planning/REQUIREMENTS.md（traceability 在 ROADMAP 写完后回填）。 -->
 
-(none)
+- [ ] **Summary 正确性自动化** — 三层叠加校验（自检 + 行内溯源 + 第二 agent 复审）+ ASR 术语自动校正（L1 检测/L2 上下文/L3 多模态兜底） — v1.1
+- [ ] **零基础自包含 summary** — 每篇术语 inline 注解 + `output/_glossary.md` 累积 + 顶部"你需要/不需要知道什么"段 + 长视频顶部 5 分钟速读版 — v1.1
+- [ ] **Mode + 抽帧决策辅助信号** — `mode_signals.json` + `schedule_suggestion.json` 工具（K5 边界：仅出建议，Claude 仍决策） — v1.1
+- [ ] **运维杂项打杂** — AV1 警告降级 + Video queue helper CLI — v1.1
+
+## Current Milestone: v1.1 summary-quality
+
+**Goal:** 把 v1.0 工具链产出的 summary 从"读起来正确"升级为"自动可信、零基础读者也能学到东西"——所有错误自动检测/修复/复审，新读者不依赖外部知识也能读懂。
+
+**Target features:**
+
+- 🔴 必做 — CORR-01 ASR 术语自动校正（3 层）/ CORR-02 自检 + 行内溯源 / CORR-03 第二 agent 复审 / TEACH-A 零基础自包含
+- 🟡 想做 — TEACH-B 长 summary 顶部速读版 / TOOL-A mode_signals.json / TOOL-B schedule_suggestion.json
+- 🟢 顺手做 — MISC-01 AV1 警告降级 / MISC-02 video queue helper CLI
+
+**Locked design decisions** (`v1.1-CANDIDATES.md` D-01/02/03，不再讨论)：
+
+- D-01：每篇 summary 自包含、零基础视角（不假定阅读顺序，不假定阅读后理解）
+- D-02：正确性校验三层叠加（自检 + 行内溯源 + 二次复审）
+- D-03：自动化优先（任何"用户手动做"的方案先 reject）
+
+**Continuity from v1.0:**
+
+- D-29 backward-compat 仍守：未触发新 warning 的旧视频行为 byte-equal v1.0
+- K5 决策权不外移：所有新 _signals 工具仅出建议，Claude 仍是决策者
+- 老 5 CLI + `output/<slug>/` 目录约定保留
 
 ### Out of Scope
 
@@ -80,6 +105,8 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 | 多 agent 并行降级为 Nice-to-have | 用户表态"做不到也没关系"，不能阻塞 v1 | ✓ Good — v1.0 末期决定 ship 该 NTH（Phase 6 完成）|
 | Claude Code 决策权不外移（即使引入抽帧自动化） | 与 CLAUDE.md 既有原则一致：工具是肢体，Claude 是大脑 | ✓ Good — K5 boundary 在 detect_scenes/silence + chapters.json 全部守住 |
 | Pyannote diarization spike 走 degrade fast-path | 用户在 /gsd-autonomous 中选择跳过 700MB pyannote install + HF token 申请；infrastructure ship 但实测 deferred | — Pending — GPU 机器可未来补 SPIKE.md 并升 accept |
+| v1.1 锁死 D-01 自包含、D-02 三层校验、D-03 自动化优先 | 用户在 v1.0 实测 BV1HG9JBsEPK + BV1rsd7BsEnA 两份 summary 后给出原话："不能假定我的阅读顺序，也不能假定阅读后一定有理解" + "尽可能避免文档撰写中的人工参与" | — Active — v1.1 milestone 开启时锁定，详见 `.planning/v1.1-CANDIDATES.md` |
+| v1.1 一次 ship 全部 8 候选（必做 4 + 想做 2 + 顺手 2） | 用户主动调 /gsd-new-milestone 时选 "全做"；v1.0 工具链已稳，质量铁律必须一次落地不分批 | — Active — 通过 ROADMAP 拆 phase |
 
 ## Evolution
 
@@ -99,7 +126,9 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 after v1.0 milestone (videoSummary v1.0 shipped). 6 phases / 16 plans / 31 tasks. All Active requirements moved to Validated. Audit: 52/52 requirements satisfied, 6/6 phases passed, 4/4 E2E flows verified. See `.planning/MILESTONES.md` and `.planning/milestones/v1.0-MILESTONE-AUDIT.md`. Next milestone via `/gsd-new-milestone`.*
+*Last updated: 2026-05-03 — v1.1 summary-quality milestone started (`/gsd-new-milestone`). 8 candidate requirements adopted from `.planning/v1.1-CANDIDATES.md` (4 必做 + 2 想做 + 2 顺手). Locked design decisions D-01/02/03 from user feedback after BV1HG9JBsEPK + BV1rsd7BsEnA summary实测. Phases TBD via `/gsd-new-milestone` roadmapper.*
+
+*2026-05-02 — v1.0 milestone shipped. 6 phases / 16 plans / 31 tasks. All Active requirements moved to Validated. Audit: 52/52 requirements satisfied, 6/6 phases passed, 4/4 E2E flows verified. See `.planning/MILESTONES.md` and `.planning/milestones/v1.0-MILESTONE-AUDIT.md`.*
 
 *Earlier evolution log:*
 
