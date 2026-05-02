@@ -178,10 +178,10 @@ def download_douyin(
             return meta
 
     # 1. Patch cookies 到 vendor config (Phase 6 PARA-02 + PARA-05)
-    # PARA-02: lock vendor config.yaml read-modify-write cycle so two concurrent
-    # download_douyin calls don't corrupt the global config.yaml (PITFALLS P8.1).
-    # Lock file is sibling to the yaml — survives atomic rewrites.
     # PARA-05: prefer pre-read cookies_text (cached) over cookies_file path.
+    # cookies_text -> header conversion below is pure (no _CONFIG access),
+    # so it stays outside the lock; reading cookies_file likewise touches no
+    # shared mutable state.
     cookies_raw = cookies_text
     if cookies_raw is None and cookies_file:
         cookies_raw = Path(cookies_file).read_text(encoding="utf-8")
@@ -191,6 +191,12 @@ def download_douyin(
         if cookie_header:
             from agent._lock import FileLock
             lock_path = _CONFIG.parent / ".config.yaml.lock"
+            # PARA-02 (WR-01 scope-tightened): the FileLock window covers ONLY
+            # _patch_config_cookie — currently the sole writer of _CONFIG. This
+            # is sufficient because nothing else in this module mutates
+            # _CONFIG (PITFALLS P8.1 threat model). Lock file is sibling to
+            # the yaml — survives atomic rewrites. If a future change adds any
+            # other _CONFIG read-modify-write path, widen the lock to cover it.
             with FileLock(lock_path, timeout=0):
                 _patch_config_cookie(cookie_header)
 
