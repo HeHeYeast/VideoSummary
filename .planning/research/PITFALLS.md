@@ -1,485 +1,400 @@
-# Pitfalls Research
+# Domain Pitfalls — videoSummary v1.1 summary-quality
 
-**Domain:** Claude-driven video-to-tutorial pipeline (¥0 local, brownfield expansion)
-**Researched:** 2026-04-30
-**Confidence:** HIGH for documented integrations (yt-dlp / faster-whisper / ffmpeg / Windows / 抖音); MEDIUM for novel "Claude-as-decision-maker" failure modes (reasoned over the existing codebase + extrapolation)
+**Domain:** Local LLM-driven video summarization tool adding correctness automation + zero-baseline self-contained output to a frozen v1.0 corpus
+**Researched:** 2026-05-03
+**Scope:** 11 pitfall categories specific to v1.1's 8 candidate features layered on top of v1.0's K5/D-29/¥0 invariants
 
-> **NOTE:** This file was assembled from `gsd-project-researcher` agent output. The agent returned structured findings but did not write the file directly (mis-interpreted a system reminder). All content below is verbatim from the agent's research output, reorganized into the PITFALLS.md template.
+---
 
-> **Scope:** This file documents NEW pitfalls each target feature introduces, **layered on top of** `.planning/codebase/CONCERNS.md` — does not duplicate already-known existing-codebase concerns.
+## How To Read This Doc
+
+Each pitfall lists:
+- **Warning sign** — what you'll see in summary.md / output/<slug>/ / log when this is happening
+- **Prevention** — concrete actionable rule (a phase plan can implement it, not "be careful")
+- **Phase to address** — which v1.1 phase (CORR-01 / CORR-02 / CORR-03 / TEACH-A / TEACH-B / TOOL-A / TOOL-B / MISC) owns the fix
+- **Severity** — Critical / Moderate / Minor
+
+**Top 3 risks for v1.1 (read these first):**
+1. P-08 D-29 byte-equal regression (1 wrong default = 17 archives invalidated)
+2. P-03 Reviewer feedback loop (CORR-03 cost explosion + auto-rewrite makes worse)
+3. P-09 Token budget explosion (3 layers compound multiplicatively, not additively)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall P1.3: "Every video looks the same" — Claude lacks priors
+### P-01: Correction Runaway (CORR-01 L1/L2/L3 cascade)
 
 **What goes wrong:**
-Claude converges on a single comfortable mode (probably "step-by-step reproduction") and never produces principles-heavy or extensions-only modes. The slash-command prompt is the only signal Claude has about what "good" output looks like; without exemplar pins, the adaptive-output goal collapses.
-
-**Why it happens:**
-The 17 archived `output/` directories all look like step-by-step reproductions (because they're all game-dev tutorials). Claude infers "this is what good output looks like" from those — even when given a podcast or principles-heavy lecture.
-
-**How to avoid:**
-Hand-author **2-3 minimal exemplar `summary.md` skeletons in CLAUDE.md**, one per teaching dimension (reproduction / principles / extensions). The slash command then reads: "if mostly demo → format like exemplar A; if mostly explanation → format like exemplar B."
+- L1 "suspect word" detector flags legitimate dialect / proper noun ("木下" UP 主名 flagged as ASR error)
+- L2 context-correction "fixes" 木下 → "Kishita" because meta.json title is romaji
+- L3 multi-modal verification reads the WRONG frame (slide changed at the citation timestamp ±1s) and "confirms" the wrong fix
+- All 3 layers agree on a wrong answer → user trusts it because "3-layer校验通过"
+- Cascade: one false-positive in L1 propagates with HIGH confidence through L2/L3
 
 **Warning signs:**
-Test on a deliberately principles-heavy video (e.g., "why ECS over OOP for game state"); Claude outputs a step-by-step reproduction guide because that's what existing `output/` looks like.
+- `transcribe_warnings.json` lists > 5% of total tokens as "suspect"
+- L2 corrections include common Chinese words (你/我/这/那) — a clean signal of detector overreach
+- L3 confirmations reference frames > 2s away from the citation timestamp
+- Same UP 主 keeps getting their name "corrected" across multiple summaries
 
-**Phase to address:** Adaptive-Teaching-Output, Phase 0 (before tool changes).
-**Severity:** Showstopper
+**Prevention:**
+- L1 detector MUST have explicit allowlist: numerals, common ZH stopwords, single-CJK characters not flagged
+- L2 corrections require **2 independent evidence sources** (meta.json title AND description AND/OR adjacent paragraph context) — single-source correction logged as `confidence: low` and NOT auto-applied
+- L3 frame matching: timestamp window ≤ ±0.5s; if no frame in window, L3 is `inconclusive`, NOT `confirms_l2`
+- Hard cap: L2 auto-applies ≤ 10 corrections per video without user-visible diff; > 10 → write to `transcribe_warnings.json` only, do NOT mutate segs.json
+- segs.json corrections produce `segs.json.corrections.jsonl` sidecar (append-only audit log) — original segs.json untouched in re-runs that don't trigger new warnings (D-29 spirit)
+
+**Phase to address:** CORR-01 (all 3 layers); plan must include negative-test: a clean non-suspect video must produce empty `transcribe_warnings.json` (proves no false-flag)
+
+**Severity:** Critical — silently wrong content with high-confidence stamp is worse than visibly wrong
 
 ---
 
-### Pitfall P2.1: Silent visual content goes undersampled
+### P-02: Citation Pollution (CORR-02 行内溯源 token noise)
 
 **What goes wrong:**
-Claude emits the fps schedule from the *transcript*, but the transcript has nothing to say about: (a) silent code-typing demos, (b) UI navigation done while the host pauses, (c) build/load/compile waits where the screen content changes meaningfully (compile errors appear), (d) edited cuts where a new artifact appears mid-sentence. Result: the multimodal step silently misses material.
-
-**Why it happens:**
-Single source of truth (transcript) covers only the audio dimension. The current `agent/frames_v2.py:36-44` voice-anchor regex (CONCERNS §2.7) is the v2-pipeline analog of this and already misses common phrases.
-
-**How to avoid (three layers):**
-1. Tool emits **silence map** alongside transcript: any audio gap > 5s in `paragraphs.json` is flagged. Claude must explicitly handle each gap in the schedule (skip / sample at fallback fps 0.2 / mark for second-pass).
-2. **Always include a low-rate baseline pass** (e.g. fps 0.05 across the whole video as cheap safety net). ~30 frames for a 10-min video — negligible cost, catches anything the smart schedule missed. One-line addition in batch executor.
-3. **Recovery story:** make the existing 补充抽帧 step in CLAUDE.md a documented step: "after first frame review, if any segment has < N frames or frames look uninformative, emit a 补抽 fps schedule."
+- Every sentence ends with `[seg_0042_000003.jpg @ 00:01:23]` → unreadable wall of brackets
+- Vague claims ("这个工具很好用") forced to cite the nearest frame even when no specific frame supports it ("citation theater")
+- Claude games the metric by citing whichever frame is closest to the paragraph midpoint, regardless of relevance
+- Long sections (concept explanation) where every sentence is paraphrasing get the same citation 5 times in a row
+- TL;DR section / glossary entries / "你需要知道什么" prelude get cited too — creating fake precision for synthesized content
 
 **Warning signs:**
-Run on a known-good video, compare emitted fps schedule to the human-tuned schedule that produced the committed `summary.md`. Segments where the schedule recommends `fps: 0.1` ("just talking") but human used `fps: 0.3` are blind spots.
+- > 60% of sentences have inline citations (target: 30-50% — only specific claims)
+- Same `[seg_xxxx_xxxxxx.jpg @ HH:MM:SS]` appears > 3 times in same section
+- Citations on paragraphs 0-50 (top-of-doc structural content like "你需要知道什么")
+- Reader feedback: "感觉被脚注淹没了"
 
-**Phase to address:** fps-Automation phase, must land *with* the feature, not after.
-**Severity:** Showstopper
+**Prevention:**
+- **Citation eligibility rules** (hard scoping):
+  - REQUIRED on: code blocks, specific parameter values (fps, seconds, file paths), direct quotes, UI element references ("点击 X 按钮")
+  - FORBIDDEN on: TL;DR section, "你需要/不需要知道什么" prelude, glossary inline annotations, 章节小结/总评 segments, transition sentences
+  - OPTIONAL on: conceptual explanation, "为什么这么做" 小段
+- Format-spec extension (locked): citation immediately after the load-bearing token, NOT after every period — `点击 [设置图标](frames/seg_0042_000003.jpg @ 00:01:23) 进入命令面板。然后切换到 MTC 模式。` (one citation, two sentences)
+- Reviewer (CORR-03) MUST flag "vague claim with citation" as a warning — citation theater is worse than no citation
+- Token budget cap: average ≤ 1 citation per 3 sentences across whole doc (CORR-02 self-check measures this; > 1 per 2 sentences triggers WARNING in summary footer)
+
+**Phase to address:** CORR-02 (定 citation eligibility + format placement); CORR-03 (verifier checks for theater)
+
+**Severity:** Critical — kills D-01 readability, the whole point of v1.1
 
 ---
 
-### Pitfall P3.1: GFW + SABR YouTube double-block
+### P-03: Reviewer Feedback Loop (CORR-03 verifier × writer dance)
 
 **What goes wrong:**
-YouTube is blocked in mainland China AND yt-dlp is in an active anti-bot war (SABR / PO-token). User needs proxy *and* fresh yt-dlp *and* valid YouTube cookie *and* PO-token support — any one going stale silently fails with uninformative "Sign in to confirm" error.
-
-**Why it happens:**
-Multiplicative failure surface from independent moving parts (GFW, YouTube anti-bot, yt-dlp version, cookies, proxy).
-
-**How to avoid (don't try to "make it work everywhere", make failure legible):**
-1. Detect platform from URL early in `agent/tools.py` dispatcher. If YouTube, run a 2-second preflight (`yt-dlp --simulate <url>`) and classify failure: network unreachable → "GFW: configure HTTPS_PROXY"; HTTP 403/429 → "rate-limited / cookies stale"; "Sign in to confirm" → "needs `--cookies-from-browser` or fresh PO token"; else → "yt-dlp version may be stale, run `pip install -U yt-dlp`."
-2. Read `HTTPS_PROXY`/`HTTP_PROXY` from env (Windows convention) and pass through to yt-dlp via `--proxy`.
-3. Document expected setup in CLAUDE.md alongside the douyin-cookies section.
-4. Have a **graceful manual fallback**: if download fails, accept a local file path drag-and-drop pointing at a manually-downloaded mp4 (dovetails with Local-mp4 feature).
+- Reviewer hallucinates problems ("这个步骤不清晰") → writer rewrites perfectly clear section
+- Writer + reviewer agree on wrong (both saw the same wrong frame, both miscount steps) → high-confidence wrong output
+- Auto-rewrite makes things worse (reviewer flagged wording, writer rewrites the technical claim too)
+- Cost explosion: review pass = 80-100% of original write pass; with rewrite-on-critical = 200% cost worst case
+- Infinite loop avoided by max-1-rewrite cap, but max-1 means: if rewrite is worse, you ship the worse version
 
 **Warning signs:**
-"Sign in to confirm you're not a bot" error that could be GFW *or* anti-bot *or* expired cookie *or* outdated yt-dlp.
+- `<slug>-REVIEW.md` lists > 30 critical issues on a clean summary (reviewer overreach)
+- Rewrite triggered but post-rewrite REVIEW.md has NEW critical issues (regression)
+- Same issue re-appears in reviewer's own re-review of the rewrite
+- Token spend per video > 2.5x v1.0 baseline
 
-**Phase to address:** YouTube-support phase, dispatcher and docs.
-**Severity:** Showstopper for the feature; not for the project (graceful fallback to local mp4 path keeps user productive).
+**Prevention:**
+- **Reviewer prompt scoping** (locked, byte-equal): reviewer judges ONLY against (a) format-spec 4 invariants, (b) plan.md mode rules, (c) inline citation timestamp validity, (d) glossary term consistency. Reviewer is FORBIDDEN from second-guessing pedagogical choices ("这个解释方式不好")
+- **Severity gate**: only `critical` (factually wrong: timestamp doesn't exist / code differs from frame / cited frame missing) triggers rewrite. `warning` and `info` go to REVIEW.md only, no rewrite
+- **Rewrite is delta, not full**: rewrite ONLY the flagged sentences/paragraphs, not the whole doc. Implementation: reviewer outputs `{section_anchor, original_text, suggested_text, evidence}` — writer applies as targeted edits
+- **Max-1 rewrite cap is final**: if post-rewrite review still has critical issues, append `<slug>-UNRESOLVED.md` listing them, ship summary as-is, alert user. NO 2nd rewrite — D-03 automation-first does NOT mean "automate until perfect"
+- **Cost ceiling**: rewrite triggered only if `critical_count > 3 OR contains_factual_error`; ≤ 3 isolated criticals → REVIEW.md only
+- **A/B safety**: if rewrite happens, keep `summary.md.pre-review.md` until next run (auto-deleted on next `summarize-video` invocation) — user-recoverable mistake
+
+**Phase to address:** CORR-03 (entire pitfall is this phase's design space)
+
+**Severity:** Critical — gets the cost economics of v1.1 wrong AND can ship worse content than v1.0
 
 ---
 
-### Pitfall P4.1: Chinese filenames in subprocess args on Windows
+### P-08: D-29 Byte-Equal Regression (the #1 v1.0 invariant)
 
 **What goes wrong:**
-`subprocess.run(["ffmpeg", "-i", "我的视频.mp4", ...])` may fail or silently mangle. Subprocess args go through current code page (GBK on zh-CN Windows). Existing `agent/tools.py:107-118` and `src/asr.py:43-48` call ffmpeg without explicit unicode handling. Current pipeline ducks this because `output/<BVxxx>/video.mp4` is always ASCII; local mp4 input changes that.
-
-**Why it happens:**
-Windows zh-CN locale defaults to GBK code page; subprocess args don't get UTF-8 unless explicitly handled.
-
-**How to avoid (three-step):**
-1. **Always copy/symlink the input mp4 into `output/<slug>/video.mp4` first**, where `<slug>` is generated ASCII-safe (e.g., hash of original filename + first 8 ASCII chars). Existing pipeline assumes this layout — preserve it.
-2. Pass paths to ffmpeg via `pathlib.Path.as_posix()` and ensure `subprocess.run(..., text=True, encoding="utf-8")` where capturing output.
-3. As a guard, validate `out_dir` is ASCII-only (paths under `output/`); raise a clean error if user redirects `--out` to a Chinese path.
+- New writing prompt added in v1.1 → re-running 17 archives produces different summary.md
+- New default artifact (`transcribe_warnings.json`, `_glossary.md`, `<slug>-REVIEW.md`) writes to old slugs on first re-run → cache cascade invalidation (sidecar params hash changes → segs.json regen → paragraphs.json regen → summary.md regen)
+- Even if re-run is BETTER, byte-equality is broken — cannot prove v1.1 is purely additive
+- TEACH-A "你需要知道什么" header retroactively prepended to old summaries
+- Inline citations CORR-02 inserted into existing summary text on re-run
 
 **Warning signs:**
-User passes `D:\videos\Godot 2D 教程.mp4` → ffmpeg returns `No such file or directory`; or audio extraction succeeds but `audio.wav` ends up at `D:\videos\Godot 2D ??.wav` (replacement chars).
+- `git diff --stat output/<old_slug>/` after v1.1 install shows non-zero changes
+- `state.jsonl` of old archives has new event types
+- `<artifact>.params.json` sidecar has new keys for archives last touched in v1.0
 
-**Phase to address:** Local-mp4-input phase.
-**Severity:** Showstopper
+**Prevention:**
+- **Opt-in flag for ALL v1.1 features** at the slug level: `output/<slug>/.v11_features.json` opt-in marker. Without this marker, code paths take v1.0 branch byte-equal. Default for new slugs in v1.1+: marker created at ingest time
+- **No retroactive artifact creation**: re-running an old slug WITHOUT marker MUST NOT write `transcribe_warnings.json` / `_glossary.md` updates / REVIEW.md / new sidecar keys
+- **17-archive replay test**: phase 1 of v1.1 milestone is to record byte-hash of all 17 summary.md files; CI/manual test re-runs each and checks hash equality. ANY hash mismatch on a non-marked slug = phase block
+- **New artifacts in NEW filenames**: don't extend `meta.json` schema — write `meta.v11.json` sidecar. Don't extend `params.json` sidecar — add `params.v11.json` sibling. Old code reads only old files
+- **Glossary append is gated**: TEACH-A's `_glossary.md` append happens only if slug has `.v11_features.json` marker; old slug's terms aren't auto-extracted
+- **Writing prompt versioning**: hash the writing prompt; if slug `plan.md` has `prompt_version: v10`, use v1.0 prompt verbatim regardless of current code
+
+**Phase to address:** Phase 1 of v1.1 (foundation phase, before any feature work). Must include:
+- baseline-replay test infrastructure
+- `.v11_features.json` opt-in pattern
+- `prompt_version` lock
+
+**Severity:** Critical — invalidating 17 archives = re-doing the entire v1.0 corpus = milestone failure regardless of feature quality
 
 ---
 
-### Pitfall P6.1: Speaker diarization is a separate problem from ASR
+### P-09: Token Budget Explosion (3 layers compound multiplicatively)
 
 **What goes wrong:**
-faster-whisper does not do diarization. Transcript is a single linear stream. For a 2-person interview, the resulting `paragraphs.json` looks like a single voice — Claude cannot distinguish who said what without explicit speaker labels.
-
-**Why it happens:**
-ASR and speaker-diarization are different ML tasks. faster-whisper bundles only ASR.
-
-**How to avoid:**
-Integrate `pyannote.audio` (Apache-2.0, requires HF token for model download but inference is free and offline thereafter); produce `diarization.json` alongside `segs.json` with `[{start, end, speaker_id}]`; in `aggregate`, merge speaker_id into paragraphs. Tradeoff: pyannote 3.1 needs ~1 GB more RAM and ~25% extra wall time. For Windows + CPU + no CUDA setup, this is a real cost.
-
-Cheap-and-cheerful alternative: heuristic 2-speaker split by VAD energy + spectral centroid (works on conversational podcasts with one mic each, fails on shared-mic interviews).
+- L1 ASR scan = 1x paragraphs.json read
+- L2 context-correction = 1x paragraphs.json + 1x meta.json + iteration over warnings
+- L3 multi-modal = N frame Reads (potentially 10-30 frames for term verification)
+- CORR-02 self-check = re-read entire summary.md + paragraphs.json
+- CORR-03 verifier = read summary.md + paragraphs.json + key frames + plan.md (and may rewrite)
+- Sum: 2.5-3x per-video Claude context usage vs v1.0
+- Claude Max plan has rate limits — heavy v1.1 workflow can hit "session-context-too-long" or daily quota
 
 **Warning signs:**
-`summary.md` for an interview reads as a monologue; quotes attributed to "the speaker" instead of named guest/host.
+- Single video processing wall-clock 2.5x+ vs v1.0 baseline
+- Hitting Claude session context window limits mid-summary
+- Daily quota exhaustion after 3-4 videos (vs v1.0's 8-10)
+- Empirical token count (if measurable) > 200K per video for 30-min source
 
-**Phase to address:** Podcast-mode phase. Likely the most code-heavy single addition in the milestone.
-**Severity:** Showstopper for podcast mode
+**Prevention:**
+- **Hard caps with measurable budgets**:
+  - CORR-01 L3 (multi-modal verification): max 5 frames per `transcribe_warnings.json` entry; warnings beyond 10 entries skip L3
+  - CORR-03 verifier: read paragraphs.json + summary.md + plan.md ONLY. Frames read on-demand for `critical` checks only (max 10 frames)
+  - CORR-03 rewrite: max-1-rewrite cap (already locked)
+  - TEACH-A glossary lookup: NO read of `_glossary.md` during writing (it's append-only per P-04)
+- **Layer budget reporting**: each phase emits `output/<slug>/.token_budget.json` with estimated tokens per layer; CI test asserts total ≤ 2x v1.0 baseline
+- **Skip-able layers on cost pressure**: env var `VIDEOSUMMARY_SKIP_REVIEWER=1` skips CORR-03 entirely (degrade path: ship CORR-01 + CORR-02 only). Documented as "low-quota mode"
+- **L1 detection cheap-path first**: L1 is grep-based regex/heuristic (NOT Claude reading), only L2/L3 use Claude context. Implement L1 as pure Python in agent.tools so it's free
+- **Frame Read deduplication**: if CORR-03 needs same frame as CORR-01 L3, cache per-session (within same `/summarize-video` invocation, frame contents reused)
+- **Empirical baseline phase**: pick 3 v1.0 archives, measure token spend; v1.1 implementation MUST stay under 2x measured baseline. Phase Done = empirical pass, not just functional pass
+
+**Phase to address:** All correctness phases (CORR-01/02/03) plus Phase 1 foundation must include budget infrastructure (`.token_budget.json` schema + CI assertion)
+
+**Severity:** Critical for ¥0 constraint sustainability — could make v1.1 functionally great but practically unusable on Max plan
 
 ---
 
-### Pitfall P7.1: Stale-artifact silent reuse when params change
+## Moderate Pitfalls
+
+### P-04: Glossary Drift (TEACH-A `output/_glossary.md`)
 
 **What goes wrong:**
-Already partially flagged in CONCERNS §5.4: cache validation is `path.exists()` only. Once Claude is emitting fps schedules and choosing whisper model sizes, the same `output/<slug>/` may have artifacts produced under different parameter sets. Resume "from where we left off" silently uses the wrong upstream artifact.
-
-**Why it happens:**
-File-existence cache is parameter-blind. New variability (whisper model, vad threshold, fps schedule) makes this insufficient.
-
-**How to avoid (extend the existing cache, don't replace it):**
-1. Each artifact gets a sidecar `<artifact>.params.json` with the parameters that produced it (whisper_model, vad_settings, fps_schedule, ffmpeg_version, etc.).
-2. On every step, validate `<artifact>.params.json` matches current params; mismatch → skip cache, regenerate, log "regenerating because: whisper_model changed small → medium."
-3. `--force` flag at the workflow level remains as the nuclear option.
+- Two terminals append to `_glossary.md` simultaneously → file corruption (interleaved lines)
+- Same term "ECS" gets 3 different definitions across summaries (each Claude write defines it from local context)
+- Unbounded growth: after 50 videos, `_glossary.md` is 5000 lines, no curation
+- Author skips inline annotation in summary.md because "_glossary.md covers it" — directly violates D-01 "self-contained, don't assume reader read other files"
+- Glossary entry says "see summary X" — D-01 violation (assumes reading order)
 
 **Warning signs:**
-User re-runs with `--whisper medium` to fix transcription quality, but `segs.json` from the previous `small` run is reused; user is confused why output didn't improve.
+- `_glossary.md` has duplicate term entries with different definitions (grep `^## `)
+- summary.md skips inline annotation for terms that ARE in glossary
+- glossary entries reference other slugs by path
+- `_glossary.md` line count grows linearly with videos (no consolidation)
 
-**Phase to address:** Resume phase. Land first if possible — every other feature benefits.
-**Severity:** Showstopper
+**Prevention:**
+- **Lock _glossary.md writes**: extend the per-slug FileLock pattern (v1.0 PARA-04) to a project-level `output/.glossary.lock`. Acquire when appending entries
+- **Inline-first invariant** (D-01 enforcement): TEACH-A writing prompt says "EVERY first-occurrence term in summary.md gets inline annotation, REGARDLESS of glossary state". Glossary is an append-only log, NOT a consultation source for the reader
+- **Glossary entry schema**: `## 术语 (English/中文释义)` + 1-line definition + `首次出现: <slug>` (one slug only — first-seen wins; later slugs DO NOT update existing entry, append new entry suffixed `_2` / `_3` if conflicting definition)
+- **No cross-references**: glossary entries MAY NOT contain `[详见 output/<other_slug>/summary.md]` — D-01 forbids
+- **Bounded growth via index file**: `_glossary.md` is just a flat append log; reading is via `output/_glossary_INDEX.md` (auto-rebuilt every N appends, dedupes, links definitions). Writers never read glossary; only the rebuild step consolidates
+- **Drift-detection report**: a separate `python -m agent.tools glossary_audit` lists terms with conflicting definitions across summaries (read-only, K5 — surfaces drift, doesn't auto-fix)
+
+**Phase to address:** TEACH-A (inline-first rule + lock infrastructure); MISC phase or TEACH-A末尾 for `glossary_audit` tool
+
+**Severity:** Moderate — drift accumulates slowly; lock race is a real bug but easy fix
 
 ---
 
-### Pitfall P8.1: Vendor `config.yaml` race (parallel douyin)
+### P-05: Self-Contained Over-Explanation (TEACH-A patronizing tone)
 
 **What goes wrong:**
-CONCERNS §2.2: `agent/douyin_downloader.py:46-61` rewrites the global `vendor/douyin_api/crawlers/douyin/web/config.yaml` on each call. Two parallel agents downloading two douyin videos = race, last-writer wins, one or both downloads fail with cryptic error.
-
-**Why it happens:**
-Vendor crawler reads global config from disk; no per-process isolation.
-
-**How to avoid:**
-Either (a) **per-process config patching** — fork the vendor's config-load to accept an explicit dict instead of reading `config.yaml`, or (b) **process-level lock** on the config file with `fcntl`/`msvcrt` for the duration of a single download. (b) is cheaper but serializes douyin downloads. (a) is the proper fix.
+- Every term annotated, including obvious ones ("Python (一种编程语言)" / "JSON (一种数据格式)")
+- "你需要知道什么 / 你不需要知道什么" header is 30 lines, ranking trivial preconditions
+- Annotation tone reads condescending — explaining everything to a "零基础" reader becomes noise to mid-level readers
+- Every video has the same opener boilerplate; reading 10 summaries in a row means reading the same intro 10 times
+- "你需要" header becomes its own format-spec invariant, with no actual differentiation between videos
 
 **Warning signs:**
-Parallel douyin downloads succeed individually but fail when run concurrently; intermittent.
+- summary.md > 50% of pre-Phase-1 lines are annotation/preamble rather than content
+- "你需要知道什么" lists > 5 items
+- annotations explain terms that are explained in other annotations (recursive over-explanation)
+- subjective: reading two summaries back-to-back feels repetitive in the opener
 
-**Phase to address:** Parallel phase. If parallel ships, this must ship with it.
-**Severity:** Showstopper for parallel douyin
+**Prevention:**
+- **Annotation eligibility rules** (locked):
+  - REQUIRED: domain-specific tools (Trae SOLO / Godot ECS / pyannote / faster-whisper), proper nouns, acronyms, technical concepts NOT in CS undergraduate curriculum
+  - FORBIDDEN: programming languages by name (Python/JS), general formats (JSON/YAML/Markdown), Claude/ChatGPT/Cursor by name (assume audience knows AI tools), basic operations ("点击" / "保存")
+  - OPTIONAL: framework names (React/Vue/Bevy), industry-specific jargon (LoRA, embedding)
+- **"你需要知道什么" cap**: max 3 prerequisites + max 3 "你不需要" items. > 3 → reviewer flags as bloat
+- **Tone constraint** (CORR-03 verifier check): annotation must read "neutral definition", NOT "explainer talking to a child". Forbidden patterns: "你可能不知道..." / "简单来说..." / "说白了..."
+- **Per-summary novelty check**: if `_glossary.md` already has entry for term X with same definition, summary.md inline annotation can be shorter ("X (见上下文为 [definition])") — annotation present but compressed
+- **A/B with v1.0 sample**: pick 3 summaries from 17 archives, manually re-write with TEACH-A rules, user-review tone. Lock annotation style from this sample before v1.1 ships
+
+**Phase to address:** TEACH-A (eligibility rules + tone constraint); CORR-03 (tone enforcement in verifier)
+
+**Severity:** Moderate — degrades reading experience, but doesn't cause factual errors
 
 ---
 
-### Pitfall P8.2: Whisper concurrent model loads → RAM OOM
+### P-06: TL;DR Drift (TEACH-B 5-min speedrun)
 
 **What goes wrong:**
-CONCERNS §5.2: Whisper model is reloaded per call (no global cache). Two parallel `transcribe` invocations each instantiate a `WhisperModel(...)` — `medium` is ~1.5 GB on int8, two copies = 3 GB plus working memory. On 16 GB Windows machine with browser open, that's the threshold for OOM.
-
-**Why it happens:**
-No model warm cache; parallel invocations can't share weights.
-
-**How to avoid:**
-Introduce a `whisper_server` process that holds the model in memory and accepts transcription jobs over a local socket / file queue. Heavy but right. Cheap alternative: serialize transcription steps via a file lock so only one transcribe runs at a time even if user launches multiple agents. The codebase already supports the cheap version with no changes — document it.
+- TL;DR contradicts main body (TL;DR says "5 steps", body has 7 steps after writer revised)
+- Skimmer reads ONLY TL;DR, never main body → defeats D-01 self-contained (TL;DR isn't itself self-contained)
+- TL;DR length creep: starts as 10-15 lines, drifts to 50 lines on long videos
+- TL;DR contains citations — meta-noise for skimmer
+- TL;DR generated FIRST, then body diverges, no sync check
 
 **Warning signs:**
-Parallel transcribes; one or both die silently or with `MemoryError`. Or system gets paged out and slows to a crawl.
+- TL;DR step count ≠ body H2 count
+- TL;DR > 20 lines on any video
+- TL;DR contains `[seg_xxxx @ HH:MM:SS]` tokens
+- TL;DR mentions a tool/term not in glossary or annotated in body
 
-**Phase to address:** Parallel phase, decide upfront whether to ship server pattern or just document constraint.
-**Severity:** Showstopper for parallel whisper
+**Prevention:**
+- **Write TL;DR LAST** (after body + after CORR-03 verifier pass + after rewrite if any). TL;DR derives from final body, never the other way around
+- **TL;DR length lock**: 10-15 lines, hard cap 20. Line count enforced by CORR-03 verifier
+- **No citations in TL;DR**: format-spec extension. TL;DR sentences point to section anchors instead — `详见 §三、消化阶段`
+- **TL;DR-body sync check** (verifier rule): every claim in TL;DR maps to a section in body. If body has 7 steps, TL;DR steps == body H2 count for steps-mode summaries
+- **TL;DR is OPTIONAL**: only generated for videos > 20 min OR summary.md > 600 lines. Short summaries get no TL;DR (avoids ratio drift where TL;DR is half the doc)
+- **Skimmer-defense framing**: TL;DR opening line says "本节是导览，不替代正文 — 复刻请读正文章节"
+
+**Phase to address:** TEACH-B (entire pitfall is this phase's design space)
+
+**Severity:** Moderate — TEACH-B is 🟡 want-to-do, can defer if pitfall too costly to address
 
 ---
 
-### Pitfall U1: YOLO / Coarse mode skips the validation step
+### P-07: Heuristic Over-Trust (TOOL-A / TOOL-B vs K5 boundary)
 
 **What goes wrong:**
-When user picks "ship fast, coarse granularity," temptation is to skip: (a) run on known-good archived video first to confirm no regression; (b) sidecar `params.json` schema for cache validation; (c) explicit fail-loud parser for the fps schedule. Each is "infrastructure that doesn't move the demo forward" and dies first.
-
-**Why it happens:**
-YOLO mode optimizes velocity; preflight checks feel like overhead until something breaks at video #3 in queue.
-
-**How to avoid:**
-Before any feature is built, freeze a **golden-output regression suite**: pick 3 representative archived videos (e.g., `BV132wizyEEB` for code, `godot_brave` for game/Godot demo, `douyin_trae_ai` for AI/UI), commit current `summary.md` for each as the regression baseline. Every milestone-2 change must reproduce these (allowing intentional improvements, but no surprise drift). Cost: zero new code, ~30min one-time.
+- Claude blindly accepts `mode_signals.json` recommendation → mode判错 → integral re-write
+- `schedule_suggestion.json` is wrong (silence detection missed dialog, scene detection over-segmented) → Claude follows it → bad抽帧
+- Tool runs once at Phase 2; signals stale by Phase 5 (Claude revised plan.md but didn't re-run tools)
+- K5 spirit silently violated: tool says "recommend mode = X" → Claude rubber-stamps without re-judging
+- New users grok the tools as "decision-makers" rather than "signal providers"
 
 **Warning signs:**
-New feature ships, works on the demo video, breaks on video #3 in queue.
+- plan.md mode field byte-equal to mode_signals.json's `recommended_mode` for > 80% of videos (no Claude judgment override)
+- schedule.json segments byte-equal to schedule_suggestion.json (no Claude refinement)
+- Mode mis-classifications correlate with mode_signals.json wrongness (Claude not catching tool errors)
+- Tool output mentioned in plan.md "evidence" section instead of paragraphs.json text
 
-**Phase to address:** Milestone preflight, before phase 1.
-**Severity:** Meta-showstopper
+**Prevention:**
+- **Tool output schema makes K5 explicit**: every signal field paired with `evidence: <text excerpt>` — Claude must cite raw evidence, not the recommendation. Output uses `signals: [...]` not `recommendation: X`
+- **Plan.md must cite raw paragraphs**: TEACH-A writing prompt requires `classification_evidence` field reference paragraphs.json text, NOT mode_signals.json. Tool helps Claude find evidence faster, doesn't substitute for it
+- **No `recommended_mode` field in mode_signals.json**: output is `signals: {code_fence_density: 0.7, question_density: 0.05, ...}` only. Claude maps signals → mode in plan.md, NOT the tool
+- **schedule_suggestion.json is OPT-IN consultation**: Claude must `Read` it explicitly (not auto-loaded). plan.md notes "已参考 schedule_suggestion.json" if used; default Phase 4 flow does NOT pre-include it
+- **Verifier (CORR-03) cross-check**: if plan.md mode field disagrees with mode_signals.json `dominant_signal`, verifier asks "explain divergence" — divergence is HEALTHY (proves Claude judging), not a flag
+- **Tool output stamps timestamp + paragraphs.json hash**: if plan.md was written when paragraphs.json had hash X but mode_signals.json was generated at hash Y ≠ X, signal is stale, Claude must re-run tool or ignore
+
+**Phase to address:** TOOL-A and TOOL-B (entire pitfall); CORR-03 (divergence acceptance check)
+
+**Severity:** Moderate — TOOL-A/B are 🟡 want-to-do, can defer; but if shipped, K5 erosion is the v1.0 invariant most at risk
 
 ---
 
-### Pitfall U2: 17-video legacy queue compatibility regressions
+### P-10: Two-Terminal Regressions (NEW lock domains)
 
 **What goes wrong:**
-17 archived `output/<slug>/` directories were produced under current `meta.json` schema, current `paragraphs.json` schema, current `frames/seg_<start>_<index>.jpg` filename convention. Any milestone change to those schemas / filenames silently breaks resume / re-run on legacy archives.
-
-**Why it happens:**
-PROJECT.md hard-locked "保留当前方案 / 快速回退" but new features will inevitably want schema additions.
-
-**How to avoid:**
-Lock existing schemas as **frozen** with `schema_version: "1"` retroactively; new fields opt-in additive only; old files load with defaults for missing fields. Run regression suite (U1) on at least 3 archived dirs before merging any code change. Specifically watch:
-- `output/<slug>/` directory layout (CLAUDE.md hard-codes path conventions)
-- `frames/seg_<start>_<index>.jpg` filename grammar (referenced by `agent/tools.py:122-124`)
-- `meta.json` field set (`title`, `uploader`, `duration`, `url`, `video_path`, `subtitle_path`, `source`)
-- `paragraphs.json` shape (`{paragraphs: [{start, end, text}]}`)
+- `output/_glossary.md` is project-wide write target — two slugs being summarized in parallel both append → race
+- `~/.videoSummary/queue.json` (MISC-02) is single-file global state — two terminals running `queue next` get same slug → both work on same video
+- `<slug>-REVIEW.md` re-write race (writer rewriting per CORR-03 while user manually inspects)
+- v1.0 PARA-XX work assumed all writes were per-slug; v1.1 introduces project-global writes that break this assumption
 
 **Warning signs:**
-`python -m agent.tools transcribe output/BV1C9QCBdE1U/video.mp4 --out output/BV1C9QCBdE1U` fails post-update because `transcribe` now expects a field that didn't exist in old `meta.json`.
+- `_glossary.md` has interleaved partial lines (corrupted entry mid-line)
+- Two different `output/<slug>/` directories show same `queue_position` from queue.json
+- `.resume.lock` works fine but data corruption appears in `_glossary.md` only
 
-**Phase to address:** Every phase touching tools or schemas.
-**Severity:** Showstopper
+**Prevention:**
+- **Project-level lock infrastructure**: extend v1.0's `_lock.py` to support `output/.glossary.lock` and `~/.videoSummary/.queue.lock`. Same stale-PID detection logic
+- **Glossary lock acquisition**: any `_glossary.md` append acquires `output/.glossary.lock`; held only for duration of append (ms-scale, not full summary write). Lock release atomic
+- **Queue lock semantics**: `queue next` acquires lock, marks slug `in_progress: <pid>`, releases lock. Other terminal `queue next` sees `in_progress` slug, skips it (returns next free slug)
+- **REVIEW.md per-slug lock**: REVIEW.md write piggybacks on existing `output/<slug>/.resume.lock` (already in v1.0). New writes go through same path
+- **Lock test matrix**: phase plan includes test "2 terminals, 2 different slugs, glossary appends interleave correctly". Existing `tests/test_locking.py` extended
+- **Documentation**: CLAUDE.md `## 多终端并行` section gets new sub-section for v1.1 lock domains. Same table format as v1.0
+
+**Phase to address:** Phase 1 v1.1 foundation (lock infrastructure); TEACH-A (glossary lock); MISC-02 (queue lock)
+
+**Severity:** Moderate — v1.0 already learned the lock pattern, v1.1 extension is mechanical, but missing means data corruption
 
 ---
 
-### Pitfall U3: Single-user Windows 11 China — proxy / network / encoding / locale
+## Minor Pitfalls
+
+### P-11: Backward-Incompat on 17 Archives (cache cascade on retroactive artifacts)
 
 **What goes wrong:**
-Compounds with P3.1, P4.1. Specifically:
-- **Proxy:** GBK terminal can't print emoji titles (CONCERNS §1.4). UTF-8 codepage (`chcp 65001`) helps but breaks some legacy tools. Windows-native `HTTP_PROXY` env var convention vs Unix `http_proxy` differs by case.
-- **Network:** Bilibili occasionally rate-limits CN IPs (yes, even from CN). YouTube via proxy + GFW is fragile; latency to YouTube via Singapore proxy ≈ 200ms baseline.
-- **Encoding:** zh-CN Windows defaults to GBK code page. ffmpeg subprocess args (P4.1), `print(json.dumps(meta))` (handled in `agent/tools.py:58-59`), Python file I/O without explicit `encoding="utf-8"` all hit this.
-- **Locale:** `locale.getpreferredencoding()` returns `cp936`. Anywhere in code that calls `open(path)` without `encoding="utf-8"` reads files as GBK by accident; will crash on any UTF-8 file.
-
-**Why it happens:**
-Default Windows zh-CN locale is GBK; user's environment is multi-protocol (GFW + proxy + UTF-8 vs GBK).
-
-**How to avoid (do once, save the rest of the milestone):**
-1. Enforce `encoding="utf-8"` on every `open()` call in the codebase (audit `agent/` and `src/`). Current code is mostly correct but inconsistent.
-2. Document in CLAUDE.md: "Run `chcp 65001` once per terminal session before invoking `python -m agent.tools`."
-3. Set `PYTHONUTF8=1` env var globally (Windows 10+). Document.
-4. `HTTPS_PROXY` and `HTTP_PROXY` (uppercase) read by `agent/tools.py` and forwarded to yt-dlp as `--proxy`.
+- Re-processing old slug pollutes summary with v1.1 features without opt-in
+- `transcribe_warnings.json` added retroactively to old slug → triggers re-aggregation cascade
+- Old paragraphs.json sidecar `params.json` doesn't have new keys → looks "stale" → re-runs ASR
+- User runs `python -m agent.tools doctor` on old slug, sees "v1.1 features missing" warnings, "fixes" → corrupts archive
 
 **Warning signs:**
-Intermittent encoding errors on different files; `UnicodeDecodeError: 'gbk' codec can't decode byte 0x... in position ...`.
+- After v1.1 install, `doctor` subcommand on old slug says "stale cache: missing v11 fields"
+- `state.jsonl` of old slug grows after v1.1 install (new event types appended)
+- `params.json` files in old slugs touched after v1.1 install (mtime change)
 
-**Phase to address:** Cross-cutting; address in any phase that touches I/O or subprocess.
-**Severity:** Showstopper for YouTube; annoying for everything else.
+**Prevention:**
+- **Sidecar key detection**: missing v1.1 keys in old `params.json` → use v1.0 defaults SILENTLY, do not warn, do not trigger regen (treat as "v1.0 cache valid", not "stale")
+- **Doctor subcommand v1.1 changes are additive only**: new column "v11_status" reads "n/a (pre-v11 archive)" for old slugs, never "stale" or "missing"
+- **No retroactive `transcribe_warnings.json`**: covered in P-08, restated here for cache cascade
+- **Migration runbook**: `docs/v11-migration.md` documents "if you want to upgrade old slug to v1.1 features, here's the explicit opt-in: `touch output/<slug>/.v11_features.json && python -m agent.tools rebuild <slug>`". Default behavior: no migration
+- **17-archive verification at v1.1 phase 1 closeout**: re-run `doctor` on all 17, expected output is byte-equal to pre-v1.1 doctor output. Phase block on any diff
 
----
+**Phase to address:** Phase 1 v1.1 foundation (covers most of P-08 + P-11 together)
 
-## Annoying-Tier Pitfalls (Reference)
-
-### Adaptive Output
-
-**P1.1 First-segment anchoring:** Claude reads `paragraphs.json` top-to-bottom; whatever the video opens with biases the depth decision. **Fix:** force the depth-decision step to read all paragraphs and emit explicit "video-shape" classification (time-percentages per mode: talking-head / code-demo / UI / slide / silence).
-
-**P1.2 Output format drift:** "Claude decides whether to include reproduction guide" + zero schema pin = next run produces different section ordering / heading depth. The 17 archived `summary.md` were each written under current Phase 6 template. **Fix:** keep a stable output-format spec as CLAUDE.md sub-section ("regardless of dimensions, conventions hold: timestamp `[HH:MM:SS]`, code fence with explicit lang, image embed `![](frames/seg_xxxx_xxxxxx.jpg)`, second-person imperative voice"). Content adaptive; form not.
-
-**P1.5 Wrong depth decision wastes tokens:** mid-write Claude realizes chosen depth is wrong. **Fix:** depth-decision step writes a commit artifact `output/<slug>/depth_plan.md`; user reviews before any prose is written. Also a resume checkpoint.
-
-### fps Automation
-
-**P2.2 Sudden cuts straddle segment boundaries:** edited tutorials with jump-cuts every 5-10s get sampled at fps 0.3, missing 30% of cuts. **Fix:** `detect_scenes <video> --threshold 0.4` preflight emits `scenes.json`; fps-schedule prompt includes "always sample within 0.5s of every detected cut."
-
-**P2.3 Schedule format drift:** Claude emits prose fps recommendations; tool regex-parses; brittle. **Fix:** strict JSON schema for schedule; tool validates with explicit error on unknown keys / missing fields / overlapping segments. (Precedent: `agent/pass1_classify.py:_parse_classification` parser fragility — CONCERNS §1.2.)
-
-### YouTube
-
-**P3.2 yt-dlp version drift:** YouTube extractor breaks roughly monthly in 2026. **Fix:** at startup, log `yt-dlp.__version__`; if older than 90 days, print one-line "consider running `pip install -U yt-dlp`." Don't auto-update.
-
-**P3.3 VTT vs auto-generated subs vs ASR:** YouTube auto-subs are 70-85% accurate. **Fix:** default to running faster-whisper even if VTT exists for YouTube; only skip ASR when `.vtt` is `--write-subs` (creator-uploaded), not `--write-auto-subs`. Mark `subtitle_origin` in `meta.json`.
-
-**P3.4 Generic platform metadata gaps:** new platforms may not populate `uploader` or `duration`. **Fix:** introduce `meta.json` schema validation; missing fields → null + warning, not silent failure.
-
-### Local mp4
-
-**P4.2 Codec / container variability:** HEVC, AV1, MKV, no audio track. **Fix:** ffprobe preflight; clear error if no audio; optional remux to H.264 mp4 for non-mp4 containers. Surface ffprobe output in `meta.json`.
-
-**P4.3 Variable framerate (VFR):** OBS/iPhone recordings; ffmpeg `-vf fps=N` against VFR drops/duplicates frames silently. **Fix:** add `-vsync vfr` to extract_frames invocation. Apply uniformly to all sources.
-
-### UI Demo
-
-**P5.1 Pixel-text vs code-text accuracy:** UI software uses proportional fonts + anti-aliasing; multimodal accuracy lower than monospace. **Fix:** for UI-mode, instruct Claude to "quote-with-uncertainty"; lower confidence floor; cross-frame triangulation.
-
-**P5.2 Tooltip blocking:** transient tooltips cover the value being demoed. **Fix:** "if frame has tooltip obscuring target, sample 0.5s earlier or later; if still obscured, mark 'value not visible' rather than guessing."
-
-**P5.3 Cursor invisibility:** dark cursor on dark UI; cursor not captured. **Fix:** "if cursor invisible across frames, infer click target from before/after panel state diff. Always name control by label or icon, never spatial position."
-
-### Podcast
-
-**P6.2 Whisper hallucinations on silence:** 30s+ files + silence patches → repetition. Existing `HALLUCINATION_PATTERNS` blocklist (~7 strings) too narrow for 60-min podcast. **Fix:** tighten VAD (`min_silence_duration_ms=500`, raise threshold for podcasts); post-pass repetition detector flags any 3-gram repeated >3× consecutive for human review (don't auto-delete — `不注水不编造` redline).
-
-**P6.3 Topic chaptering on rambling content:** current `aggregate` is silence-gap-driven, useless on 60-min banter. **Fix:** for podcast-mode, Claude reads transcript and emits `chapters.json` with `[{start, end, topic_title, summary_line}]`. Pure Claude-decides step; rely on Claude to do structural cut, not silence heuristic.
-
-**P6.4 Frames useless but workflow assumes them:** `/summarize-video` Phase 3-4 built around 抽帧+看帧; podcast = static thumbnail or talking-head webcams. **Fix:** podcast-mode skips `extract_frames` entirely (or 1-2 frames per chapter for visual variety); writing template substitutes blockquotes for image embeds.
-
-### Resume
-
-**P7.2 Atomic-write Windows:** `os.rename` historically not atomic on Windows; `os.replace` is the right primitive. **Fix:** wrap all artifact writes in `tmp_path = path + ".tmp"; write(tmp_path); os.replace(tmp_path, path)`. ~15 LOC.
-
-**P7.3 Permission errors from prior locked file handle:** Windows Search / Defender / OneDrive may hold lock. **Fix:** retry-with-backoff on `PermissionError` (3 retries, 0.5s delay) before failing.
-
-**P7.4 Schema drift between runs:** milestone-2 changes `paragraphs.json` schema; archived dirs break post-update. **Fix:** every artifact gets `schema_version` field; loaders check and migrate-or-skip.
-
-### Parallel
-
-**P8.3 Cookies file race:** read per download, no lock. **Fix:** read cookies into memory at download start; don't re-read mid-run.
-
-**P8.4 Terminal output interleaving:** two agents in two terminals print confusingly. **Fix:** prefix every log line with slug `[BV132wiz]` / `[godot_brave]`. One-line `logging.basicConfig` change.
-
-**U4 No provenance on per-run failure:** every bug bubbles back to user. **Fix:** every step writes `step_log.json` with parameters used and artifact hashes produced; resume reads log; failures point at *which step* and *what params*.
+**Severity:** Moderate — overlaps significantly with P-08 but distinct in mechanism (P-08 is about NEW feature contamination; P-11 is about CACHE INVALIDATION cascade)
 
 ---
 
-## Technical Debt Patterns
+## Phase-Specific Warnings
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Skip params.json sidecars | Saves a few hours of plumbing | Stale-cache silent reuse causes "why didn't my output improve?" debugging | Never (P7.1 is showstopper) |
-| Skip golden regression baseline | 30 min savings | YOLO mode silently breaks legacy queue path | Never (U1 is meta-showstopper) |
-| Regex-parse Claude prose for fps schedule | Saves writing JSON schema | Mirror of `pass1_classify` parser fragility — silent dropped entries | Never |
-| Skip atomic writes on Windows | Saves 15 LOC | Truncated JSON breaks resume mid-pipeline | Never |
-| Skip subtitle_origin tagging | Saves 10 LOC | Silent ASR-skip on auto-generated YouTube subs (70% accuracy substituted for 95%) | Never on YouTube |
-| Auto-delete repeated whisper hallucinations | Cleaner output | Crosses `不注水不编造` redline; false positives delete real content | Never (PROJECT.md redline) |
-| Skip local-mp4 ASCII slug normalization | Saves a hash function | ffmpeg subprocess fails on Chinese filenames | Never on Windows zh-CN |
-| Skip vendor config.yaml lock | Saves 1-day dev | Silent race on parallel douyin downloads | Acceptable while parallelism is NTH; must add if parallel ships |
-| Defer pyannote integration | Saves 2-3 days; avoids HF gate | Podcast mode ships visibly worse than dedicated tools (transcript reads as monologue) | Acceptable in Phase 1; not in podcast phase |
-| Skip yt-dlp version warning | Saves 5 LOC | User debugs YouTube extractor failures that aren't really code bugs | Acceptable until YouTube ships |
+| Phase Topic | Likely Pitfall | Mitigation |
+|---|---|---|
+| Phase 1 (v1.1 foundation: opt-in flag, lock infra, baseline replay) | P-08 byte-equal regression / P-10 lock domains / P-11 cache cascade | Phase 1 is gating: 17-archive replay test must pass before any feature phase starts. `.v11_features.json` opt-in pattern + lock infra + sidecar versioning all implemented here |
+| CORR-01 (3-layer ASR correction) | P-01 correction runaway / P-09 token budget | L1 in pure Python (no Claude tokens); L2 requires 2 evidence sources; L3 timestamp window ≤ ±0.5s; max 5 frames per warning; `segs.json.corrections.jsonl` audit log |
+| CORR-02 (self-check + 行内溯源) | P-02 citation pollution / P-09 token budget | Citation eligibility rules locked (required/forbidden/optional sets); average ≤ 1 citation per 3 sentences; FORBIDDEN in TL;DR / glossary / prelude |
+| CORR-03 (verifier sub-agent) | P-03 reviewer feedback loop / P-09 token budget | Reviewer scope locked to format-spec + mode rules + citation validity + glossary consistency (NOT pedagogical judgment); severity gate = `critical` only triggers rewrite; max-1-rewrite final; `.pre-review.md` backup |
+| TEACH-A (零基础自包含 + glossary) | P-04 glossary drift / P-05 over-explanation / P-10 lock | Inline-first invariant (annotation regardless of glossary state); annotation eligibility rules locked; project-level `_glossary.lock`; "你需要知道什么" cap = 3+3 |
+| TEACH-B (TL;DR speedrun) | P-06 TL;DR drift | Write LAST; 10-15 lines hard cap; no citations; sync check vs body section count; only for > 20min videos |
+| TOOL-A (mode_signals.json) | P-07 heuristic over-trust | No `recommended_mode` field — only raw signals + evidence excerpts; CORR-03 accepts plan.md/signals divergence as healthy |
+| TOOL-B (schedule_suggestion.json) | P-07 heuristic over-trust | Opt-in consultation only (not auto-loaded); paragraphs.json hash stamping for staleness detection |
+| MISC-01 (AV1 warning demote) | (none significant) | Pure log-level change; ensure warning text byte-equal so old log-grepping doesn't break |
+| MISC-02 (queue helper CLI) | P-10 queue file lock race | `.queue.lock` with same stale-PID logic as v1.0 `.resume.lock`; `in_progress: <pid>` marker prevents same-slug pickup |
 
-## Integration Gotchas
+---
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| yt-dlp YouTube | Pin `>=2024.10.0` and assume forward-compat | Verify version monthly; expect SABR/PO-token changes; surface failure category (GFW vs auth vs version) |
-| yt-dlp YouTube subs | Trust `--write-auto-subs` quality | Auto-generated 70-85% accurate; default to ASR for YouTube even if VTT exists |
-| yt-dlp generic platforms | Assume `meta.json` always populated | Validate schema; null-fill missing fields with warning |
-| ffmpeg subprocess on Windows | Use default subprocess encoding | Pass paths via `Path.as_posix()`; `text=True, encoding="utf-8"` for capture |
-| ffmpeg fps extraction | Run on VFR source without `-vsync vfr` | Always set `-vsync vfr` (no downside on CFR) |
-| pyannote diarization | Bundle in `requirements.txt` | Opt-in `requirements-optional.txt`; only loaded when video classified as podcast |
-| faster-whisper VAD | Default settings on long podcasts | Tighten `min_silence_duration_ms=500`; raise threshold; post-pass repetition detector |
-| vendor douyin_api | Per-call rewrite of `config.yaml` | Per-process patch (fork) or file lock during download (CONCERNS §2.2) |
-| Whisper concurrent loads | Two parallel transcribe = 2× model RAM | Whisper-server pattern OR file-lock to serialize transcribe |
-| Cookies file refresh | Re-read mid-run | Read into memory at start; don't re-read |
-| Windows long paths | Assume `LongPathsEnabled` | Reject UNC/long paths with clear error; never `shell=True` |
+## Cross-Cutting Patterns (read once, apply everywhere)
 
-## Performance Traps
+These are NOT individual pitfalls but recurring failure modes that touch multiple phases:
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Whisper model reload per call | Each `transcribe` invocation pays ~5s init cost | Whisper-server with persistent model (deferred) OR accept the cost (current design) | Already broken; tolerable until podcast mode (longer files amortize the init cost) |
-| Parallel Whisper OOM | `MemoryError` or system swap hammer | Serialize transcribes via file lock; or whisper-server | 2+ concurrent invocations on 16 GB RAM |
-| 4K UI screen recording downscaled to 854px | "Text too small to read" reports from Claude | Allow `--width 1280`/`1920` override for UI-mode | Any UI demo from 4K recording |
-| pyannote diarization on CPU | 3-5× wall time of audio length | Spike measurement before committing; document CPU cost | 60+ min podcast on CPU-only laptop |
-| Multi-agent shared whisper instance | Both agents stall on model contention | One process per agent; no shared model | NTH parallelism phase |
+1. **"Additive but not really" trap** — Every v1.1 artifact swears it's additive. Test: `git diff` after re-running 17 archives must show 0 changes. If you can't pass that test, the additive claim is false. Apply to: every new file, every prompt change, every sidecar key.
 
-## Security Mistakes
+2. **K5 erosion via convenience** — Every tool that outputs a "recommendation" rather than "evidence" weakens K5. Even if Claude formally re-judges, the recommendation primes. Apply to: TOOL-A, TOOL-B, mode_signals output schema, even REVIEW.md severity labels.
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Commit cookies file (`www.douyin.com_cookies.txt`, `youtube_cookies.txt`) | Account takeover via leaked session | `.gitignore` already covers; verify before each commit |
-| Log full URLs with private tokens | Token leak in commit history | Redact query strings in log output |
-| Subprocess injection via filename | Arbitrary code execution if filename comes from URL | Slug normalization to ASCII-safe; never `shell=True` |
-| Trust local mp4 path without validation | Path traversal into other dirs | `Path(input).resolve()`; reject `..` in path |
-| Auto-update yt-dlp from app | Supply chain attack vector | Manual `pip install -U yt-dlp` — never auto-update |
+3. **Citation theater is worse than no citation** — A wrong citation (cited frame doesn't actually show the claim) is a confidence weapon for misinformation. Apply to: CORR-02 (don't cite when no source); CORR-03 (flag as critical, not warning).
 
-## UX Pitfalls
+4. **D-01 violations are quiet** — "see glossary" / "see other summary" / "as mentioned earlier" all break self-containment without obvious symptoms. Apply to: TEACH-A (inline-first), TEACH-B (TL;DR can't replace body), CORR-02 (citations are anchors not deferrals).
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| "Sign in to confirm" on YouTube | User stuck, error tells nothing | Preflight + classify failure ("GFW" / "cookies stale" / "yt-dlp version" / "PO token") |
-| Stale-cache silent reuse | "Why didn't my fix work?" debugging cycles | params.json sidecar; loud "regenerating because: X changed" log |
-| Adaptive output drift | "Why does this video's doc look so different from yesterday's?" | Lock form (timestamp format / code fence / image embed); content adaptive |
-| Frame extraction zero output | Pipeline succeeds but no frames | ffmpeg stderr surface (CONCERNS §6.2); `-vsync vfr`; sanity-check frame count |
-| Podcast frames embedded | "Why is my podcast doc full of host's face?" | Podcast-mode skips `extract_frames` entirely |
-| Tooltip blocks UI value | Claude guesses or makes up the value | "If obscured, mark 'value not visible'" — `不注水不编造` redline |
+5. **Token budget compounds, not adds** — L1 → L2 → L3 → CORR-02 → CORR-03 → maybe-rewrite is a multiplicative chain. 1.2x per layer = 2.5x total for 5 layers. Apply: budget per-layer caps, not just total.
 
-## "Looks Done But Isn't" Checklist
-
-Verify during each phase execution:
-
-- [ ] **Adaptive output:** Does the format spec lock survive across runs? — Re-run on `output/godot_brave/` and diff `summary.md`; should match modulo intentional improvements.
-- [ ] **Adaptive output:** Are exemplars committed in CLAUDE.md? — Without 2-3 skeleton examples, Claude regresses to one mode.
-- [ ] **fps automation:** Does the schedule cover full duration? — Validate union of segments == `[0, duration)` ± 2s.
-- [ ] **fps automation:** Is silence-map / baseline-pass actually emitted? — Check for 0.05 fps fallback in schedule.
-- [ ] **fps automation:** Does parser fail loud on malformed Claude output? — Test with `0:30 - 1:00` style timestamp; should error, not silent-drop.
-- [ ] **YouTube:** Does preflight classify failures? — Test with offline / wrong cookies / old yt-dlp; each should produce distinct error.
-- [ ] **YouTube:** Is `subtitle_origin` recorded in meta.json? — Differentiate auto/creator/asr/none.
-- [ ] **Local mp4:** Does Chinese filename input still work? — Test with `D:\videos\我的教程.mp4`.
-- [ ] **Local mp4:** Does ffprobe preflight catch missing audio? — Test with video-only mp4.
-- [ ] **Local mp4:** Is `-vsync vfr` applied uniformly? — Test on OBS-recorded source.
-- [ ] **UI demo mode:** Does Claude downgrade pixel-text confidence? — Test on Photoshop UI capture.
-- [ ] **Podcast mode:** Is diarization emitting speaker_id labels? — Test on 2-person interview; speakers attributed.
-- [ ] **Podcast mode:** Does Whisper repetition post-pass flag hallucinations? — Test on 60-min podcast.
-- [ ] **Resume:** Does params.json sidecar trigger regen on whisper model change? — Test small → medium switch.
-- [ ] **Resume:** Are atomic writes used everywhere? — Audit codebase for `.write()` of artifacts.
-- [ ] **Resume:** Do loaders handle `schema_version` migration? — Test on archived `output/BV132wizyEEB/`.
-- [ ] **Parallel (if shipped):** Does vendor `config.yaml` race break under load? — Test 2 concurrent douyin downloads.
-- [ ] **Parallel (if shipped):** Do log lines have slug prefix? — Test 2 concurrent invocations.
-- [ ] **U1 regression:** Does the new milestone reproduce all 3 baselines? — Run new flow on `output/BV132wizyEEB/`, `godot_brave/`, `douyin_trae_ai/`; diff against committed `summary.md`.
-
-## Recovery Strategies
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| P1.3 "Every video looks the same" | LOW | Add 2 more exemplars to CLAUDE.md; re-run /summarize-video on the affected video |
-| P2.1 Silent visual content missed | LOW | Run 补抽 fps schedule on the missed segment; baseline 0.05 fps pass usually catches |
-| P3.1 YouTube failure | MEDIUM | Local mp4 fallback (download manually, drop into pipeline) |
-| P4.1 Chinese filename ffmpeg crash | LOW | Slug-normalize on copy-into-output; one retry |
-| P6.1 No diarization | HIGH | Re-run with pyannote enabled; expensive but works |
-| P7.1 Stale-cache wrong output | LOW | `--force` flag; rerun the affected stage |
-| P7.2 Truncated JSON | LOW | Delete artifact; rerun stage (cache-miss now produces fresh) |
-| P8.1 Vendor config.yaml race | MEDIUM | File lock retroactively; serialize affected downloads |
-| U1 / U2 regression on legacy video | HIGH | Revert milestone changes touching schemas; re-test golden baseline |
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Severity | Prevention Phase | Verification |
-|---------|----------|------------------|--------------|
-| U1 Golden regression suite | Showstopper-meta | Phase 0 (Preflight) | Commit baselines for 3 videos before any feature |
-| U2 Schema freeze | Showstopper | Phase 1 (Resume) + every phase touching schemas | Loader test on archived `output/BV132wiz/` |
-| U3 Encoding/proxy/locale | Showstopper for YT | Cross-cutting; first-touch in Resume phase | `chcp 65001`; PYTHONUTF8=1; `encoding="utf-8"` audit |
-| P7.1 params.json sidecars | Showstopper | Phase 1 (Resume) — land first | Re-run with whisper small → medium triggers regen |
-| P7.2 Atomic writes | Annoying | Phase 1 (Resume) | Kill mid-write; resume sees clean state |
-| P7.4 schema_version | Annoying | Phase 1 (Resume) | Loader handles version: 1 → 2 |
-| P2.1 Silence map + baseline | Showstopper | Phase 2 (fps Automation) | Schedule covers all silence segments OR has 0.05 baseline |
-| P2.3 Strict schedule schema | Annoying | Phase 2 (fps Automation) | Malformed input fails loudly |
-| P2.4 Duration coverage | Cosmetic | Phase 2 (fps Automation) | Validation step asserts coverage |
-| P1.3 CLAUDE.md exemplars | Showstopper | Phase 3 (Adaptive Output) | Test on principles-heavy + reproduction-heavy videos |
-| P1.2 Format spec lock | Annoying | Phase 3 (Adaptive Output) | Diff regression against archived summary.md |
-| P1.1 Full-transcript anchor | Annoying | Phase 3 (Adaptive Output) | Two videos with similar arcs but different opens get same depth verdict |
-| P1.5 depth_plan.md artifact | Annoying | Phase 3 (Adaptive Output) | Plan committed before prose writing |
-| P4.1 Chinese filename slug | Showstopper | Phase 4 (New Sources / local mp4) | Test with Chinese path input |
-| P4.2 ffprobe preflight | Annoying | Phase 4 (Local mp4) | Test no-audio mp4 |
-| P4.3 -vsync vfr | Annoying | Phase 4 (Local mp4 + uniform) | Test OBS recording |
-| P3.1 YouTube failure classifier | Showstopper for YT | Phase 4 (YouTube layer) | Test offline / stale-cookie / old-yt-dlp |
-| P3.3 subtitle_origin | Annoying | Phase 4 (YouTube layer) | Auto vs creator subs distinguished |
-| P5.1-5.3 UI demo guidelines | Annoying | Phase 5 (UI demo) — slash command only, no code | Test on Photoshop UI capture |
-| P6.1 pyannote diarization | Showstopper for podcast | Phase 5 (Podcast) | 2-speaker interview gets speaker_id labels |
-| P6.2 Whisper repetition guard | Annoying | Phase 5 (Podcast) | 60-min podcast post-pass flags |
-| P6.3 chapters.json | Annoying | Phase 5 (Podcast, slash command) | Rambling content gets meaningful chapters |
-| P6.4 Skip frames in podcast | Annoying | Phase 5 (Podcast, slash command) | Podcast summary has no irrelevant face embeds |
-| P8.1 Vendor config lock | Showstopper-if-parallel | Phase 6 (Parallel — NTH) | 2 concurrent douyin downloads |
-| P8.2 Whisper serialize lock | Showstopper-if-parallel | Phase 6 (Parallel — NTH) | 2 concurrent transcribe — no OOM |
+---
 
 ## Sources
 
-**yt-dlp / YouTube anti-bot reality 2026:**
-- [yt-dlp #15865 — All public YouTube videos require login](https://github.com/yt-dlp/yt-dlp/issues/15865)
-- [yt-dlp #16221 — March 2026 "Sign in to confirm" breakage](https://github.com/yt-dlp/yt-dlp/issues/16221)
-- [yt-dlp #13067 — YouTube bot detection issue](https://github.com/yt-dlp/yt-dlp/issues/13067)
-- [yt-dlp #10128 — Sign in to confirm you're not a bot](https://github.com/yt-dlp/yt-dlp/issues/10128)
-- [yt-dlp #1734 — Fix YouTube's autogenerated subtitles](https://github.com/yt-dlp/yt-dlp/issues/1734)
-- [yt-dlp #5792 — Auto-translation subtitle leading blanks](https://github.com/yt-dlp/yt-dlp/issues/5792)
-- [yt-dlp #11592 — yt-dlp with proxy not works on YouTube](https://github.com/yt-dlp/yt-dlp/issues/11592)
-- [Bypassing the 2026 YouTube "Great Wall": yt-dlp + v2rayNG + SABR — dev.to](https://dev.to/ali_ibrahim/bypassing-the-2026-youtube-great-wall-a-guide-to-yt-dlp-v2rayng-and-sabr-blocks-1dk8)
-- [How to Unblock YouTube in China (2026 Guide)](https://fastestvpn.com/resources/how-to-unblock-youtube-in-china/)
-- [YouTube Blocked in China — BitJoy Global eSIM](https://thebitjoy.com/blogs/blog/youtube-blocked-in-china-what-travelers-need-to-know-before-you-go)
-- [How to Download YouTube Subtitles 2026 — screenapp.io](https://screenapp.io/blog/download-youtube-subtitles-complete-guide)
+- v1.0 PROJECT.md Validated requirements + Key Decisions table (D-29 / K5 / ¥0 invariants)
+- v1.1-CANDIDATES.md (D-01 / D-02 / D-03 locked decisions + 8 candidate must-haves)
+- codebase/CONCERNS.md (existing tech debt context: §1.1 three frame impls / §5.4 cache validation / §11 storage growth — same patterns CORR-01 cache must avoid)
+- CLAUDE.md `## 视频类型变奏` § format-spec lock (4 invariants TEACH-A and CORR-03 verifier must preserve)
+- CLAUDE.md `## 多终端并行` § (v1.0 lock pattern that v1.1 extends)
+- 17 archive corpus (`output/<slug>/`) — empirical byte-equal regression test ground truth
 
-**faster-whisper hallucinations:**
-- [Investigation of Whisper ASR Hallucinations Induced by Non-Speech Audio (arXiv 2501.11378)](https://arxiv.org/html/2501.11378v1)
-- [Calm-Whisper: Reduce Whisper Hallucination on Non-Speech (arXiv 2505.12969)](https://arxiv.org/html/2505.12969v1)
-- [Solutions to Repeated Output Issues with Whisper — Memo AI](https://memo.ac/blog/whisper-hallucinations)
-- [whisper.cpp #1724 — Hallucination on silence](https://github.com/ggml-org/whisper.cpp/issues/1724)
-
-**pyannote diarization:**
-- [pyannote/speaker-diarization-3.1 — Hugging Face](https://huggingface.co/pyannote/speaker-diarization-3.1)
-- [Best Speaker Diarization Models Compared 2026 — Brass Transcripts](https://brasstranscripts.com/blog/speaker-diarization-models-comparison)
-- [pyannote.ai community-1: open-source diarization](https://www.pyannote.ai/blog/community-1)
-
-**Windows + ffmpeg + unicode subprocess:**
-- [ffmpeg-python #90 — Fails on non-ASCII filename on Windows](https://github.com/kkroening/ffmpeg-python/issues/90)
-- [ffmpeg-normalize #76 — handle utf8 character in Windows](https://github.com/slhck/ffmpeg-normalize/issues/76)
-- [FFmpeg-devel — Unicode filenames support on Windows regression (2012)](https://ffmpeg.org/pipermail/ffmpeg-devel/2012-April/123449.html)
-- [Variable Frame Rate — stoyanovgeorge ffmpeg wiki](https://github.com/stoyanovgeorge/ffmpeg/wiki/Variable-Frame-Rate)
-- [trac.ffmpeg.org #10150 — Variable framerate with maximum value](https://trac.ffmpeg.org/ticket/10150)
-- [How to Extract Time-Accurate Video Segments with FFmpeg — codestudy.net](https://www.codestudy.net/blog/how-to-extract-time-accurate-video-segments-with-ffmpeg/)
-
-**Atomic-write Windows:**
-- [Python bugs.python.org issue 8828 — Atomic function to rename a file](https://bugs.python.org/issue8828)
-- [Hacker News — pain of atomic writing on Windows](https://news.ycombinator.com/item?id=16573770)
-
-**Existing project (referenced not duplicated):**
-- `.planning/codebase/CONCERNS.md` (§1.2, §1.4, §2.2, §2.5, §2.6, §2.7, §5.2, §5.4, §6.2, §6.3, §8.3, §9.1, §13.1)
-- `.planning/codebase/INTEGRATIONS.md`
-- `.planning/codebase/TESTING.md`
-
----
-*Pitfalls research for: Claude-driven video-to-tutorial pipeline (¥0 local, brownfield expansion)*
-*Researched: 2026-04-30*
+**Confidence levels:**
+- HIGH: P-08 (D-29 mechanism well-understood from v1.0 Phase 6 spec), P-10 (v1.0 PARA-XX taught the lock pattern), P-04/P-11 (cache cascade and lock race are direct extensions of known v1.0 patterns)
+- MEDIUM: P-01/P-02/P-03/P-05/P-06 (LLM agent design pitfalls observed in similar tools — Roo Cline reviewer loops, Cursor self-check fatigue — but specific to videoSummary's 3-layer + 4-mode arch unverified empirically)
+- MEDIUM-LOW: P-07 (TOOL-A/B not yet built; K5 erosion mechanism analogical from v1.0's experience with detect_scenes/detect_silence which DID hold the line)
+- MEDIUM: P-09 (token budget compounding mathematically certain; specific 2.5x figure inferred from layer count, not measured — Phase 1 must produce empirical baseline)

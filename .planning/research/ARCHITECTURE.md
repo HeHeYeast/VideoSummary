@@ -1,678 +1,942 @@
-# Architecture Research
+# Architecture Research — v1.1 Summary-Quality Milestone
 
-**Domain:** Claude-orchestrated local video-to-tutorial pipeline (¥0, brownfield expansion)
-**Researched:** 2026-04-30
-**Confidence:** HIGH for backward-compat strategy and module boundaries (grounded in actual code at `agent/tools.py`, `agent/asr_v2.py`, `agent/douyin_downloader.py` and `.planning/codebase/*`); MEDIUM for schedule format JSON shape and parallelism strategy (no precedent in repo, derived from existing conventions).
+**Domain:** Brownfield extension of a Claude-orchestrated local video-to-tutorial pipeline (¥0). Focus: how 8 v1.1 candidate features (3 必做 + 1 必做 zero-baseline + 2 想做 + 2 顺手) plug into the v1.0 architecture WITHOUT modifying validated artifacts (D-29 byte-equal invariant).
+**Researched:** 2026-05-03
+**Confidence:** HIGH for integration points and K5 boundary preservation (grounded in actual v1.0 code at `agent/tools.py`, `agent/scheduler.py`, `agent/_lock.py`, `agent/sources/__init__.py`); MEDIUM for CORR-03 verifier agent mechanism (no precedent for sub-agent in this repo, derived from gsd patterns + Claude Task tool); LOW for cross-slug glossary race semantics (no real-world signal yet).
 
-> This document does **not** re-survey the existing system — that lives in `.planning/codebase/ARCHITECTURE.md`. It only specifies how the 7 new capabilities **plug in** without breaking the existing layout.
-
----
-
-## North Star Constraint
-
-Every architectural choice below is subordinate to two non-negotiables:
-
-1. **Claude is the decision-maker, the tool is the limb.** Tools may *reduce friction* (turn one ffmpeg call into ten via a schedule, route URLs to the right downloader) but must NEVER *make judgment calls* (pick fps, pick chapters, pick teaching depth, pick which frames matter).
-2. **Backward-compatible: the existing 5 commands, the `output/<slug>/` layout, and the 8-phase `/summarize-video` workflow MUST keep working unchanged.** 17 queued videos depend on the old path.
-
-When a capability could be implemented as either "smarter Python" or "smarter Claude prompting", we **default to prompting** and only add Python when the operation is mechanical (a pure transform with no judgment).
+> This document does not re-survey the v1.0 system — that lives in `.planning/codebase/ARCHITECTURE.md` (commit `c20d425`). It only specifies how the 8 v1.1 features plug in without breaking the existing layout.
 
 ---
 
-## System Overview
+## North Star Constraints (inherited from v1.0, re-asserted here)
+
+Every architectural choice below is subordinate to four non-negotiables, all of which v1.0 successfully held across Phases 1-6:
+
+1. **¥0 cost** — no paid API at any layer (Claude Max already pays for cognition).
+2. **K5: Claude is decider, tools are limbs** — new tools may emit *signals / suggestions / detections*, but never auto-promote them into `plan.md` / `schedule.json` / `summary.md`. Statically asserted in tests where applicable (see `cmd_detect_scenes` / `cmd_detect_silence` precedent in `agent/tools.py:798-887`).
+3. **D-29 byte-equal backward-compat** — the 17 archived `output/<slug>/summary.md` files MUST regen byte-equal when re-run on v1.1 code paths *that they did not opt into*. Practical implication: never modify `segs.json` / `paragraphs.json` / `meta.json` / `plan.md` / `schedule.json` / archived `summary.md` shape; only ADD new sibling artifacts.
+4. **Single-user author tool** — no multi-tenancy, no server, no cloud. Cross-terminal contention solved by `agent/_lock.py` `FileLock` precedent (Phase 6 PARA-01).
+
+When a v1.1 capability could be either "smarter Python" or "smarter Claude prompting", **default to prompting**; add Python only when the operation is mechanical (a pure transform with no judgment).
+
+---
+
+## System Overview (v1.1 additions in **bold**)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                       Claude Code (Decision Layer)                        │
+│                  Claude Code (Decision Layer — UNCHANGED)                 │
 │                                                                           │
-│  Reads transcripts, JPEGs, meta.json. Decides:                            │
-│    - Video type (code/UI/podcast/lecture)                                 │
-│    - Teaching depth (replicate / explain / extend)                        │
-│    - fps schedule (which segments deserve dense framing)                  │
-│    - Outline + section structure + final prose                            │
+│  Reads transcripts, JPEGs, meta.json, plan.md, signals JSONs.             │
+│  Decides: video type, fps schedule, outline, prose, term corrections.     │
 │                                                                           │
-│  Drives the tools layer via Bash + Read tool calls.                       │
+│  v1.1 NEW responsibilities (prompt-driven, not coded):                    │
+│   - Read transcribe_warnings.json (if exists) and write plan.md           │
+│     "已自动修正的术语" section (CORR-01 L2/L3)                            │
+│   - Inline-trace tokens [seg_NNNN_NNNNNN.jpg @ HH:MM:SS] in summary.md    │
+│     (CORR-02 B-layer; pure prompt convention, optional linter)            │
+│   - Self-rate confidence per claim, mark < 80% with [?] (CORR-02 A-layer) │
+│   - Inline term annotations + per-summary glossary append (TEACH-A)       │
+│   - Optional 5-min TL;DR section at top of summary.md (TEACH-B)           │
+│                                                                           │
+│  v1.1 NEW workflow extension:                                             │
+│   - Spawn Task subagent (general-purpose) as "summary-verifier" (CORR-03) │
 └────────────────────────┬─────────────────────────────────────────────────┘
-                         │ Bash / Read
+                         │ Bash / Read / Task / Write
         ┌────────────────┴─────────────────────────────────────────┐
         │                                                           │
         ▼                                                           ▼
-┌──────────────────────┐                              ┌─────────────────────┐
-│  agent/tools.py      │                              │  output/<slug>/     │
-│  (CLI Surface)       │                              │  (Filesystem state) │
-│                      │                              │                     │
-│  EXISTING (kept):    │                              │  meta.json          │
-│   download           │                              │  video.mp4          │
-│   transcribe         │                              │  audio.wav          │
-│   aggregate          │                              │  segs.json          │
-│   extract_frames     │                              │  paragraphs.json    │
-│   cleanup_frames     │                              │  frames/seg_*.jpg   │
-│                      │                              │  summary.md         │
-│  NEW (additive):     │     ─────reads/writes────▶   │                     │
-│   ingest             │                              │  NEW (additive):    │
-│     (multi-source)   │                              │  state.json         │
-│   extract_frames_    │                              │  schedule.json      │
-│     batch            │                              │  resume.lock        │
-│   doctor             │                              │                     │
-└──────────┬───────────┘                              └─────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────────────────────────────────────┐
-│              Implementation Modules (agent/, src/, vendor/)         │
-│                                                                     │
-│  EXISTING (kept):                                                   │
-│    src/download.py        — yt-dlp wrapper (B站, generic)           │
-│    src/asr.py             — faster-whisper                          │
-│    agent/asr_v2.py        — paragraph aggregation                   │
-│    agent/douyin_downloader.py — vendor crawler glue                 │
-│                                                                     │
-│  NEW (additive):                                                    │
-│    agent/sources/         — pluggable downloader registry           │
-│      __init__.py          — Source protocol + dispatch              │
-│      bilibili.py          — wraps src.download.download             │
-│      douyin.py            — wraps agent.douyin_downloader           │
-│      youtube.py           — yt-dlp w/ YT cookie support             │
-│      generic.py           — yt-dlp fallback                         │
-│      local.py             — local mp4 path → meta.json synthesis    │
-│    agent/scheduler.py     — Schedule dataclass + JSON I/O           │
-│    agent/state.py         — state.json read/write/checkpoint        │
-│    agent/url_router.py    — URL → source name (pure function)       │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────┐         ┌────────────────────────────┐
+│   agent/tools.py (CLI Surface)       │         │  output/<slug>/            │
+│                                      │         │  (per-video filesystem)    │
+│   EXISTING v1.0 (UNCHANGED):         │         │                            │
+│    download / ingest                 │         │  EXISTING v1.0 artifacts   │
+│    transcribe / aggregate            │         │  (UNCHANGED):              │
+│    extract_frames / batch            │         │    meta.json               │
+│    detect_scenes / detect_silence    │         │    video.mp4 / audio.wav   │
+│    diarize / cleanup_frames          │         │    segs.json               │
+│    doctor / list_frames              │         │    paragraphs.json         │
+│    classify_frame / ocr_frame        │         │    plan.md (+sidecar)      │
+│                                      │         │    schedule.json           │
+│   v1.1 NEW (additive, K5):           │         │    frames/seg_*.jpg        │
+│    transcribe_lint   (CORR-01 L1)    │         │    scenes.json             │
+│    summary_lint      (CORR-02 helper)│         │    silence_map.json        │
+│    mode_signals      (TOOL-A)        │         │    diarization.json (opt)  │
+│    schedule_suggest  (TOOL-B)        │         │    summary.md              │
+│    queue add/list/                   │         │    state.jsonl + .json     │
+│      next/done/skip  (MISC-02)       │         │    .resume.lock            │
+│                                      │         │                            │
+│                                      │         │  v1.1 NEW artifacts        │
+│                                      │         │  (additive, all sibling):  │
+│                                      │         │    transcribe_warnings.    │
+│                                      │         │      json (CORR-01 L1)     │
+│                                      │         │    summary_lint.json       │
+│                                      │         │      (CORR-02 self-check)  │
+│                                      │         │    REVIEW.md (CORR-03)     │
+│                                      │         │    mode_signals.json       │
+│                                      │         │      (TOOL-A)              │
+│                                      │         │    schedule_suggestion.    │
+│                                      │         │      json (TOOL-B)         │
+└──────────────────────────────────────┘         └────────────────────────────┘
+                                                              ▲
+                          ┌───────────────────────────────────┤
+                          │                                    │
+                ┌─────────┴────────────┐         ┌─────────────┴────────────┐
+                │ output/_glossary.md  │         │ ~/.videoSummary/         │
+                │ (TEACH-A cross-slug  │         │   queue.json             │
+                │  accumulator)        │         │ (MISC-02 cross-slug)     │
+                │                      │         │                          │
+                │ Lock:                │         │ Lock:                    │
+                │  output/             │         │  ~/.videoSummary/        │
+                │   _glossary.md.lock  │         │   .queue.lock            │
+                │ (FileLock pattern)   │         │ (FileLock pattern)       │
+                └──────────────────────┘         └──────────────────────────┘
 ```
 
-### Component Responsibilities
-
-| Component | Responsibility | Boundary Rule |
-|-----------|----------------|---------------|
-| `agent/tools.py` | CLI dispatch only — argparse → cmd_* handlers. Lazy imports. | Never grows business logic. New subcommand = new module. |
-| `agent/sources/` (NEW) | One file per platform. Each exposes `match(url) -> bool` and `download(url, out_dir, **kw) -> meta_dict`. | Stateless. Output `meta.json` schema is identical regardless of source. |
-| `agent/url_router.py` (NEW) | Pure function: `route(url_or_path) -> source_name`. Replaces the substring check in `cmd_download`. | No I/O. No side effects. ~30 LOC. |
-| `agent/scheduler.py` (NEW) | `Schedule` dataclass, JSON serialize/deserialize, validation. **Does NOT decide fps** — only carries Claude's decision. | Pure data layer. No ffmpeg. No Claude calls. |
-| `agent/state.py` (NEW) | `state.json` reader/writer with stage-completion checkpoints. Append-only event log model. | Idempotent. Safe under concurrent reads (writes are single-process per slug). |
-| `agent/asr_v2.py` (existing) | Paragraph aggregation. **Add** podcast-tuned thresholds via parameter, not branch. | Thresholds are inputs, not constants. |
-| `src/download.py`, `src/asr.py` | Untouched. Still imported by both layers. | These are the "stable bedrock". Don't refactor. |
-| `vendor/douyin_api/` | Untouched. Cookie patching stays in `agent/douyin_downloader.py`. | Still gitignored. Still requires manual setup. |
+**Key insight:** v1.1 is **purely additive at the artifact layer**. Every new feature either (a) adds a new `output/<slug>/<artifact>.json` sibling, (b) adds a new `python -m agent.tools <subcommand>` (registered in the same `cmds` dict at `tools.py:1344`), or (c) adds a Claude prompt convention enforced inside `CLAUDE.md` `/summarize-video` workflow. **No existing artifact shape changes.** Two new shared artifacts (`output/_glossary.md`, `~/.videoSummary/queue.json`) live OUTSIDE per-slug directories and reuse `agent/_lock.py` for concurrency.
 
 ---
 
-## How Each of the 7 Capabilities Plugs In
+## Per-Feature Integration Plan
 
-Each capability gets its own subsection: **What problem**, **Where the code lives**, **Where Claude's decision lives**, **Backward-compat impact**.
+### CORR-01: ASR Term Correction (3 layers)
 
-### Capability 1 — Adaptive Teaching Output
+**Problem:** `Flux→Flox`, `LoRA→Lora/LOL/Laura`, etc. — ASR mis-spellings poison the entire summary downstream.
 
-**What problem:** Current `/summarize-video` Phases 5-6 produce "字幕翻译式" output for some videos because the prompt prescribes a one-size-fits-all tutorial template. A code-heavy demo, a UI walkthrough, and a podcast all get the same step-numbered structure.
+**Decision: split into 3 distinct integration points, layered.**
 
-**Where the code lives:** **Nowhere new.** This is **pure prompt engineering**, not Python.
+#### L1 — Detection: NEW CLI subcommand `transcribe_lint`
 
-  - **NOT** in a Python module that probes the transcript. Probing is a judgment call — it must stay with Claude.
-  - **NOT** a new CLI command. Claude makes the call inline.
+| Property | Value |
+|----------|-------|
+| Where | NEW `agent/transcribe_lint.py` + NEW handler `cmd_transcribe_lint` in `agent/tools.py` |
+| Input | `output/<slug>/segs.json` (read-only), `output/<slug>/meta.json` (for title/uploader/description hints) |
+| Output | NEW sibling `output/<slug>/transcribe_warnings.json` |
+| K5 | Tool only **detects** suspicious tokens; never modifies `segs.json` |
+| D-29 | Old videos that don't opt-in produce no warnings → no behavior change |
+| Sidecar | `transcribe_warnings.json.params.json` per Phase 2 RES-01 (params: detection thresholds) |
+| Lock | Wrapped in same `FileLock(out_dir / ".resume.lock", timeout=0)` as `cmd_transcribe`/`cmd_aggregate` (per-slug serialization) |
 
-**What changes:**
-  - Augment `CLAUDE.md` Phase 2 ("Read & plan") with an explicit **classification step**: after reading paragraphs.json, Claude commits to a teaching mode (`replicate-guide`, `concept-explanation`, `extension-applications`, `interview-distillation`, or hybrid mix). The mode is recorded in a new optional artifact `output/<slug>/plan.md` (Claude-written, plaintext, no schema enforcement).
-  - Augment Phase 5 with mode-specific output skeletons (still all in CLAUDE.md, not in Python). Each mode names its sections, time-stamp density, code-block expectations.
-  - The user's **single-document** decision (PROJECT.md Key Decisions row 2) means **no template selector at the CLI level** — Claude picks the mode in-context and writes one `summary.md`.
+**Why a new CLI rather than a Claude prompt instruction?**
+- Detection IS mechanical (hapax legomena scan, mixed-script detection, frequency-vs-form-variance Levenshtein clustering, comparison against `meta.title` token-set). It's a pure transform with **no judgment** — passes K5.
+- Reusable: Claude can also read `transcribe_warnings.json` straight from disk in Phase 2 (cheap context).
+- Cacheable: with sidecar, re-runs on same `segs.json` short-circuit (Phase 2 cache pattern).
+- Verifier (CORR-03 sub-agent) can also read it without re-running detection.
 
-**Backward-compat impact:** Zero. Old slugs that don't have `plan.md` still re-run cleanly under either old or new prompt. Old `summary.md` files are not regenerated.
-
-**Why this is right:** Per the North Star — "tools don't make judgments". Adaptiveness IS judgment. If we put it in Python, we'd be hardcoding heuristics ("if word_count > X and code_lines_per_frame > Y → replicate-guide") that will be wrong for the next video. Claude reading the transcript end-to-end is strictly better.
-
-### Capability 2 — Frame fps Automation (the meaty one)
-
-**What problem:** Today Claude must mentally convert "this 4-min code segment deserves dense framing" into 8-12 separate Bash calls with `--start`, `--end`, `--fps` triples, often miscounting boundaries and re-running. High friction for the human reviewing the conversation, and high token cost for Claude doing arithmetic.
-
-**Where the code lives:**
-  - **NEW module:** `agent/scheduler.py` — defines the `Schedule` dataclass and JSON schema. Pure data layer. ~80 LOC.
-  - **NEW CLI subcommand:** `extract_frames_batch` (better name than `extract_frames_planned` — "planned" implies the tool plans, which is wrong). Lives in `agent/tools.py` next to existing `cmd_extract_frames`. ~30 LOC.
-
-**Where Claude's decision lives:**
-  - Claude **writes** the schedule JSON file directly (using the `Write` tool) into `output/<slug>/schedule.json`. This is identical to how Claude already writes `summary.md` — file-as-API.
-  - Claude does NOT invoke a "planner" Python module. There is no planner. Claude is the planner.
-  - The tool only validates the JSON shape and executes ffmpeg N times.
-
-**Schedule file format (proposal):**
+**Schema (locked early in PHASE-CONTEXT, not finalized here):**
 
 ```json
 {
   "version": 1,
-  "video": "video.mp4",
-  "default_scale": "854:-1",
-  "default_quality": 4,
-  "segments": [
+  "warnings": [
     {
-      "start": 0,
-      "end": 30,
-      "fps": 0.2,
-      "label": "intro",
-      "skip": false
-    },
-    {
-      "start": 30,
-      "end": 240,
-      "fps": 0.4,
-      "label": "code-demo-part1"
-    },
-    {
-      "start": 240,
-      "end": 245,
-      "skip": true,
-      "label": "filler-question"
-    },
-    {
-      "start": 245,
-      "end": 600,
-      "fps": 0.3,
-      "label": "code-demo-part2"
+      "para_id": "p0023",                  // Reference into paragraphs.json (or seg_index)
+      "seg_index": 142,                    // Index into segs.json
+      "start": 387.5,
+      "end": 391.2,
+      "suspect_text": "Lora",              // Verbatim ASR token
+      "suggested_text": "LoRA",            // Optional — empty if L1 can't suggest
+      "evidence_source": "title_token",    // One of: title_token, frequency_variance, mixed_script, hapax
+      "confidence": 0.85,                  // L1 detector confidence
+      "context_before": "...用",
+      "context_after": "训练..."
     }
   ]
 }
 ```
 
-  - `version: 1` — schema versioning so future changes don't break old slugs.
-  - `video` — relative path inside the slug dir; defaults to `video.mp4`.
-  - `default_scale` / `default_quality` — match current `agent/tools.py:113` defaults.
-  - `segments[].skip` — first-class way to express "explicitly skip this range" (today Claude just doesn't emit a Bash call for it; making it explicit means the schedule is auditable).
-  - `segments[].label` — human-readable tag, optional, surfaces in stdout for grep-ability (`stdout: extract seg start=30 end=240 fps=0.4 label=code-demo-part1`).
-  - **No** `model_size`, `voice_anchor_score`, or other fields that would tempt the tool to "decide" anything.
+**Important:** Schema is **NOT identical** to `agent/tools.py` Phase 5 `whisper_repetition_guard` warnings (which uses `trigram` + `count`); the two artifacts coexist (one per file, both written to the same `output/<slug>/`).
 
-**CLI invocation:**
+#### L2 — Context correction: pure Claude prompt action (no new code)
 
-```bash
-python -m agent.tools extract_frames_batch \
-  --schedule output/BVxxx/schedule.json \
-  --out output/BVxxx/frames
+Claude reads `transcribe_warnings.json` + `meta.json` during Phase 2. For each warning, Claude infers true spelling using global context and writes a "已自动修正的术语" table to `plan.md`. Subsequent prose generation in Phase 6 uses the corrected forms.
+
+**Why not modify `segs.json` directly?** D-29 violation. `segs.json` is parameter-hashed in `state.jsonl` and consumed by `aggregate`; mutating it would invalidate cache and break old re-runs. Recording corrections in `plan.md` (Claude-authored, additive) preserves the invariant.
+
+#### L3 — Multimodal fallback: prompt instruction in Phase 4
+
+When Phase 4 (frame reading) detects a UI element / title board / code keyword that bears on a CORR-01 warning, Claude prefers the visual reading over the ASR text. This is documented in `CLAUDE.md` `/summarize-video → Phase 4`. **No new artifact**; Claude updates `plan.md` "已自动修正的术语" inline.
+
+#### Build order
+
+```
+CORR-01a (L1 cmd_transcribe_lint + transcribe_warnings.json) →
+CORR-01b (CLAUDE.md prompt for L2/L3 + "已自动修正的术语" plan.md convention) →
+                                                             ↓
+                                                  CORR-03 verifier consumes transcribe_warnings.json
 ```
 
-Implementation: load JSON, validate shape, iterate `segments`, for each non-skip segment call the same ffmpeg block already used by `cmd_extract_frames`. Filename convention `seg_<start>_<index>.jpg` is preserved unchanged so frame-name conventions in `summary.md` and `cleanup_frames` keep working.
+L1 must land before L2 (L2 reads L1's output). L3 is a Phase 4 prompt-only patch that can land independently.
 
-**Backward-compat impact:** Zero. `extract_frames` (single-segment) command stays. Claude can still call it when only one range is needed.
+---
 
-**Build-order dependency:** This blocks Capability 4 (local mp4) and Capability 5 (UI demos / podcasts) only loosely — those work with the old single-segment command too. But mid-failure resume (Capability 6) should know about schedules so it can re-run only the missing segments.
+### CORR-02: In-line Source Trace + Self-Check
 
-### Capability 3 — YouTube + Generic yt-dlp + Capability 4 — Local mp4 Input
+**Problem:** Each claim in `summary.md` should be traceable to a specific frame OR paragraph; uncertain claims should be marked `[?]`.
 
-**What problem:** Today `cmd_download` does `if "douyin.com" in url.lower(): ... else: src.download.download(url)`. Adding YouTube + generic + local would turn that into a 5-branch if-chain. Worse, "local mp4" isn't a download at all — it's a meta.json synthesis step, which doesn't fit the `download` semantics.
+**Decision: prompt-first, optional linter second.**
 
-**Where the code lives:**
-  - **NEW package:** `agent/sources/` — one file per platform.
-  - **NEW pure module:** `agent/url_router.py` — replaces the substring check.
-  - **NEW CLI subcommand:** `ingest` — semantically broader than `download` (handles both URLs and local paths).
-  - **EXISTING `download` subcommand stays** as a backward-compat thin wrapper that calls `ingest` internally with auto-routing.
+#### B-layer (in-line tracing): pure prompt convention
 
-**Source protocol** (`agent/sources/__init__.py`):
+`CLAUDE.md` `/summarize-video → Phase 6` adds a writing rule:
 
-```python
-from typing import Protocol
+```
+Every concrete claim, parameter value, or screenshot reference MUST be followed by:
+  - Frame trace:  [<frame_filename> @ HH:MM:SS]
+  - Paragraph trace: [<para_id> @ HH:MM:SS]
 
-class Source(Protocol):
-    name: str  # "bilibili" | "douyin" | "youtube" | "generic" | "local"
-
-    def match(self, url_or_path: str) -> bool:
-        """Return True iff this source can handle the input."""
-
-    def fetch(self, url_or_path: str, out_dir: Path, **opts) -> dict:
-        """Materialize video.mp4 + meta.json into out_dir. Return meta dict."""
+The trace token is positioned immediately after the claim (before period), e.g.:
+  "Click the [图层面板] eye icon [seg_0152_000010.jpg @ 00:02:32]."
 ```
 
-**Source files:**
+**No new code needed for B-layer to function.** The format-spec lock's 4 invariants (timestamp `[HH:MM:SS]` 8-char, code-fence with language, relative `frames/` path, second-person imperative) are extended to a 5th invariant: **trace token after claim**.
 
-| File | What it does | Reuses |
-|------|--------------|--------|
-| `agent/sources/bilibili.py` | Match `bilibili.com` / `b23.tv` / `BV` slug. Wraps `src.download.download`. | `src/download.py` (no change) |
-| `agent/sources/douyin.py` | Match `douyin.com` / `iesdouyin.com` / `v.douyin.com`. Wraps `agent.douyin_downloader.download_douyin`. | `agent/douyin_downloader.py` (no change) |
-| `agent/sources/youtube.py` | Match `youtube.com/watch` / `youtu.be`. Calls `src.download.download` with YT cookie envvars (`YOUTUBE_COOKIES_FILE` or `YOUTUBE_COOKIES_BROWSER`). | `src/download.py` |
-| `agent/sources/generic.py` | Last-resort fallback for any other URL. Calls `src.download.download` (yt-dlp will try its 1500+ extractors). | `src/download.py` |
-| `agent/sources/local.py` | Match `Path(input).is_file() and suffix in {.mp4, .mkv, .webm, .flv, .mov}`. **Does no download.** Copies (or symlinks where supported) the file into `out_dir/video.mp4`, runs `ffprobe` for duration, synthesizes `meta.json` with `source: "local"`, `title` defaulting to filename stem (Claude can override via `--title`). | ffprobe |
+#### A-layer (self-check + confidence): NEW CLI subcommand `summary_lint`
 
-**Routing** (`agent/url_router.py`):
+| Property | Value |
+|----------|-------|
+| Where | NEW `agent/summary_lint.py` + `cmd_summary_lint` |
+| Input | `output/<slug>/summary.md` (read-only) |
+| Output | NEW sibling `output/<slug>/summary_lint.json` |
+| K5 | Tool only **counts** trace tokens, `[?]` markers, and detects claims-without-traces; never edits `summary.md` |
+| Job | Mechanical regex/parser checks: total claim count, traces present, `[?]` count, format-spec 4 invariants statically checkable |
+| D-29 | Old `summary.md` files that don't have trace tokens → linter reports "missing trace" warnings but never modifies the file |
+| Sidecar | None (it's a one-shot lint, no params worth caching) |
+| Lock | Read-only on `summary.md`; no lock needed (single-summary, single-author) |
 
-```python
-from agent.sources import bilibili, douyin, youtube, local, generic
+**Why a linter rather than Claude self-rates only?**
+- Self-rating is the A-layer per D-02. The linter **measures** what was self-rated (e.g., "5 of 47 claims marked `[?]`, 3 lack any trace token"). This produces the structured signal CORR-03 verifier needs to compute its critical/warning/info delta.
+- Static checks (e.g., bare ```` ``` ```` fence) are pure text — Claude shouldn't waste tokens on them.
 
-# Order matters — first match wins. Local before any URL-based matcher because
-# a local file path is unambiguous and free to test.
-SOURCES = [local, bilibili, douyin, youtube, generic]
-
-def route(url_or_path: str):
-    for src in SOURCES:
-        if src.match(url_or_path):
-            return src
-    raise RuntimeError(f"no source matched: {url_or_path}")
-```
-
-Pure function. ~25 LOC. Trivially unit-testable (good first target for the test-coverage gap noted in CONCERNS §9).
-
-**`ingest` subcommand:**
-
-```bash
-python -m agent.tools ingest <url-or-path> --out output/<slug> [--title "..."] [--source bilibili|douyin|youtube|generic|local]
-```
-
-`--source` overrides the router (useful when Claude knows the URL is mis-detected, e.g. a Bilibili re-upload of a Douyin video).
-
-**`download` subcommand becomes:**
-
-```python
-def cmd_download(args):
-    # Backward-compat shim. Old callers and CLAUDE.md unchanged.
-    return cmd_ingest(args)
-```
-
-**`meta.json` schema, unified:**
-
-```json
-{
-  "source": "bilibili|douyin|youtube|generic|local",
-  "url": "<original URL or absolute local path>",
-  "video_path": "<absolute path to video.mp4>",
-  "title": "...",
-  "uploader": "..." | null,
-  "duration": 600.5,
-  "aweme_id": "..." | null,   // 抖音 only
-  "youtube_id": "..." | null  // YouTube only
-}
-```
-
-Existing `meta.json` files (which lack `source` for old B站 ones) are still valid — readers must tolerate the absence and default to `source: "bilibili"` or `null`. Don't auto-rewrite old files.
-
-**Backward-compat impact:** Zero. Old `download` calls work. Old `meta.json` files work. The substring-check dispatch in `agent/tools.py:42` is **deleted** but its behavior is exactly replicated by the routing table.
-
-**Build-order dependency:** This is **foundational** for Capabilities 5 (new video types — UI demos and podcasts can come from any of these sources) and 6 (resume — needs to know which source to re-run from). Build first.
-
-### Capability 5 — New Video Types (UI Demos, Podcasts/Interviews)
-
-**What problem:** UI demos (non-code software walkthroughs) need slightly different framing strategies (more stable shots, less code-density emphasis). Podcasts/interviews are **画面价值低** — frames matter little, audio structure dominates.
-
-**Architectural question:** Do podcasts get their own pipeline, sharing only `download` + `transcribe`? Do UI demos?
-
-**Answer: NO new pipeline; YES different prompting.** Specifically:
-
-  - **UI demos:** identical Python pipeline (download → transcribe → aggregate → schedule frames → write). The **only** difference is Claude's frame-density choices and the teaching mode (Capability 1). No code change required.
-
-  - **Podcasts/Interviews:** identical Python pipeline up through `aggregate`. Then:
-    - Frame extraction is **optional, sparse** — maybe 1 frame per 2-3 minutes, just for "who's talking" identification or visualizing slides if any. Claude makes the call inline.
-    - The output skeleton (in CLAUDE.md as a teaching mode) emphasizes **speaker turns, key claims, timestamp navigation** rather than step-by-step instructions.
-    - **No new CLI command** — `/summarize-podcast` is NOT warranted. The decision of "this is a podcast → use interview-distillation mode" is made by Claude in Phase 2.
-
-**The boundary line for "warrants its own command":**
-
-| Signal | Verdict |
-|--------|---------|
-| Different download path? | No → same `ingest` |
-| Different transcription? | No → same `transcribe` (faster-whisper handles speech well regardless of code/UI/voice) |
-| Different aggregation parameters? | **Yes for podcasts** — longer paragraphs, different gap threshold |
-| Different frame strategy? | Yes but Claude already controls it via schedule.json |
-| Different output structure? | Yes but that's prompting (CLAUDE.md teaching modes), not Python |
-
-The only place that genuinely diverges is **paragraph aggregation thresholds**. Therefore:
-
-**Code change:** Extend `cmd_aggregate` to accept `--profile {tutorial|podcast}` (default: `tutorial`). The profile selects the threshold tuple `(gap_threshold, max_para_duration, sentence_end_gap)`. Defaults stay at current `(1.5, 30.0, 0.8)` so no existing slug is affected. Podcast profile something like `(2.5, 90.0, 1.5)` (longer breath, longer paras).
-
-**Where Claude decides which profile:** in Phase 2, Claude reads paragraphs.json (with default profile), realizes "this is interview pacing, paragraphs are too choppy", deletes paragraphs.json, re-runs `aggregate --profile podcast`. The decision is Claude's; the parameter is exposed to it.
-
-**Anti-pattern avoided:** Auto-detecting "podcast vs tutorial" from segs.json features. That would be a tool making a judgment.
-
-**Backward-compat impact:** Zero. Default profile = current behavior.
-
-### Capability 6 — Mid-Artifact Failure Resume
-
-**What problem:** Today's "cache by file existence" works great for the happy path but is lossy when:
-  - A `transcribe` run crashes after writing 80% of segs (no partial file currently — `transcribe` is atomic, but a long ASR can be interrupted by Ctrl-C and produces nothing usable).
-  - An `extract_frames_batch` schedule has 8 segments and crashes on the 5th (the first 4 frames are on disk; the next 3 are missing; re-running blindly would re-extract all 8).
-  - The user re-tunes the schedule (changes fps for one segment) and wants to extract only the changed range.
-
-**Where state lives:**
-
-  - **NEW file per slug:** `output/<slug>/state.json` — append-only event log of completed stages and per-segment frame extraction status.
-  - **NEW module:** `agent/state.py` — read/write/checkpoint helpers.
-
-**state.json shape (proposal):**
+**Schema:**
 
 ```json
 {
   "version": 1,
-  "slug": "BVxxx",
-  "events": [
-    {"ts": "2026-04-30T10:00:00Z", "stage": "ingest", "status": "ok", "source": "bilibili"},
-    {"ts": "2026-04-30T10:01:30Z", "stage": "transcribe", "status": "ok", "model": "small", "duration_s": 92.3},
-    {"ts": "2026-04-30T10:01:45Z", "stage": "aggregate", "status": "ok", "profile": "tutorial"},
-    {"ts": "2026-04-30T10:02:00Z", "stage": "extract_frames", "status": "ok", "segment": {"start": 0, "end": 30, "fps": 0.2, "label": "intro"}, "frames_count": 6},
-    {"ts": "2026-04-30T10:02:30Z", "stage": "extract_frames", "status": "ok", "segment": {"start": 30, "end": 240, "fps": 0.4, "label": "code-demo-part1"}, "frames_count": 84},
-    {"ts": "2026-04-30T10:03:00Z", "stage": "extract_frames", "status": "fail", "segment": {"start": 240, "end": 600, "fps": 0.3, "label": "code-demo-part2"}, "error": "ffmpeg exit 1"}
+  "summary_path": "output/BV1xxx/summary.md",
+  "claim_count": 142,
+  "claims_with_trace": 135,
+  "claims_without_trace": [{"line": 89, "snippet": "..."}, ...],
+  "uncertainty_markers": 7,                      // count of "[?]" in body
+  "format_spec_violations": [
+    {"rule": "bare_code_fence", "line": 217, "snippet": "..."},
+    {"rule": "absolute_image_path", "line": 304, "snippet": "..."}
   ]
 }
 ```
 
-  - **Append-only.** Each stage handler appends a JSON object on completion. Crashes between writes mean we lose at most the in-flight stage's record (acceptable — re-running detects the missing record and re-does that stage).
-  - **Reconstructable from events.** `derived_state(events)` returns the highest-watermark for each stage, so consumers ask "is `aggregate` done?" not "what's the latest event?".
-  - **Per-segment granularity for frame extraction.** When `extract_frames_batch` runs against a schedule, it consults state.json to skip already-completed segments. Each segment is keyed by `(start, end, fps, label)` — if any of those change, it's a new segment, do the work.
+#### Build order
 
-**The boundary: "delete and rerun" is still acceptable**
-
-  - For `meta.json`, `segs.json`, `paragraphs.json` (the small JSON artifacts that compute fast or already work as atomic-write): existing file-existence cache is sufficient. state.json adds an audit trail but no behavior change.
-  - For frames (the only stage with batch-of-N execution and meaningful partial-progress cost): state.json is the truth, file existence is the fallback. If state.json is missing or corrupt, the tool falls back to current "skip if frame files match the segment's pattern" behavior.
-
-**Resume semantics:**
-
-```bash
-# explicit
-python -m agent.tools extract_frames_batch --schedule schedule.json --out frames/ --resume
-
-# implicit (default new behavior — read state.json, skip done segments, do missing ones)
-python -m agent.tools extract_frames_batch --schedule schedule.json --out frames/
-
-# force redo
-python -m agent.tools extract_frames_batch --schedule schedule.json --out frames/ --force
 ```
-
-`transcribe`/`aggregate` already have `--force`; we extend the same idiom.
-
-**Backward-compat impact:** Zero. Slugs without state.json are treated as "events list is empty" → current behavior. State.json is created on first new-CLI run for a slug.
-
-**Build-order dependency:** Depends on Capability 2 (schedule format). Comes after sources (Cap 3-4) because state.json records the source.
-
-### Capability 7 — Multi-Agent Parallelism (Nice-to-Have)
-
-**What problem:** Two Claude Code terminals each running `/summarize-video` on different videos should not stomp each other.
-
-**Per-slug isolation is mostly free:**
-  - `output/<slug>/` is already isolated.
-  - `state.json` is per-slug.
-  - `schedule.json` is per-slug.
-  - Whisper model load is per-process (each Claude session spawns its own Python process per command).
-
-**Shared global state — actual hazards:**
-
-| Resource | Hazard | Mitigation |
-|----------|--------|-----------|
-| `vendor/douyin_api/crawlers/douyin/web/config.yaml` | Two concurrent 抖音 downloads each rewrite the cookie line; race condition in `_patch_config_cookie`. (Already flagged in CONCERNS §2.2.) | Add a file-lock advisory lock in `agent/douyin_downloader.py`. Use Python's `portalocker` (cross-platform) or a simple `agent/_lock.py` wrapping `msvcrt.locking` on Windows. Lock the config.yaml during `_patch_config_cookie` + the entire crawler call. Document: "concurrent 抖音 downloads serialize". |
-| `www.douyin.com_cookies.txt` | Read-only; no hazard from concurrent reads. | None. |
-| `.env` | Read-only after `load_dotenv()`. | None. |
-| ffmpeg | Each invocation is a fresh subprocess. CPU/memory contention is the real cost, not correctness. | Document: "concurrent ffmpeg jobs share CPU; expect 2x wall time, not 0.5x". |
-| faster-whisper | Each call loads its own model instance. CPU/RAM contention; can OOM on `medium`/`large` models with two parallel runs. | Document RAM expectations. Optional: a `doctor` subcommand that checks free RAM before transcribe. |
-| Windows file locks on `video.mp4` while ffmpeg reads it | None — multiple ffmpeg readers OK. The slug isolation prevents two writers. | None. |
-
-**Lock file proposal (lightweight):**
-
-`output/<slug>/resume.lock` — created by stage handlers that take >1 minute (`transcribe`, `extract_frames_batch`). Other processes attempting the same stage on the same slug see the lock and either wait, fail loudly, or (if the lock is stale per timestamp) take it. Explicitly **per-slug**, not global.
-
-**Anti-pattern avoided:** Building a queue/scheduler/worker daemon. Per PROJECT.md Out-of-Scope: "队列全自动无人值守批跑" is excluded. Multi-agent here means "two human-driven sessions don't stomp each other", not "supervised batch processor".
-
-**Backward-compat impact:** Zero. Locks are advisory; single-process runs ignore them.
-
-**Build-order dependency:** Last. Skip cleanly if not done — single-agent mode keeps working.
+CORR-02 prompt rule (CLAUDE.md update) → CORR-02 cmd_summary_lint → consumed by CORR-03
+```
 
 ---
 
-## Backward-Compat Strategy (Explicit)
+### CORR-03: Second Verifier Agent
 
-**The promise:** `git checkout` of an old commit, `pip install -r requirements.txt`, `python -m agent.tools download <BV-url> --out output/X` — works identically. No env var required, no flag required, no migration step.
+**Problem:** Even after self-check, Claude may have systematic blind spots in its own writing. A fresh agent rereads with paragraphs + frames + plan and flags discrepancies.
 
-**How that promise is kept:**
+**Decision: a Claude-spawned `Task` subagent (general-purpose), NOT a registered gsd-* agent type.**
 
-1. **No subcommand renamed or removed.** All 5 existing commands (`download`, `transcribe`, `aggregate`, `extract_frames`, `cleanup_frames`) keep their exact signatures. New commands are **added**: `ingest`, `extract_frames_batch`, `doctor`. The old `download` becomes a thin wrapper around `ingest` — observable behavior is identical for B站 and 抖音 URLs.
+| Property | Value |
+|----------|-------|
+| Mechanism | `/summarize-video → Phase 7.5` (NEW phase) calls `Task` tool with `subagent_type: general-purpose` |
+| Subagent prompt | Lives inline in `CLAUDE.md` (or a new file `prompts/summary-verifier.md` referenced by `CLAUDE.md`); contains role + reading list + output format |
+| Subagent reads | `summary.md`, `paragraphs.json`, `plan.md`, `transcribe_warnings.json`, `summary_lint.json`, sample of `frames/*.jpg` (chosen by the subagent based on `summary_lint.json`'s claims-without-trace rows) |
+| Subagent writes | `output/<slug>/REVIEW.md` (Markdown — easy human + Claude diff-friendly) |
+| Auto-rewrite | Parent agent reads `REVIEW.md`, if `critical: N > 0` → triggers ONE rewrite cycle, updates `summary.md` in place |
+| Loop control | Hard cap: **1** rewrite per `/summarize-video` invocation. `state.jsonl` event `rewrite_cycle_completed` records the cap was used; 2nd run requires user to re-issue `/summarize-video` |
+| Token cost | Verifier reads ~80% of writing context (paragraphs + summary + frames sample). Diff-only re-review on 2nd cycle deferred to v1.2 (initial impl: full re-review) |
 
-2. **No artifact format changed in a non-additive way.** `meta.json` gets new optional fields (`source`, `youtube_id`); old readers ignore them. `segs.json`, `paragraphs.json`, frame filenames: unchanged. New artifacts (`schedule.json`, `state.json`, `plan.md`) live alongside; their absence is silently handled.
+**Why NOT a registered `.claude/agents/*.md` (gsd-style)?**
 
-3. **No directory layout changed.** `output/<slug>/` and `output/<slug>/frames/` are sacred. New files go inside the slug dir, never new top-level dirs in the slug.
+This repo has **NO `.claude/agents/`** directory and **NO `.claude/commands/`** directory (verified — `.claude/` contains only `settings.local.json` + worktrees). `/summarize-video` is documented in `CLAUDE.md` and recognized by Claude on the trigger phrase. Adding a registered agent infrastructure JUST for one verifier is over-investment relative to a `Task` invocation. If usage proves the verifier needs richer harness (e.g., dedicated tool allowlist), promote to registered agent in v1.2.
 
-4. **No CLAUDE.md instruction removed.** The 8-phase workflow stays. New phases or sub-steps are **inserted** with explicit "if not using adaptive mode, skip this" guards. Build a parallel block "v2 adaptive workflow" for users who opt in via prompt phrasing — there is no `/summarize-video-v2` slash command file; both flows live in CLAUDE.md.
+**Output schema (Markdown, but structured for diff):**
 
-5. **Feature flags via opt-in CLI flags, not env vars.** Env vars are global and cross-slug-contaminating. CLI flags scope cleanly:
-   - `extract_frames_batch` exists alongside `extract_frames`. Old workflow uses old command.
-   - `ingest --source local <path>` is opt-in for local mp4. Old workflow uses `download <url>`.
-   - `aggregate --profile podcast` is opt-in. Default = old behavior.
-   - `--resume` flag for state-aware reruns. Default = current "skip if exists" behavior.
+```markdown
+# Summary Review: <slug>
 
-6. **The "quick revert" path:** Set the orchestrator (CLAUDE.md) to use only the existing 5 commands. The new modules sit in `agent/` unused. Verifies that the new code is truly additive.
+**Reviewer:** general-purpose Task subagent
+**Date:** YYYY-MM-DD
+**Source:** summary.md (claim_count=142 from summary_lint.json)
 
-**What's explicitly NOT done (anti-patterns to avoid):**
+## Critical (blocks ship)
+- [Line 89] Claim "ECS 比 OOP 性能高 10x" not supported by paragraphs.json or any frame trace.
+  - Suggested fix: remove or trace to source.
 
-  - **No `VERSION` env var or `MODE=v2` flag** controlling pipeline shape. Mode-switching globals are a maintenance trap.
-  - **No deprecation warnings** on the old commands. They're not deprecated; they're parallel valid paths.
-  - **No data migration** of existing `output/<slug>/` directories. The 17 queued + ~58 archived folders are touched by zero migration scripts.
-  - **No removal of `src/`, `agent/prepare.py`, `agent/frames_v2.py`, `agent/embed.py`** etc. Per Out-of-Scope: "重写或废弃现有 agent/ src/ 模块". CONCERNS §1.2 flags these as orphaned, and they stay orphaned. Deletion happens in a separate cleanup milestone, not this one.
+## Warning (should fix before ship)
+- [Line 217] Code fence missing language tag.
+
+## Info (style nit)
+- [Line 12] Term "LoRA" first appears without inline annotation per TEACH-A convention.
+```
+
+#### Build order
+
+```
+CORR-02 (linter + traces) → CORR-03 (verifier reads linter output) → REVIEW.md → optional rewrite
+                                                                            ↑
+                                                                  TEACH-A glossary checks fold into Critical/Warning categorization
+```
 
 ---
 
-## Build Order (Dependency DAG)
+### TEACH-A: Zero-baseline Self-contained Summary
+
+**Problem:** No assumed reading order, no assumed prior knowledge.
+
+**Decision: 3 components, all prompt-first; only the cross-slug `_glossary.md` requires concurrency code.**
+
+#### Component 1: Inline term annotation
+
+Pure prompt convention in `CLAUDE.md` `/summarize-video → Phase 6`:
 
 ```
-                    ┌──────────────────────────────┐
-                    │ 0. URL Router + Source       │
-                    │    Protocol (foundation)     │
-                    │    agent/url_router.py       │
-                    │    agent/sources/__init__.py │
-                    └──────────┬───────────────────┘
-                               │
-                ┌──────────────┴──────────────┐
-                ▼                             ▼
-    ┌───────────────────────┐    ┌────────────────────────┐
-    │ 1. Source: bilibili,   │    │ 2. Source: youtube,    │
-    │    douyin (refactor    │    │    generic, local      │
-    │    existing into       │    │    (NEW capability)    │
-    │    sources/)           │    │                        │
-    └──────────┬─────────────┘    └────────────┬───────────┘
-               │                                │
-               └──────────────┬─────────────────┘
-                              ▼
-              ┌───────────────────────────────┐
-              │ 3. ingest subcommand          │
-              │    download → ingest shim     │
-              │    (Caps 3 + 4 functional)    │
-              └──────────────┬────────────────┘
-                             │
-              ┌──────────────┼──────────────────┐
-              ▼              ▼                  ▼
-   ┌──────────────────┐ ┌────────────────┐ ┌──────────────────┐
-   │ 4. Schedule      │ │ 5. aggregate   │ │ 6. CLAUDE.md     │
-   │    format +      │ │    --profile   │ │    teaching      │
-   │    extract_      │ │    podcast     │ │    modes         │
-   │    frames_batch  │ │    (Cap 5      │ │    (Cap 1        │
-   │    (Cap 2 core)  │ │     partial)   │ │     adaptive)    │
-   └────────┬─────────┘ └────────────────┘ └──────────────────┘
-            │
-            ▼
-   ┌──────────────────┐
-   │ 7. state.json    │
-   │    + resume      │
-   │    semantics     │
-   │    (Cap 6)       │
-   └────────┬─────────┘
-            │
-            ▼
-   ┌──────────────────┐
-   │ 8. Locking +     │
-   │    doctor        │
-   │    subcommand    │
-   │    (Cap 7,       │
-   │     nice-to-     │
-   │     have)        │
-   └──────────────────┘
+First mention of any non-trivial term: 术语 (English/中文释义).
+Subsequent mentions: bare 术语, with optional "(详见 output/_glossary.md)".
 ```
 
-**Critical path observations:**
+No new code.
 
-  - **0 → 3 unblocks Capabilities 3 + 4 in one shot.** Don't build YouTube without first refactoring the existing sources into the new pluggable shape, or you'll end up with a 4-way if-chain.
-  - **Capability 1 (adaptive) is parallel.** It's just CLAUDE.md edits. Can ship before, after, or alongside any code work. Lowest risk, highest UX win — consider shipping first.
-  - **Capability 2 (fps automation) and Capability 6 (resume) are coupled.** Resume needs to know about the schedule to skip done segments. Build schedule first, then state.json reads schedules.
-  - **Capability 5 (new video types) splits in two:** the prompting half ships with Capability 1 (CLAUDE.md only); the aggregation-profile half ships independently as a small `cmd_aggregate` parameter.
-  - **Capability 7 (parallelism) goes last and is genuinely nice-to-have.** Even without the file lock, two concurrent 抖音 downloads have a race window of milliseconds. Two concurrent transcribes on different videos work fine today (different slugs, different processes). The hazard is real but rare.
+#### Component 2: Per-summary "你需要知道什么" header
 
-**Recommended phase grouping for the roadmap:**
+Embedded in `summary.md` (NOT a separate file). New mandatory Phase 6 section before the body:
 
-  - **Phase A — Adaptive output (CLAUDE.md only).** Ship Capability 1. ~0 LOC Python, all prompting. Validates the "Claude as decision-maker" architecture works for teaching depth.
-  - **Phase B — Source refactor + new sources.** Capabilities 3 + 4 + the aggregation-profile slice of 5. Foundational; everything depends on a unified `meta.json` source field eventually.
-  - **Phase C — Schedule + batch frame extraction.** Capability 2. The biggest friction reducer.
-  - **Phase D — Resume + state.json.** Capability 6. Builds on Phase C's schedule format.
-  - **Phase E — Parallelism polish.** Capability 7. Optional.
+```markdown
+> ## 读这篇前你需要知道什么
+> - [3-5 prerequisites]
+> ## 你不需要知道什么
+> - [things this video does NOT require despite seeming relevant]
+```
+
+No new code; format-spec extension only.
+
+#### Component 3: Cross-slug `output/_glossary.md` accumulator
+
+| Property | Value |
+|----------|-------|
+| Location | `output/_glossary.md` (top-level under `output/`, NOT inside any slug dir) |
+| Schema | Append-only Markdown; one H2 per term, body = definition + first-seen-in slug |
+| Lock | NEW `output/_glossary.md.lock` via existing `agent/_lock.py:FileLock` |
+| Writer | NEW CLI subcommand `glossary append --slug <slug> --term "LoRA" --definition "..."` (cmd_glossary_append) — Claude calls in Phase 6 once per new term |
+| K5 | Tool just appends; never decides what's a term (Claude decides) |
+| Race condition | Two terminals writing different terms simultaneously → FileLock serializes. Same slug + same term twice → idempotency: append checks "if H2 anchor for slug+term exists, skip" |
+| D-29 | Pure additive top-level file; old slugs without entries unaffected |
+
+**Schema design:**
+
+```markdown
+# Glossary
+
+<!-- Auto-managed by `python -m agent.tools glossary append`. Hand-edit OK between runs. -->
+
+## LoRA
+
+> Low-Rank Adaptation. 用少量参数微调大模型的方法。
+>
+> First seen in: [BV1xxx](BV1xxx/summary.md) (2026-05-04)
+
+## 47-tile autotile
+
+> 8-邻接二值组合去对称后唯一的 47 张图块拼接算法。
+>
+> First seen in: [BV1HG9JBsEPK](BV1HG9JBsEPK/summary.md) (2026-04-30)
+```
+
+Append-only schema preserves human edit history; `glossary append` is **idempotent on duplicate (slug, term)** by checking for existing H2 anchor + slug-link before write.
+
+**Why not full rewrite each time?** Append-only avoids losing manual edits; lock contention is minimized (locks only the append, not the whole file scan).
+
+#### Build order
+
+```
+TEACH-A.1 (inline annotation prompt) — independent, no code
+TEACH-A.2 (header section prompt) — independent, no code
+TEACH-A.3 (cmd_glossary_append + _glossary.md + lock) — has code, depends on agent/_lock.py (already shipped Phase 6 PARA-01)
+```
 
 ---
 
-## Data Flows for the 3 Most Novel Features
+### TEACH-B: 5-min TL;DR Block
 
-### Flow A: Adaptive Teaching Output
+**Decision: embedded in same `summary.md` (mandatory NEW section), NOT separate file.**
 
-```
-Phase 1: Bash → ingest, transcribe, aggregate         [unchanged]
-Phase 2: Read meta.json + paragraphs.json
-         ↓
-         Claude classifies video type (in-context)
-         ↓
-         Claude commits to teaching mode + outline
-         ↓
-         Write output/<slug>/plan.md  ← NEW (free-form, optional)
-Phase 3: Claude writes schedule.json (see Flow B)     [NEW for adaptive path]
-Phase 4: Read frames                                  [unchanged]
-Phase 5-6: Claude writes summary.md per chosen mode   [mode-aware prompting]
-```
+| Question | Answer |
+|----------|--------|
+| Where in summary.md? | Right after the H1 + "读这篇前你需要知道" block, before "## 一、" body |
+| Format | NEW format-spec invariant: `## 5 分钟速读版` H2 mandatory if `paragraphs.json[-1].end > 1800` (30 min) |
+| Schema | Markdown bullets: 核心结论 (1-3 lines) / 工作流速查表 / 必看时间戳 (3-5 anchors) |
+| Why not separate file? | Single-file rule: "find one file, get the whole thing." Splitting into `summary_tldr.md` violates D-01 self-contained spirit. |
+| Trigger threshold | Duration-driven: long videos (≥ 30 min) MUST have it; shorter videos optional. Encoded in CLAUDE.md prompt, NOT a tool gate. |
 
-No Python module sees the teaching mode. It exists only in `plan.md` (audit trail) and in Claude's context. The mode does not affect any tool behavior except via the schedule (Claude chooses denser fps for replicate-guide vs sparser for podcast mode).
-
-### Flow B: fps Automation
-
-```
-Phase 2: Claude reads paragraphs.json
-         ↓
-         Claude composes Schedule object in-context
-         ↓
-         Write output/<slug>/schedule.json
-Phase 3: Bash → extract_frames_batch --schedule schedule.json --out frames/
-         ↓
-         agent/scheduler.py: load + validate JSON
-         ↓
-         For each non-skip segment:
-           1. Read state.json (Flow D); skip if segment already done
-           2. ffmpeg with the same filename pattern as existing extract_frames
-           3. Append "extract_frames" event to state.json
-         ↓
-         Stdout: per-segment summary (start, end, fps, frames_count, label)
-```
-
-The tool is a loop over the existing `extract_frames` core. No new ffmpeg semantics. The novelty is the JSON shape and the per-segment state recording.
-
-### Flow C: Podcast/Interview Pipeline
-
-```
-ingest:              [unchanged] — yt-dlp or local handles podcast video files identically
-transcribe:          [unchanged] — faster-whisper handles speech regardless of content type
-aggregate --profile podcast:
-         ↓
-         agent/asr_v2.py: aggregate_paragraphs(segs, gap=2.5, max_dur=90, sentence_gap=1.5)
-         ↓
-         paragraphs.json with longer, speaker-turn-shaped paragraphs
-Phase 2: Claude reads → recognizes podcast → "interview-distillation" mode
-Phase 3: Claude writes a sparse schedule.json (1 frame per ~2 min, just for slide/face capture)
-         ↓
-         extract_frames_batch (small N)
-Phase 5-6: Claude writes summary.md in interview-distillation mode
-         (timestamp-anchored claims, speaker turns, key takeaways)
-```
-
-The only Python divergence is the `--profile` parameter on `aggregate`. Everything else is prompting + Claude judgment.
-
-### Flow D: Mid-Failure Resume
-
-```
-Any stage runs → on success, append event to state.json
-              → on failure, append fail event with error string
-
-Re-running a stage on the same slug:
-   1. Read state.json
-   2. Compute derived state: highest watermark per stage
-   3. For atomic stages (ingest, transcribe, aggregate): if last event is "ok", skip (existing behavior); if "fail" or missing, redo (existing behavior)
-   4. For batched stages (extract_frames_batch): per segment, check if a matching "ok" event exists; skip those, do missing ones
-   5. If state.json is missing/corrupt: fall back to file-existence cache (current behavior)
-```
-
-state.json is **augmenting**, never **authoritative-alone**. File existence remains the ground truth — state.json is a richer index over it.
+**No new code.** Pure CLAUDE.md prompt extension. Verifier (CORR-03) checks the section exists when duration warrants.
 
 ---
 
-## Anti-Patterns (Domain-Specific)
+### TOOL-A: `mode_signals.json` (Mode Classification Helper)
 
-### Anti-Pattern 1: Auto-Detecting Video Type in Python
+**Problem:** Claude eyeballs paragraphs + intuits primary mode. Wrong → expensive rewrite.
 
-**What people do:** Write a `agent/classifier.py` that probes paragraphs.json features (avg paragraph length, code-symbol density, named-entity ratio) and outputs `video_type: "tutorial"|"podcast"|"ui_demo"`.
+**Decision: NEW CLI subcommand modeled exactly on `cmd_detect_scenes` (the K5 precedent at `agent/tools.py:798-832`).**
 
-**Why it's wrong:** This is judgment, not transformation. It will be wrong on edge cases (a podcast about coding, a tutorial that's mostly talking-head). Tuning the heuristics becomes the project. Claude reading the transcript handles ambiguity natively.
+| Property | Value |
+|----------|-------|
+| Where | NEW `agent/mode_signals.py` + `cmd_mode_signals` |
+| Input | `output/<slug>/paragraphs.json` (read-only) |
+| Output | NEW sibling `output/<slug>/mode_signals.json` |
+| K5 | Tool emits **signals + suggested mode**; Claude still decides and writes `plan.md`. Statically asserted: source contains no reference to `plan.md` filename (mirrors `cmd_detect_scenes` K5 assertion) |
+| Sidecar | `mode_signals.json.params.json` — params: which signals computed, which version of regex patterns |
+| Lock | Wrapped in `FileLock(state_dir / ".resume.lock", timeout=0)` — same per-slug serialization as detect_scenes/silence |
+| D-29 | Old slugs that don't run this never get the artifact |
 
-**Do this instead:** Claude reads paragraphs.json in Phase 2 and decides. The decision is recorded in `plan.md` for audit, not consumed by any tool.
+**Schema:**
 
-### Anti-Pattern 2: A "Smart" extract_frames That Picks fps For You
+```json
+{
+  "version": 1,
+  "video": "video.mp4",
+  "signals": {
+    "code_fence_density":        {"per_paragraph": 0.42, "interpretation": "high → replicate-guide"},
+    "step_marker_density":       {"per_paragraph": 0.31, "interpretation": "high → replicate-guide"},
+    "question_form_ratio":       {"per_paragraph": 0.05, "interpretation": "low → not interview"},
+    "speaker_turn_signals":      {"intro_phrase_count": 0, "interpretation": "no guest intro"},
+    "cross_tool_comparison_count": {"count": 0, "interpretation": "no extension-applications signal"}
+  },
+  "suggested_primary": "replicate-guide",
+  "suggested_secondary": null,
+  "confidence": 0.78,
+  "rationale": "code_fence_density 0.42 + step_marker_density 0.31 dominate; no podcast or comparison signals"
+}
+```
 
-**What people do:** Add `extract_frames_auto` that runs voice-anchor regex (`agent/frames_v2.py:VOICE_ANCHOR_PATTERNS`) over paragraphs.json and emits frames at "interesting" timestamps.
+**Where Claude consumes:** Phase 2 (after `aggregate`, before writing `plan.md`). Read it, sanity-check against own intuition, write `plan.md` with mode decision (which may agree or override).
 
-**Why it's wrong:** This is exactly what `agent/frames_v2.py` does and exactly why it was abandoned (CONCERNS §1.2). The 19-pattern regex misses obvious cues (CONCERNS §2.7). The score thresholds are tuning-locked. **The tool decided, and it decided badly.** Worse, when it decides poorly, Claude can't override gracefully.
+#### Build order
 
-**Do this instead:** `extract_frames_batch` consumes Claude's schedule. Claude is the only thing that "scores" segments — by reading the transcript with a brain.
-
-### Anti-Pattern 3: A Unified `pipeline` Subcommand
-
-**What people do:** Add `python -m agent.tools pipeline <url>` that does ingest → transcribe → aggregate → schedule → extract → write in one shot.
-
-**Why it's wrong:** Removes Claude from the loop. The whole point of staged invocation is that Claude makes a decision **between** stages (which fps, which frames to read, which mode). A monolithic `pipeline` reverts to the v1 `src/cli.py` model that was abandoned.
-
-**Do this instead:** Stages stay separate. Claude orchestrates. If batching multiple slugs is desired, that's a separate manual loop, not a pipeline command.
-
-### Anti-Pattern 4: state.json as Authoritative Truth
-
-**What people do:** Treat state.json as the cache key. If state.json says transcribe is done but segs.json is missing, trust state.json and skip transcribe.
-
-**Why it's wrong:** state.json can be stale (manual file deletion, partial backup restore, copy-paste of slug dir). Files on disk are reality.
-
-**Do this instead:** state.json is an index. File-existence checks are still authoritative. A stage runs if EITHER (state.json says undone) OR (artifact missing). A stage skips if BOTH (state.json says done) AND (artifact present).
-
-### Anti-Pattern 5: Versioning the Pipeline via env Var
-
-**What people do:** `VIDEOSUMMARY_VERSION=v2 python -m agent.tools download ...` to switch between old and new code paths.
-
-**Why it's wrong:** Global mode switches contaminate every command. A v2 download that crashes mid-run leaves a v2-shaped meta.json that v1 transcribe might mis-parse. The combinatorial test surface explodes.
-
-**Do this instead:** New behaviors get new subcommands or new flags. Old subcommands keep their old behavior. The CLI surface area grows; existing surface stays frozen.
+```
+TOOL-A is independent of CORR-* and TEACH-* — can land in any phase.
+However: pairs naturally with TOOL-B (both K5 read-only signal emitters; same testing scaffold).
+```
 
 ---
 
-## Specific File/Module Proposals (Concrete Names + Sketch LOC)
+### TOOL-B: `schedule_suggestion.json` (FPS Strategy Helper)
 
-| Path | Status | Purpose | Est. LOC |
-|------|--------|---------|----------|
-| `agent/url_router.py` | NEW | Pure routing function `route(url_or_path) -> Source`. | 25 |
-| `agent/sources/__init__.py` | NEW | `Source` Protocol, registry list, `route()` re-export. | 30 |
-| `agent/sources/bilibili.py` | NEW | Match B站 URLs; thin wrapper over `src.download.download`. | 25 |
-| `agent/sources/douyin.py` | NEW | Match 抖音 URLs; thin wrapper over `agent.douyin_downloader`. | 20 |
-| `agent/sources/youtube.py` | NEW | Match YT URLs; yt-dlp w/ YT cookie envvars. | 50 |
-| `agent/sources/generic.py` | NEW | Fallback yt-dlp call. | 20 |
-| `agent/sources/local.py` | NEW | Match local paths; copy + ffprobe + meta synth. | 60 |
-| `agent/scheduler.py` | NEW | `Schedule` dataclass, JSON load/save, validate. | 80 |
-| `agent/state.py` | NEW | state.json append-event + derived-state. | 100 |
-| `agent/_lock.py` | NEW (Cap 7) | Cross-platform file lock helper. | 40 |
-| `agent/tools.py` | EXTEND | Add `cmd_ingest`, `cmd_extract_frames_batch`, `cmd_doctor`. Keep `cmd_download` as shim. | +120 |
-| `agent/asr_v2.py` | EXTEND | `aggregate_paragraphs` accepts profile dict; expose `PROFILES` constant. | +30 |
-| `agent/douyin_downloader.py` | EXTEND | Wrap `_patch_config_cookie` + crawler call in advisory file lock. | +20 |
-| `CLAUDE.md` | EXTEND | Add Phase 2 classification step, Phase 3 schedule.json step, teaching modes section, podcast workflow note. | +150 lines |
-| `tests/` (new dir) | NEW | First unit tests: `test_url_router.py`, `test_scheduler.py`, `test_state.py`. Targets the pure-function modules. | 200 |
-| `output/<slug>/schedule.json` | NEW artifact | Per-slug, written by Claude. | (data) |
-| `output/<slug>/state.json` | NEW artifact | Per-slug, written by tools. | (data) |
-| `output/<slug>/plan.md` | NEW artifact | Per-slug, written by Claude in Phase 2. Optional. | (data) |
-| `output/<slug>/resume.lock` | NEW artifact | Per-slug, advisory; auto-removed on stage end. | (data) |
+**Problem:** Claude hand-writes `schedule.json` from `paragraphs.json` + `scenes.json` + `silence_map.json`. Mechanical wiring.
 
-**Modules NOT touched:** `src/download.py`, `src/asr.py`, `src/cli.py`, `src/pipeline.py`, `src/budget.py`, `vendor/douyin_api/*`. Touching them would risk the legacy fallback path and put us in a refactor that PROJECT.md Out-of-Scope explicitly forbids.
+**Decision: NEW CLI subcommand modeled exactly on `cmd_detect_scenes`.**
 
-**Tests-first opportunity:** `agent/url_router.py`, `agent/scheduler.py`, `agent/state.py`, `agent/asr_v2.py:aggregate_paragraphs` are all pure functions or pure-data layers. They are tractable for the codebase's first real unit tests (closing CONCERNS §9.1's "zero unit tests" gap) without requiring fixture videos.
+| Property | Value |
+|----------|-------|
+| Where | NEW `agent/schedule_suggestion.py` + `cmd_schedule_suggest` |
+| Input | `output/<slug>/paragraphs.json` + (optional) `output/<slug>/scenes.json` + (optional) `output/<slug>/silence_map.json` |
+| Output | NEW sibling `output/<slug>/schedule_suggestion.json` |
+| K5 | Tool emits **suggested segments**; Claude reads, edits, writes `schedule.json`. **Statically asserted via test:** `agent/schedule_suggestion.py` source MUST NOT reference filename `schedule.json` (only `schedule_suggestion.json`). Mirrors the existing K5 assertion in `cmd_detect_scenes` test. |
+| Sidecar | `schedule_suggestion.json.params.json` (Phase 2 RES-01) |
+| FPS-04 baseline | Suggestion ALWAYS includes a baseline `fps ≤ 0.1` segment spanning full duration (FPS-04 fallback path). Claude can override but shouldn't accidentally violate the strict-OR-fallback gate. |
+| Lock | per-slug `.resume.lock` |
+| D-29 | Additive |
+
+**Schema:**
+
+```json
+{
+  "version": 1,
+  "video": "video.mp4",
+  "suggested_segments": [
+    {"start": 0.0, "end": 30.0, "fps": 0.1, "label": "intro", "rationale": "no scene cuts, low signal"},
+    {"start": 30.0, "end": 360.0, "fps": 0.4, "label": "code-demo", "rationale": "8 scene cuts in 5 min + paragraph density high"},
+    {"start": 360.0, "end": 600.0, "fps": 0.05, "label": "talkthrough", "rationale": "silence > 5s spans, mostly verbal"},
+    {"start": 0.0, "end": 600.0, "fps": 0.05, "label": "fps-04-baseline", "rationale": "mandatory FPS-04 baseline"}
+  ],
+  "suggestion_meta": {
+    "scene_cut_count": 14,
+    "flagged_silences": 2,
+    "uses_silence_map": true,
+    "uses_scenes_json": true
+  }
+}
+```
+
+> **Note:** Suggestion segments may overlap (e.g. baseline + targeted). The actual `schedule.json` Claude writes must conform to non-overlap (D-05.3); Claude resolves overlaps when authoring the final.
+
+---
+
+### MISC-01: AV1 Warning Downgrade
+
+**Problem:** `WARNING | Codec av1 detected; ...` is noisy false alarm.
+
+**Decision:** Trivial. Change in `agent/sources/_common.py` (where `ffprobe_video` warns on codec) — `log.warning(...)` → `log.info(...)`. **Single-line change, no architecture impact.**
+
+Other repeated noisy warnings (e.g., "vendor douyin config patched" — already INFO per `_log` pattern) audited in same plan.
+
+---
+
+### MISC-02: Video Queue Helper CLI
+
+**Problem:** 17-video queue tracked in user memory file.
+
+**Decision: NEW CLI subcommand suite + cross-slug state file with FileLock.**
+
+| Property | Value |
+|----------|-------|
+| Where | NEW `agent/queue.py` + `cmd_queue_*` handlers in `tools.py` |
+| State file | `~/.videoSummary/queue.json` (per CANDIDATES — keeps queue invariant across all repo clones / worktrees; if user has multi-worktree workflow, single source of truth) |
+| Subcommands | `queue add <url> [--label X]` / `queue list` / `queue next` (peek+show next) / `queue done <slug>` / `queue skip <slug> [--reason X]` |
+| Schema | `{"version": 1, "items": [{"url": "...", "slug": "...", "added_at": "...", "status": "queued|done|skipped", "label": "..."}]}` |
+| Lock | NEW `~/.videoSummary/.queue.lock` via `agent/_lock.py:FileLock` |
+| K5 | `queue next` doesn't auto-trigger `/summarize-video`; user manually invokes per CANDIDATES "Out of Scope row 4" |
+| Cross-terminal | Two terminals doing `queue add` simultaneously → FileLock serializes; `queue list` reads under shared lock (or no-lock + tolerant retry on JSON decode error per `agent/io.py` precedent) |
+| D-29 | New file in $HOME, doesn't touch any `output/<slug>/` |
+| Git/IPython | `~/.videoSummary/` should appear in `.gitignore` of HOME (not the project) — document in CLAUDE.md `## Multi-terminal parallel` section |
+
+**No new dependency.** stdlib + existing FileLock.
+
+#### Build order
+
+```
+MISC-02 is fully independent — no upstream/downstream dependency on other v1.1 features.
+Can land first as warm-up, since it exercises FileLock pattern (already shipped) on a new cross-host artifact.
+```
+
+---
+
+## Component Responsibilities (v1.1 NEW only)
+
+| Component | Responsibility | Model |
+|-----------|----------------|-------|
+| `agent/transcribe_lint.py` | Pure-function L1 detector: scan segs.json + meta.json → suspicious tokens | Mirrors `agent/scenes.py` (scene detector wrapper) |
+| `agent/summary_lint.py` | Pure-function checker: parse summary.md → trace counts, format violations | New, no precedent — pure regex/parser |
+| `agent/mode_signals.py` | Pure-function classifier: paragraphs → signal map + suggested mode | Mirrors `agent/silence.py` (signal emitter) |
+| `agent/schedule_suggestion.py` | Pure-function planner: paragraphs + scenes + silence → suggested fps segments | Mirrors `agent/silence.py` |
+| `agent/queue.py` | State-file CRUD on `~/.videoSummary/queue.json` w/ lock | Mirrors `agent/_lock.py` usage in `tools.py` |
+| `agent/glossary.py` | Append-only writer to `output/_glossary.md` w/ lock + idempotency | New, lock pattern from `_lock.py` |
+| (No code) Phase 7.5 verifier subagent | Spawned by parent Claude via `Task` tool | New phase in `/summarize-video` |
+| (No code) `transcribe_warnings.json` consumer | Claude reads in Phase 2, writes corrections to `plan.md` | Prompt convention only |
+| (No code) Inline trace tokens, `[?]` markers, TL;DR section, inline annotations | Format-spec extensions in `CLAUDE.md` Phase 6 | Prompt convention only |
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: K5 Read-Only Signal Emitter (REUSED from v1.0 Phase 4)
+
+**What:** A new CLI command that reads existing artifacts, computes mechanical signals, writes a NEW sibling JSON, and **never** writes/edits the artifact Claude uses for decisions.
+
+**When:** Any time a v1.1 feature wants to "help Claude decide X" without taking the decision.
+
+**v1.0 precedent (`agent/tools.py:798-887`):**
+
+```python
+def cmd_detect_scenes(args):
+    """K5 enforcement: this handler writes ONLY the scenes artifact and NEVER
+    auto-promotes scene boundaries into segment plans. The locked acceptance
+    test asserts this function's source contains no reference to the schedule
+    artifact filename."""
+    ...
+    obj = {"version": 1, "video": ..., "scenes": scenes}
+    write_json_atomic(out, obj)  # writes scenes.json — never schedule.json
+```
+
+**v1.1 reuses for:** TOOL-A `mode_signals`, TOOL-B `schedule_suggest`, CORR-01 L1 `transcribe_lint`, CORR-02 `summary_lint`.
+
+**Static K5 test pattern** (locks the boundary in CI / unittest):
+
+```python
+def test_K5_mode_signals_does_not_touch_plan():
+    src = Path("agent/mode_signals.py").read_text()
+    assert "plan.md" not in src
+    src2 = Path("agent/tools.py").read_text()
+    fn = inspect.getsource(cmd_mode_signals)
+    assert "plan.md" not in fn
+```
+
+### Pattern 2: Sidecar-Cached Artifact (REUSED from v1.0 Phase 2)
+
+**What:** Each derived JSON gets a `<artifact>.json.params.json` sidecar storing input params hash + tool versions. Re-runs short-circuit when sidecar matches.
+
+**Used by:** All new K5 tools that take a `--out` flag.
+
+**Reference:** `agent/io.py:write_json_atomic(..., sidecar_params=current_sidecar)`, `cache_decision()`.
+
+### Pattern 3: FileLock-Serialized Cross-Slug Artifact (REUSED from v1.0 Phase 6)
+
+**What:** Cross-terminal mutation of a shared file (outside per-slug dir) goes through `agent/_lock.py:FileLock`.
+
+**v1.1 uses for:** `output/_glossary.md`, `~/.videoSummary/queue.json`, `vendor/douyin_api/*/config.yaml` (already shipped).
+
+**Race semantics for `_glossary.md`:**
+- Two terminals: Terminal A appends "LoRA", Terminal B appends "ECS". FileLock serializes appends; final file has both.
+- Same term twice: Idempotency check inside `cmd_glossary_append` — if H2 anchor `## <term>` AND link to `<slug>/summary.md` both exist, no-op.
+- User hand-edits between runs: Append-only preserves edits.
+
+### Pattern 4: Claude-Authored Artifact (REUSED from v1.0 Phase 5)
+
+**What:** Some artifacts are written by Claude (`plan.md`, `schedule.json`, `chapters.json`), not by tools. They have a `.params.json` sidecar recording who-asked but no params hash.
+
+**v1.1 uses for:** `REVIEW.md` (CORR-03 sub-agent's output) — written by the verifier subagent via `Write` tool.
+
+### Pattern 5: Subagent-as-Phase (NEW)
+
+**What:** A `/summarize-video` phase delegates a chunk of work to a `Task(subagent_type=general-purpose)` invocation with its own prompt + reading list.
+
+**Why new:** v1.0's `/summarize-video` was monolithic — one Claude reads everything. v1.1 introduces the verifier as a separate Claude with fresh context to escape the writer's blind spots.
+
+**Trade-offs:**
+- (+) Fresh perspective, no anchoring to writer's prose
+- (+) Token-isolated (verifier doesn't share writer's context)
+- (-) Roughly doubles tokens vs single-pass
+- (-) `Task` tool spawns sub-instance — single-process, no IPC needed beyond filesystem
+
+**Loop control:** Hard cap of 1 rewrite per `/summarize-video` invocation; `state.jsonl` records `rewrite_cycle_completed`. 2nd invocation needed to retry.
+
+---
+
+## Data Flow (v1.1 NEW paths)
+
+### CORR-01 + CORR-02 + CORR-03 Combined Flow
+
+```
+[Phase 1 download/transcribe/aggregate] → segs.json + paragraphs.json + meta.json
+        ↓
+[NEW] python -m agent.tools transcribe_lint <slug>
+        → transcribe_warnings.json (sidecar cached)
+        ↓
+[Phase 2] Claude reads transcribe_warnings.json + meta.json
+        → writes plan.md (with "已自动修正的术语" table for L2/L3)
+        ↓
+[Phase 3-5: extract_frames + frame reading + outline] (UNCHANGED)
+        ↓
+[Phase 6] Claude writes summary.md WITH inline traces [seg_xxx.jpg @ HH:MM:SS] + [?] markers + glossary terms + TL;DR (if duration warrants)
+        ↓ (also calls)
+[NEW] python -m agent.tools glossary append <slug> --term ... (per new term)
+        → output/_glossary.md (lock-serialized)
+        ↓
+[NEW] python -m agent.tools summary_lint <slug>
+        → summary_lint.json (claim count, traces, format violations)
+        ↓
+[NEW Phase 7.5] Claude spawns Task subagent (general-purpose)
+        Subagent reads: summary.md + paragraphs.json + plan.md +
+                        transcribe_warnings.json + summary_lint.json + frames sample
+        Subagent writes: REVIEW.md
+        ↓
+[Parent Claude] reads REVIEW.md
+        IF critical_count > 0 AND rewrite_cycle == 0:
+            rewrite summary.md (max 1 cycle)
+            re-run summary_lint.json
+            log state.jsonl: rewrite_cycle_completed
+        ↓
+[Phase 8 cleanup_frames] (UNCHANGED)
+```
+
+### TOOL-A + TOOL-B Combined Flow
+
+```
+[Phase 1 download/transcribe/aggregate] → paragraphs.json
+        ↓
+[NEW, optional] python -m agent.tools mode_signals <slug>
+        → mode_signals.json
+        ↓
+[NEW, optional] python -m agent.tools detect_scenes / detect_silence (UNCHANGED)
+        → scenes.json + silence_map.json
+        ↓
+[NEW, optional] python -m agent.tools schedule_suggest <slug>
+        → schedule_suggestion.json
+        ↓
+[Phase 2] Claude reads mode_signals.json (override own intuition or confirm) → plan.md
+        ↓
+[Phase 3] Claude reads schedule_suggestion.json (edits, removes overlaps, finalizes) → schedule.json
+        ↓
+[NEW Phase 3 invocation] python -m agent.tools extract_frames_batch (UNCHANGED — consumes Claude's final schedule.json)
+```
+
+### MISC-02 Queue Flow (out-of-band, single-user)
+
+```
+$ python -m agent.tools queue add https://www.bilibili.com/video/BV1xxx
+  → ~/.videoSummary/queue.json (lock-serialized add)
+
+$ python -m agent.tools queue next
+  → prints next queued URL + slug
+
+$ /summarize-video <url>  (manual user trigger; queue does NOT auto-invoke)
+  → output/<slug>/ pipeline runs
+
+$ python -m agent.tools queue done <slug>
+  → marks status: done in queue.json
+```
+
+---
+
+## Recommended Project Structure (v1.1)
+
+```
+agent/                                  # UNCHANGED layout, NEW files added
+├── tools.py                            # MODIFIED: new cmd_* + new subparsers (~150 LOC delta)
+├── _lock.py                            # UNCHANGED (Phase 6)
+├── io.py                               # UNCHANGED
+├── scheduler.py                        # UNCHANGED
+├── state.py                            # UNCHANGED
+├── transcribe_lint.py                  # NEW (CORR-01 L1)
+├── summary_lint.py                     # NEW (CORR-02 helper)
+├── mode_signals.py                     # NEW (TOOL-A)
+├── schedule_suggestion.py              # NEW (TOOL-B)
+├── queue.py                            # NEW (MISC-02)
+├── glossary.py                         # NEW (TEACH-A.3)
+├── sources/                            # UNCHANGED
+└── ...
+
+prompts/                                # NEW dir (optional; alternative is inline in CLAUDE.md)
+└── summary-verifier.md                 # NEW: subagent prompt for CORR-03
+
+output/                                 # UNCHANGED per-slug layout, NEW shared file at top
+├── _glossary.md                        # NEW (TEACH-A.3 cross-slug accumulator)
+├── _glossary.md.lock                   # NEW (FileLock sentinel; never deleted)
+├── BV1xxx/                             # UNCHANGED structure, NEW siblings:
+│   ├── transcribe_warnings.json        # NEW (CORR-01 L1)
+│   ├── transcribe_warnings.json.params.json
+│   ├── summary_lint.json               # NEW (CORR-02 helper)
+│   ├── REVIEW.md                       # NEW (CORR-03 verifier output)
+│   ├── mode_signals.json               # NEW (TOOL-A)
+│   ├── mode_signals.json.params.json
+│   ├── schedule_suggestion.json        # NEW (TOOL-B)
+│   ├── schedule_suggestion.json.params.json
+│   └── ... (all v1.0 artifacts unchanged)
+└── ... (17+ archived slugs unchanged — D-29)
+
+~/.videoSummary/                        # NEW (cross-host shared state)
+├── queue.json                          # NEW (MISC-02)
+└── .queue.lock                         # NEW (FileLock sentinel)
+
+CLAUDE.md                               # MODIFIED: 5 new prompt extensions
+                                        # - Phase 2: read transcribe_warnings.json + write plan.md "已自动修正的术语"
+                                        # - Phase 4: prefer multimodal reading over ASR for warned terms
+                                        # - Phase 6: inline traces + confidence + inline annotations + TL;DR
+                                        # - Phase 7.5: spawn verifier Task subagent
+                                        # - "## 多终端并行" subsection: queue + glossary lock semantics
+
+.planning/                              # GSD planning docs (unchanged structure)
+└── ... (v1.1 milestone phase docs land here)
+```
+
+### Structure Rationale
+
+- **`agent/<feature>.py` per new feature:** mirrors v1.0 convention (`agent/scenes.py`, `agent/silence.py`, `agent/diarize.py`). Pure-function module + lazy import via `cmd_*` keeps `tools.py` slim.
+- **`output/_glossary.md` at top of `output/`:** intentionally outside any slug dir to express cross-slug semantics. Alternative `~/.videoSummary/glossary.md` rejected because user wants glossary linked from per-slug summaries (relative paths simpler within `output/`).
+- **`~/.videoSummary/queue.json`:** queue is **per-user**, not per-repo. Survives `git clone` of repo into a new worktree.
+- **`prompts/summary-verifier.md` optional:** can be inline in CLAUDE.md for v1.1; promote to file if it grows beyond ~50 lines.
+
+---
+
+## D-29 Risk Audit (modified vs additive)
+
+| Feature | New artifacts (additive) | Modified artifacts (D-29 risk) | Mitigation |
+|---------|--------------------------|--------------------------------|------------|
+| CORR-01 L1 | `transcribe_warnings.json` | NONE | — |
+| CORR-01 L2/L3 | NONE (writes into plan.md only on opt-in) | `plan.md` (Claude-authored) | plan.md is per-run regenerable; not a v1.0-frozen artifact |
+| CORR-02 prompt | NONE | `summary.md` (NEW writes only; old not retroactively rewritten) | Old summaries stay byte-equal; new summaries get traces |
+| CORR-02 linter | `summary_lint.json` | NONE | — |
+| CORR-03 verifier | `REVIEW.md` | `summary.md` (only if rewrite triggered, only on NEW summaries) | Old summaries never rewritten; rewrite only fires when CORR-02 traces opted-in |
+| TEACH-A.1/2 | NONE | `summary.md` (NEW writes only) | Same as above |
+| TEACH-A.3 | `output/_glossary.md` | NONE | top-level new file |
+| TEACH-B | NONE | `summary.md` (NEW writes only) | Same as above |
+| TOOL-A | `mode_signals.json` | NONE | — |
+| TOOL-B | `schedule_suggestion.json` | NONE | — |
+| MISC-01 | NONE | `agent/sources/_common.py` log level (1-line change) | Behavior change is log severity only; no artifact diff |
+| MISC-02 | `~/.videoSummary/queue.json` | NONE | Lives outside repo |
+
+**Aggregate D-29 risk: LOW.** Only `summary.md` shape evolves, and only for newly written summaries. v1.0 archived `summary.md` files are NEVER touched by v1.1 commands. Re-running `/summarize-video` on an archived slug WILL produce a v1.1-shape summary, but the old file stays on disk; user can compare and decide. Acceptance test: re-run `/summarize-video BV1HG9JBsEPK` → old `summary.md` overwritten by new shape (this is intended; user opts in by re-running).
+
+> **Open question for ROADMAP:** should re-running `/summarize-video` on archived slugs preserve old `summary.md` to `summary.md.v10.bak`? This is a UX nit; defer to phase planning.
+
+---
+
+## Build-Order Dependency Graph
+
+```
+                          ┌──────────────────────────────┐
+                          │ MISC-01 AV1 warning downgrade │ (independent, trivial)
+                          └──────────────────────────────┘
+
+                          ┌──────────────────────────────┐
+                          │ MISC-02 queue helper CLI      │ (independent; warm-up FileLock)
+                          └──────────────────────────────┘
+
+                          ┌──────────────────────────────┐
+                          │ TOOL-A mode_signals          │ (independent K5 emitter)
+                          └──────────────────────────────┘
+                          ┌──────────────────────────────┐
+                          │ TOOL-B schedule_suggest      │ (independent K5 emitter; pairs w/ TOOL-A)
+                          └──────────────────────────────┘
+
+  ┌────────────────────────┐
+  │ CORR-01a transcribe_lint│ ─────┐
+  └────────────────────────┘       │
+                                   ▼
+                        ┌──────────────────────┐
+                        │ CORR-01b CLAUDE.md  │ (Claude reads warnings → plan.md L2/L3)
+                        │ Phase 2 prompt       │
+                        └──────────┬───────────┘
+                                   │
+                                   ▼
+            ┌─────────────────────────────────────────────┐
+            │ TEACH-A.1/2/3 (inline annotation, header,   │ (parallel-able with CORR-02)
+            │  glossary tool + lock)                       │
+            └─────────────────────┬───────────────────────┘
+                                  │
+                                  │       ┌─────────────────────────────────────┐
+                                  │       │ TEACH-B 5-min TL;DR (prompt only)   │
+                                  │       └────────────┬────────────────────────┘
+                                  │                    │
+                                  └────────────────────┴────────────┐
+                                                                    │
+            ┌──────────────────────────────────────────────┐        │
+            │ CORR-02 inline traces + confidence (prompt)  │        │
+            │ + summary_lint CLI                            │        │
+            └──────────────────┬───────────────────────────┘        │
+                               │                                     │
+                               │   ┌─────────────────────────────────┘
+                               ▼   ▼
+                  ┌─────────────────────────────────────┐
+                  │ CORR-03 verifier subagent (Phase 7.5)│ (depends on lint output + format-spec)
+                  │ + REVIEW.md + max-1 rewrite cycle    │
+                  └─────────────────────────────────────┘
+```
+
+**Suggested phase carving (purely from dependency graph; ROADMAP will refine):**
+
+1. **Phase A — Warm-up + independent tooling (no behavior change to summary.md):**
+   - MISC-01 (AV1 log level)
+   - MISC-02 (queue CLI)
+   - TOOL-A + TOOL-B (mode_signals + schedule_suggest)
+   - CORR-01a (transcribe_lint CLI)
+
+2. **Phase B — Self-contained writing rules (CLAUDE.md changes; new summaries diverge):**
+   - CORR-01b (L2/L3 prompts)
+   - TEACH-A.1/2 (inline annotation + header sections)
+   - TEACH-A.3 (glossary CLI + lock)
+   - TEACH-B (TL;DR section)
+
+3. **Phase C — Correctness automation (consumes Phase A+B):**
+   - CORR-02 (inline traces prompt + summary_lint CLI)
+   - CORR-03 (verifier subagent + REVIEW.md + rewrite control)
+
+This carving respects:
+- Phase A is **opt-in** (Claude has to invoke new CLIs); old re-runs unaffected
+- Phase B changes new summaries' shape but doesn't enforce; verifier in Phase C makes shape mandatory by lint+rewrite
+- Phase C cannot land before B (verifier checks B's traces / glossary / TL;DR)
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Modifying `segs.json` to "fix" ASR errors
+
+**What people would do:** L2 corrects "Lora→LoRA" by editing `segs.json` directly.
+**Why wrong:** Breaks D-29 (`segs.json` is parameter-hashed; cache invalidates; `state.jsonl` event hash drifts). Old slugs would mass-regen on next CI.
+**Do instead:** Record corrections in Claude-authored `plan.md` (a regenerable artifact); writing prose pulls from plan.md's correction table.
+
+### Anti-Pattern 2: Tool auto-promotes signals into decisions
+
+**What people would do:** `mode_signals.json` writes the chosen mode directly into `plan.md`. Or `schedule_suggest` writes `schedule.json` and skips Claude.
+**Why wrong:** Violates K5. Tools cannot make judgment calls; wrong mode → entire summary wrong shape.
+**Do instead:** Tools emit `*_signals.json` / `*_suggestion.json`; Claude reads, weighs, decides. Statically asserted in tests (no `plan.md` / `schedule.json` references in tool source).
+
+### Anti-Pattern 3: Verifier as separate registered agent prematurely
+
+**What people would do:** Create `.claude/agents/summary-verifier.md` with custom tool allowlist + system prompt.
+**Why wrong:** Repo has no `.claude/agents/` infrastructure; building it for one verifier is over-investment. Iteration on verifier prompt is harder than editing inline CLAUDE.md.
+**Do instead:** Use `Task(subagent_type=general-purpose)` with prompt inline in CLAUDE.md (or `prompts/summary-verifier.md` referenced from CLAUDE.md). Promote to registered agent in v1.2 if usage proves the harness is needed.
+
+### Anti-Pattern 4: Glossary as full-rewrite-on-each-write
+
+**What people would do:** `glossary append` reads entire `_glossary.md`, parses Markdown, rewrites with new term inserted.
+**Why wrong:** Loses manual edits; lock contention spans the whole rewrite (slow); Markdown parsers are heavyweight.
+**Do instead:** Append-only with idempotency check (search for `## <term>` H2 + slug-link before append). Lock held only during the append. User edits between runs preserved.
+
+### Anti-Pattern 5: Verifier infinite loop
+
+**What people would do:** Verifier finds Critical issues → rewrite → verifier re-runs → still finds Critical → rewrite → ...
+**Why wrong:** Token budget explodes; bug in writer or verifier could spin indefinitely.
+**Do instead:** Hard cap **1 rewrite per `/summarize-video` invocation**, recorded in `state.jsonl`. 2nd cycle requires user re-trigger. CORR-03 spec says "高严重度问题自动触发 summary 重写（最多 1 轮，避免无限循环）" — explicit lock.
+
+### Anti-Pattern 6: Splitting summary.md into TL;DR + body files
+
+**What people would do:** `summary.md` is the body; `summary_tldr.md` is the 5-min block.
+**Why wrong:** Violates D-01 self-contained ("no assumed reading order"). Reader has to find two files.
+**Do instead:** TL;DR is a mandatory H2 section at the top of `summary.md` for ≥30min videos.
+
+---
+
+## Integration Points
+
+### External (no change from v1.0)
+
+| Service | Integration | Notes |
+|---------|-------------|-------|
+| yt-dlp / vendor douyin / faster-whisper / ffmpeg / PySceneDetect / silero-vad / pyannote | Inherited from v1.0 | v1.1 adds NO external dependencies |
+
+### Internal Boundaries (NEW)
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `tools.py` ↔ `agent/transcribe_lint.py` | Function call from `cmd_transcribe_lint`; lazy import | Mirrors `agent/scenes.py` pattern |
+| `tools.py` ↔ `agent/summary_lint.py` | Same | — |
+| `tools.py` ↔ `agent/mode_signals.py` | Same | — |
+| `tools.py` ↔ `agent/schedule_suggestion.py` | Same | — |
+| `tools.py` ↔ `agent/queue.py` | Same | Plus FileLock on `~/.videoSummary/.queue.lock` |
+| `tools.py` ↔ `agent/glossary.py` | Same | Plus FileLock on `output/_glossary.md.lock` |
+| Parent Claude ↔ Verifier subagent | `Task` tool invocation; filesystem hand-off via `REVIEW.md` | NEW pattern |
+| Phase 6 prompt ↔ Phase 7.5 prompt | Sequential within `/summarize-video` | NEW phase 7.5 between write + cleanup |
+| Two terminals ↔ `_glossary.md` | FileLock serialization | per Phase 6 PARA-XX precedent |
+| Two terminals ↔ `~/.videoSummary/queue.json` | FileLock serialization | per Phase 6 PARA-XX precedent |
+
+### State Management (additive only)
+
+| State location | Owner | Mutation discipline |
+|----------------|-------|---------------------|
+| `output/<slug>/state.jsonl` | All `cmd_*` (existing) + `cmd_transcribe_lint`, `cmd_summary_lint`, `cmd_mode_signals`, `cmd_schedule_suggest` (new) | Append-only events; new stages: `transcribe_lint`, `summary_lint`, `mode_signals`, `schedule_suggest`, `verifier_completed`, `rewrite_cycle_completed` |
+| `output/<slug>/.resume.lock` | All write-stage `cmd_*` | New tools acquire same lock; per-slug serialization preserved |
+| `output/_glossary.md.lock` | `cmd_glossary_append` (new) | NEW lock — cross-slug, top-level |
+| `~/.videoSummary/.queue.lock` | `cmd_queue_*` (new) | NEW lock — cross-host, $HOME |
+
+---
+
+## Scaling Considerations
+
+| Scale | v1.1 Impact | Adjustment |
+|-------|-------------|------------|
+| 1 video | All v1.1 features run sequentially within `/summarize-video`; verifier adds ~80% writing tokens | None — Claude Max budget covers |
+| 1 user × 17 queued videos | Queue helper makes manual triggering ergonomic; glossary accumulates terms across the queue | None — sequential; no parallelism needed |
+| 2 terminals (Phase 6 NTH-shipped path) | Glossary + queue locks serialize concurrent appends; per-slug locks unchanged | All new locks reuse `agent/_lock.py` — already cross-platform tested |
+| Many terminals (3+) | Glossary append lock contention possible if all 3 finish summaries simultaneously; queue too | FileLock has timeout=0 fail-fast; CLAUDE.md "## 多终端并行" should document `--retry` flag if added in v1.2 |
+
+**No DB. No cloud. No multi-tenancy.** Single-user tool stays single-user.
+
+### Scaling Priorities (if real signal emerges)
+
+1. **First bottleneck:** verifier token cost on long summaries (1000+ lines × 80% re-read). Mitigation: diff-based re-review on rewrite cycle (read only changed sections from `summary_lint.json`'s `claims_without_trace`). Defer to v1.2 once empirical data exists.
+2. **Second bottleneck:** glossary scan on extremely large `_glossary.md` (>500 terms). Mitigation: split by first letter (e.g., `_glossary_A.md` … `_glossary_Z.md`). Defer indefinitely (single user unlikely to hit).
 
 ---
 
 ## Sources
 
-- `.planning/codebase/ARCHITECTURE.md` — existing system design (read before this doc; not duplicated)
-- `.planning/codebase/STRUCTURE.md` — file layout conventions (`output/<slug>/` schema, frame naming `seg_<start>_<index>.jpg`)
-- `.planning/codebase/CONCERNS.md` — orphan modules (§1.2), 抖音 cookie race (§2.2), substring dispatch fragility (§1.3), zero test coverage (§9.1), no frame caching (§5.3)
-- `.planning/codebase/CONVENTIONS.md` — `cmd_*` pattern, dispatch dict, `--force` idiom, `pathlib.Path` discipline, lazy imports for heavy deps
-- `.planning/PROJECT.md` — backward-compat hard requirement, "Claude is decision-maker" constraint, Out-of-Scope list (no rewrite, no batch automation, no multi-template output)
-- `CLAUDE.md` — current `/summarize-video` 8-phase workflow (Phase 2 + 4-6 are pure Claude, no Python)
+- `D:/gxy_code/videoSummary/.planning/PROJECT.md` (v1.1 milestone goals + locked design decisions D-01/02/03)
+- `D:/gxy_code/videoSummary/.planning/v1.1-CANDIDATES.md` (8 candidate requirements + their must-haves)
+- `D:/gxy_code/videoSummary/.planning/codebase/ARCHITECTURE.md` (v1.0 system as ground truth)
+- `D:/gxy_code/videoSummary/.planning/codebase/STRUCTURE.md` (v1.0 file layout)
+- `D:/gxy_code/videoSummary/.planning/codebase/INTEGRATIONS.md` (v1.0 external integrations baseline)
+- `D:/gxy_code/videoSummary/CLAUDE.md` (`/summarize-video` 8 phases, format-spec lock, 4-mode skeletons, multi-terminal parallel section)
+- `D:/gxy_code/videoSummary/agent/tools.py` (v1.0 CLI surface — lines 798-887 for K5 detect_scenes/silence precedent; lines 1214-1360 for argparse + dispatch pattern; lines 502-609 for whisper_repetition_guard precedent for warning-artifact emit)
+- `D:/gxy_code/videoSummary/agent/sources/__init__.py` (Source Protocol + SOURCES list pattern with load-time invariants — model for any future cross-feature registry)
+- `D:/gxy_code/videoSummary/agent/scheduler.py` (Schedule + Segment dataclass + 5 strict validations — model for new schema-validated artifacts)
+- `D:/gxy_code/videoSummary/agent/_lock.py` (FileLock cross-platform stdlib advisory lock — required for `_glossary.md` and `queue.json`)
+- `D:/gxy_code/videoSummary/agent/io.py:106` (`write_json_atomic` + sidecar pattern — required for all new artifacts with cacheable params)
+- `D:/gxy_code/videoSummary/output/BV1HG9JBsEPK/summary.md` (v1.0 reference summary — format-spec invariants validated against)
 
 ---
 
-*Architecture research for: Claude-orchestrated local video-to-tutorial pipeline (brownfield)*
-*Researched: 2026-04-30*
+*v1.1 architecture research: 2026-05-03 — for v1.1-summary-quality milestone roadmap.*
