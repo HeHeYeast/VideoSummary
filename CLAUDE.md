@@ -149,6 +149,54 @@ YouTube ingest 在国内默认连不通（GFW + 2026 SABR + PO Token 三重阻�
 - `VE_KEY_CHEAP` — VectorEngine API key（仅后备 classify/ocr 命令需要，正常流程不用）
 - `DOUYIN_COOKIES_FILE` — 抖音 cookies 文件路径（默认 `www.douyin.com_cookies.txt`）
 
+## 多终端并行 (Phase 6)
+
+> 这一节描述「两个 Claude Code 终端同时跑不同视频」的安全契约。**单终端流程不受影响**——锁是无声的，acquired+released 不留痕迹。
+
+### 锁住了什么
+
+1. **vendor `config.yaml` 写入** — `vendor/douyin_api/crawlers/douyin/web/config.yaml` 被 download_douyin 在每次抖音下载时 read-modify-write，两个终端同时跑会把同一个文件写花。Phase 6 加了 `vendor/douyin_api/crawlers/douyin/web/.config.yaml.lock` sibling 锁文件，第二个 invocation 要么排队，要么 fail-fast。
+
+2. **per-slug `output/<slug>/.resume.lock`** — 同一个 slug 上同时跑 `transcribe` / `aggregate` / `extract_frames_batch`（任意两个，或同一个跑两次）会撕裂 `segs.json` / `paragraphs.json` / `state.jsonl`。锁住的是「同一 slug 的写操作」。第二个 invocation 立即 fail with: `LockContended: FileLock: output/<slug>/.resume.lock held by PID <N> since <ISO-timestamp>`。
+
+3. **没锁的命令**（故意的）：
+   - `extract_frames`（FPS-07 单段补抽）— 你想边跑 batch 边手动补抽某一段是合法用法
+   - `download` / `ingest`（除了上面的 vendor config 那一段已经锁住）— 自身是幂等的，meta.json 用 atomic write
+   - `detect_scenes` / `detect_silence` / `doctor` — 决策支持/只读工具
+   - `diarize` — opt-in，长任务 user 自己负责不重复触发
+
+### per-slug isolation vs 跨 slug 并发
+
+下表说明 per-slug isolation 的具体边界——同 slug 强制串行（锁拒绝第二个 invocation），跨 slug 由 user 自己评估 OOM 风险。
+
+| 场景 | 安全？ | 备注 |
+|---|---|---|
+| 同 slug 同 stage 两次（e.g. transcribe BVxxx 两次） | 否 第二个 fail-fast | 这就是 lock 的目的 |
+| 同 slug 不同 stage（e.g. transcribe BVxxx + aggregate BVxxx）| 否 第二个 fail-fast | 锁是 stage-agnostic，整个 slug 只允许一个长任务 |
+| 不同 slug 同 stage（e.g. transcribe BVxxx + transcribe BVyyy）| user's risk | 锁不冲突，但 faster-whisper 是 CPU-bound + 显存敏感（小模型 ~1.5G、medium ~3G、large ~6G），两个并发可能 OOM |
+| 不同 slug 不同 stage（e.g. transcribe BVxxx + extract_frames BVyyy）| 安全 | 完全独立 |
+| download 抖音两个不同 URL 同时 | 安全 | vendor config.yaml 由 lock 串行化，每个 invocation 拿到自己的 cookie 配置 |
+
+### 实操规则（faster-whisper CPU-bound）
+
+- **CPU 推理（无 CUDA）**：建议同时跑的 transcribe 数量 ≤ `nproc - 1`（留一个核给 OS / 你的浏览器）。Windows 里看任务管理器 → 性能 → 逻辑处理器数。
+- **GPU 推理（有 CUDA）**：单卡通常只够 1 个 medium / large。多卡可以并发，但 ProcessPoolExecutor 之类自己管。Phase 6 不提供调度器（PROJECT.md OOS row 4：personal tool）。
+- **真撞上锁了怎么办**：
+  - 等：另一个终端跑完了再来
+  - kill：`Ctrl+C` 不会留下永久锁——`agent/_lock.py` 的 stale-PID detection 会让下一次 invocation 自动接管（PID 死了就接走 `.resume.lock`）
+  - 永不要：`rm output/<slug>/.resume.lock`——非紧急情况下手动删锁文件没意义；要么等，要么让 stale-PID 接管
+
+### Cookies 缓存（PARA-05）
+
+- 抖音 cookies 在每个 Python 进程内只读一次（module-level `_COOKIES_CACHE`）。两个终端 = 两个进程 = 各自缓存，没有交叉污染。
+- 重新导出 cookies 后想立刻生效：`python -m agent.tools download <url> --out <dir> --reload-cookies`。
+
+### 日志格式（PARA-04）
+
+- `transcribe` / `aggregate` / `extract_frames_batch` / `extract_frames` / `diarize` / `cleanup_frames` / `detect_scenes` / `detect_silence` 的状态行带 `[<slug>] <cmd>: ` 前缀。
+- 两个终端 `tail -f` 合并输出时，`grep '\[BVxxx\]'` 就能筛出来。
+- `download` / `ingest` 的 JSON 输出 + `doctor` 的 ASCII 表 + `list_frames` 故意不加前缀（结构化输出 / 单页报告 / 单纯列表，加前缀反而难读）。
+
 ---
 
 ## 视频类型变奏
