@@ -119,8 +119,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — agent/_lock.py (cross-platform stdlib FileLock with stale-PID takeover) + vendor config.yaml lock + per-slug output/<slug>/.resume.lock wrap on transcribe/aggregate/extract_frames_batch (PARA-01, PARA-02, PARA-03) [Wave 1, autonomous]
-- [ ] 06-02-PLAN.md — slug-prefix _log helper across cmd_* status lines + cookies-in-memory cache + --reload-cookies CLI flag + CLAUDE.md ## 多终端并行 (Phase 6) section (PARA-04, PARA-05, PARA-06) [Wave 2, autonomous, depends_on 06-01]
+- [x] 06-01-PLAN.md — agent/_lock.py (cross-platform stdlib FileLock with stale-PID takeover) + vendor config.yaml lock + per-slug output/<slug>/.resume.lock wrap on transcribe/aggregate/extract_frames_batch (PARA-01, PARA-02, PARA-03) [Wave 1, autonomous]
+- [x] 06-02-PLAN.md — slug-prefix _log helper across cmd_* status lines + cookies-in-memory cache + --reload-cookies CLI flag + CLAUDE.md ## 多终端并行 (Phase 6) section (PARA-04, PARA-05, PARA-06) [Wave 2, autonomous, depends_on 06-01]
 **UI hint**: no
 
 ## Progress
