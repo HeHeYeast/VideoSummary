@@ -29,11 +29,15 @@ _VENDOR = Path(__file__).parent.parent / "vendor" / "douyin_api"
 _CONFIG = _VENDOR / "crawlers" / "douyin" / "web" / "config.yaml"
 
 
-def _cookies_txt_to_header(cookies_file: str | Path) -> str:
-    """从 netscape cookies.txt 构造 Cookie header 字符串."""
-    lines = Path(cookies_file).read_text(encoding="utf-8").splitlines()
+def _cookies_text_to_header(cookies_text: str) -> str:
+    """从 netscape cookies.txt 文件内容构造 Cookie header 字符串.
+
+    Phase 6 PARA-05: factored out of _cookies_txt_to_header so callers can
+    pass pre-read content (cached in memory) instead of re-reading disk
+    on every invocation.
+    """
     pairs = []
-    for line in lines:
+    for line in cookies_text.splitlines():
         if line.startswith("#") or not line.strip():
             continue
         parts = line.split("\t")
@@ -43,6 +47,18 @@ def _cookies_txt_to_header(cookies_file: str | Path) -> str:
         if "douyin" in domain.lower():
             pairs.append(f"{name}={value}")
     return "; ".join(pairs)
+
+
+def _cookies_txt_to_header(cookies_file: str | Path) -> str:
+    """从 netscape cookies.txt 构造 Cookie header 字符串.
+
+    Backward-compat shim: delegates to _cookies_text_to_header after reading
+    the file (path-taking signature retained for the legacy callsite +
+    direct module CLI invocation `python -m agent.douyin_downloader`).
+    """
+    return _cookies_text_to_header(
+        Path(cookies_file).read_text(encoding="utf-8")
+    )
 
 
 def _patch_config_cookie(cookie_header: str) -> None:
@@ -131,6 +147,7 @@ def download_douyin(
     url: str,
     out_dir: str | Path,
     cookies_file: str | Path | None = None,
+    cookies_text: str | None = None,
     skip_if_cached: bool = True,
 ) -> dict:
     """下载抖音视频.
@@ -138,7 +155,13 @@ def download_douyin(
     Args:
         url: 抖音视频 URL (支持短链 v.douyin.com/xxx 或 www.douyin.com/video/{id})
         out_dir: 输出目录
-        cookies_file: 可选, cookies.txt 文件路径. 不传则用 vendor/config.yaml 里默认的
+        cookies_file: 可选, cookies.txt 文件路径. 不传则用 vendor/config.yaml 里默认的.
+                      backward-compat path; if given AND cookies_text is None, reads
+                      file at this path inline (no caching).
+        cookies_text: Phase 6 PARA-05 可选, pre-read cookies content. Caller (typically
+                      DouyinSource.fetch via _read_cookies_cached) passes cached content
+                      to avoid re-reading on every invocation. If both cookies_file and
+                      cookies_text are given, cookies_text wins.
         skip_if_cached: 如果 meta.json 存在且视频文件存在, 跳过下载
 
     Returns:
@@ -154,12 +177,17 @@ def download_douyin(
             log.info("缓存命中, 跳过下载: %s", meta["video_path"])
             return meta
 
-    # 1. Patch cookies 到 vendor config (如果提供了文件)
-    # Phase 6 PARA-02: lock vendor config.yaml read-modify-write cycle so two
-    # concurrent download_douyin calls don't corrupt the global config.yaml
-    # (PITFALLS P8.1). Lock file is sibling to the yaml — survives atomic rewrites.
-    if cookies_file:
-        cookie_header = _cookies_txt_to_header(cookies_file)
+    # 1. Patch cookies 到 vendor config (Phase 6 PARA-02 + PARA-05)
+    # PARA-02: lock vendor config.yaml read-modify-write cycle so two concurrent
+    # download_douyin calls don't corrupt the global config.yaml (PITFALLS P8.1).
+    # Lock file is sibling to the yaml — survives atomic rewrites.
+    # PARA-05: prefer pre-read cookies_text (cached) over cookies_file path.
+    cookies_raw = cookies_text
+    if cookies_raw is None and cookies_file:
+        cookies_raw = Path(cookies_file).read_text(encoding="utf-8")
+
+    if cookies_raw:
+        cookie_header = _cookies_text_to_header(cookies_raw)
         if cookie_header:
             from agent._lock import FileLock
             lock_path = _CONFIG.parent / ".config.yaml.lock"

@@ -37,6 +37,15 @@ from agent.sources._common import append_phase3_fields
 
 log = logging.getLogger(__name__)
 
+
+# Phase 6 PARA-05: lazy module-level cache. Currently a placeholder — yt-dlp
+# auto-discovers browser cookies; we don't read youtube_cookies.txt directly
+# in the Python layer. If a future change reads cookies into memory (e.g., to
+# pass via yt-dlp opts['cookiefile']), this dict is the cache key store.
+# Symmetric with agent/sources/douyin.py for cross-source consistency.
+_COOKIES_CACHE: dict[str, str] = {}
+
+
 _PREFLIGHT_TIMEOUT_S = 2.0
 _VERSION_DATE_RE = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})")
 

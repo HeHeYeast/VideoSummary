@@ -166,7 +166,17 @@ def cmd_ingest(args):
 
         # 2. Delegate fetch to source (writes video.mp4 + an initial meta.json
         #    via legacy module's own write_text — that's OK; we re-write atomically below).
-        meta = source.fetch(args.url, work_dir, skip_if_cached=True)
+        # Phase 6 PARA-05: thread --reload-cookies through to source.fetch via
+        # **kwargs. DouyinSource accepts reload_cookies; other sources don't
+        # declare it, so use TypeError fallback to drop the kwarg silently.
+        fetch_kwargs = {"skip_if_cached": True}
+        if getattr(args, "reload_cookies", False):
+            fetch_kwargs["reload_cookies"] = True
+        try:
+            meta = source.fetch(args.url, work_dir, **fetch_kwargs)
+        except TypeError:
+            fetch_kwargs.pop("reload_cookies", None)
+            meta = source.fetch(args.url, work_dir, **fetch_kwargs)
 
         # 3. Phase 3 SRC-11 D-21: ffprobe preflight on EVERY source's output.
         #    Failure (no audio) raises RuntimeError with remux suggestion.
@@ -1202,10 +1212,18 @@ def main():
     p = sub.add_parser("download", help="下载视频 (= ingest 别名)")
     p.add_argument("url")
     p.add_argument("--out", required=True)
+    p.add_argument(
+        "--reload-cookies", action="store_true",
+        help="bypass in-memory cookies cache; force re-read from disk (Phase 6 PARA-05)",
+    )
 
     p = sub.add_parser("ingest", help="多源 ingest (B站/抖音/YouTube/本地 mp4) — Phase 3 canonical")
     p.add_argument("url", help="URL or local path")
     p.add_argument("--out", required=True)
+    p.add_argument(
+        "--reload-cookies", action="store_true",
+        help="bypass in-memory cookies cache; force re-read from disk (Phase 6 PARA-05)",
+    )
 
     p = sub.add_parser("transcribe", help="ASR 转录 (本地)")
     p.add_argument("video_path")
