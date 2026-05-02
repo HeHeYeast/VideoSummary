@@ -45,6 +45,25 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger(__name__)
 
 
+def _log(slug: str, cmd: str, msg: str) -> None:
+    """Phase 6 PARA-04: prefix user-visible cmd output with [<slug>] <cmd>: ...
+
+    Goes to stdout via print() (NOT through logging) so multi-terminal `tail -f`
+    output is greppable by slug without competing with the existing INFO | ...
+    log format. Backward-compat (CONTEXT D line 40-42): prefix is added to NEW
+    lines only; the underlying msg content stays byte-equal.
+
+    Args:
+        slug: out_dir.name for transcribe/extract_frames_batch; out.parent.name
+              for aggregate (where out is the paragraphs.json file path).
+        cmd: short command name ('transcribe', 'aggregate', 'extract_frames_batch',
+             'extract_frames', 'download', 'ingest', 'cleanup_frames', 'doctor',
+             'diarize'). Matches the argparse subcommand name verbatim.
+        msg: original message — passed through unchanged after the ': ' separator.
+    """
+    print(f"[{slug}] {cmd}: {msg}")
+
+
 def _build_sidecar(*, cli: dict, func: dict, tools: dict) -> dict:
     """Construct the locked 3-segment sidecar shape (D-07).
 
@@ -214,6 +233,7 @@ def cmd_transcribe(args):
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+    slug = out_dir.name  # Phase 6 PARA-04
 
     # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent transcribes on
     # same slug from racing on segs.json + state.jsonl writes. timeout=0 fail-fast
@@ -258,7 +278,7 @@ def cmd_transcribe(args):
                 )
 
             if decision in ("reuse", "warn_then_reuse"):
-                print(f"cached: {segs_file}")
+                _log(slug, "transcribe", f"cached: {segs_file}")
                 segs_data = load_segs(segs_file)
             else:
                 # decision is regen or regen_forced
@@ -278,10 +298,11 @@ def cmd_transcribe(args):
                         details={"segs_count": len(segs_data), "decision": decision,
                                  "profile": args.profile})
 
-            print(f"segments: {len(segs_data)}")
+            _log(slug, "transcribe", f"segments: {len(segs_data)}")
             if segs_data:
-                print(f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
-            print(f"output: {segs_file}")
+                _log(slug, "transcribe",
+                     f"time: {segs_data[0]['start']:.1f}s - {segs_data[-1]['end']:.1f}s")
+            _log(slug, "transcribe", f"output: {segs_file}")
         except Exception as e:
             _emit_event(out_dir, "transcribe", "failed", sidecar=current_sidecar,
                         details={"error_type": type(e).__name__, "error": str(e)[:200]})
@@ -299,6 +320,7 @@ def cmd_aggregate(args):
     out.parent.mkdir(parents=True, exist_ok=True)
     # state.jsonl lives alongside paragraphs.json (same output/<slug>/ dir).
     state_dir = out.parent
+    slug = state_dir.name  # Phase 6 PARA-04 — slug is parent of paragraphs.json
 
     # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent aggregates on
     # same slug from racing on paragraphs.json + state.jsonl writes. Lock path
@@ -330,21 +352,23 @@ def cmd_aggregate(args):
                 decision = cache_decision(old_sidecar, current_sidecar, out.name, forced=forced)
 
             if decision in ("reuse", "warn_then_reuse"):
-                print(f"cached: {out}")
+                _log(slug, "aggregate", f"cached: {out}")
                 paras_data = load_paragraphs(out)
-                print(f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
+                _log(slug, "aggregate",
+                     f"{len(segs)} segments -> {len(paras_data)} paragraphs (cached)")
             else:
                 paras = aggregate_paragraphs(
                     segs, profile=args.profile, gap_threshold=args.gap,
                 )
                 paras_data = paragraphs_to_dicts(paras)
                 write_json_atomic(out, paras_data, sidecar_params=current_sidecar)
-                print(f"{len(segs)} segments -> {len(paras)} paragraphs (profile={args.profile})")
+                _log(slug, "aggregate",
+                     f"{len(segs)} segments -> {len(paras)} paragraphs (profile={args.profile})")
 
             _emit_event(state_dir, "aggregate", "completed", sidecar=current_sidecar,
                         details={"paragraphs_count": len(paras_data), "decision": decision,
                                  "profile": args.profile})
-            print(f"output: {out}")
+            _log(slug, "aggregate", f"output: {out}")
         except Exception as e:
             _emit_event(state_dir, "aggregate", "failed", sidecar=current_sidecar,
                         details={"error_type": type(e).__name__, "error": str(e)[:200]})
@@ -593,6 +617,7 @@ def cmd_extract_frames(args):
     # Per D-08 frames/ has no JSON sidecar; per D-14 segment-level events are
     # deferred to Phase 4. Day-1 grain: one started + one completed per call.
     state_dir = out_dir.parent
+    slug = state_dir.name  # Phase 6 PARA-04
     details_in = {"fps": args.fps, "start": args.start, "end": args.end}
     _emit_event(state_dir, "extract_frames", "started", details=details_in)
 
@@ -617,7 +642,8 @@ def cmd_extract_frames(args):
         _emit_event(state_dir, "extract_frames", "completed",
                     details={**details_in, "frames_count": len(files)})
 
-        print(f"extracted: {len(files)} frames ({args.start}s-{args.end}s, fps={args.fps})")
+        _log(slug, "extract_frames",
+             f"extracted: {len(files)} frames ({args.start}s-{args.end}s, fps={args.fps})")
         for f in files[:5]:
             ts = args.start + (int(f.stem.split("_")[-1]) - 0.5) / args.fps
             print(f"  [{ts:.1f}s] {f.name}")
@@ -653,6 +679,7 @@ def cmd_extract_frames_batch(args):
     out_dir.mkdir(parents=True, exist_ok=True)
     # Resume: state.jsonl lives in output/<slug>/, frames/ is a subdir below.
     state_dir = out_dir.parent
+    slug = state_dir.name  # Phase 6 PARA-04 — state_dir is slug dir (parent of frames/)
 
     # Phase 6 PARA-02: per-slug resume.lock — prevent concurrent
     # extract_frames_batch on same slug from racing on frames/* + state.jsonl
@@ -703,7 +730,7 @@ def cmd_extract_frames_batch(args):
                     details={"segment_index": i, "start": seg.start,
                              "end": seg.end, "skip": True, "frames_count": 0},
                 )
-                print(f"[seg {i}] {seg.start}s-{seg.end}s SKIP")
+                _log(slug, "extract_frames_batch", f"[seg {i}] {seg.start}s-{seg.end}s SKIP")
                 continue
 
             _emit_event(
@@ -733,8 +760,9 @@ def cmd_extract_frames_batch(args):
                     details={"segment_index": i, "start": seg.start,
                              "end": seg.end, "frames_count": len(files)},
                 )
-                print(f"[seg {i}] {seg.start}s-{seg.end}s @ fps={seg.fps}: "
-                      f"{len(files)} frames")
+                _log(slug, "extract_frames_batch",
+                     f"[seg {i}] {seg.start}s-{seg.end}s @ fps={seg.fps}: "
+                     f"{len(files)} frames")
             except subprocess.CalledProcessError as e:
                 _emit_event(
                     state_dir, "extract_frames_batch", "failed",
@@ -766,6 +794,7 @@ def cmd_detect_scenes(args):
 
     out = Path(args.out)
     _validate_out_path(out)
+    slug = Path(args.out).parent.name  # Phase 6 PARA-04
 
     log.info("running PySceneDetect on %s (threshold=%.1f)",
              args.video, args.threshold)
@@ -779,8 +808,9 @@ def cmd_detect_scenes(args):
         median = durations[len(durations) // 2]
     else:
         median = 0.0
-    print(f"detected {len(scenes)} scenes; median duration = {median:.1f}s")
-    print(f"output: {out}")
+    _log(slug, "detect_scenes",
+         f"detected {len(scenes)} scenes; median duration = {median:.1f}s")
+    _log(slug, "detect_scenes", f"output: {out}")
 
 
 def cmd_detect_silence(args):
@@ -806,6 +836,7 @@ def cmd_detect_silence(args):
 
     out = Path(args.out)
     _validate_out_path(out)
+    slug = Path(args.out).parent.name  # Phase 6 PARA-04
 
     probe = ffprobe_video(args.video)
     duration_s = probe["duration_s"]
@@ -830,13 +861,13 @@ def cmd_detect_silence(args):
 
     flagged = sum(1 for iv in intervals
                   if iv.get("flagged_for_review") is True)
-    print(f"Found {len(intervals)} silence intervals; {flagged} flagged > 5s.")
-    print(
-        "When writing the schedule artifact, ensure each flagged interval is "
-        "covered by an fps segment (NOT skip), or add a low-rate baseline pass "
-        "per FPS-04."
-    )
-    print(f"output: {out}")
+    _log(slug, "detect_silence",
+         f"Found {len(intervals)} silence intervals; {flagged} flagged > 5s.")
+    _log(slug, "detect_silence",
+         "When writing the schedule artifact, ensure each flagged interval is "
+         "covered by an fps segment (NOT skip), or add a low-rate baseline pass "
+         "per FPS-04.")
+    _log(slug, "detect_silence", f"output: {out}")
 
 
 def cmd_diarize(args):
@@ -868,6 +899,7 @@ def cmd_diarize(args):
     _validate_out_path(audio_path)
     out_dir = out_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
+    slug = out_dir.name  # Phase 6 PARA-04
 
     # 1. HF_TOKEN guard (D-15) — load_dotenv was called at process start
     hf_token = os.environ.get("HF_TOKEN", "").strip()
@@ -950,13 +982,12 @@ def cmd_diarize(args):
             details={"turns_count": len(turns), "duration_s": duration_s},
         )
         speakers = sorted({t["speaker_id"] for t in turns})
-        print(f"diarization: {len(turns)} turns")
+        _log(slug, "diarize", f"diarization: {len(turns)} turns")
         suffix = "..." if len(speakers) > 5 else ""
-        print(
-            f"speakers: {len(speakers)} unique "
-            f"({', '.join(speakers[:5])}{suffix})"
-        )
-        print(f"output: {out_path}")
+        _log(slug, "diarize",
+             f"speakers: {len(speakers)} unique "
+             f"({', '.join(speakers[:5])}{suffix})")
+        _log(slug, "diarize", f"output: {out_path}")
     except Exception as e:
         _emit_event(
             state_dir, "diarize", "failed", sidecar=current_sidecar,
@@ -979,6 +1010,7 @@ def cmd_cleanup_frames(args):
     d = Path(args.dir)
     # state.jsonl lives one level up from frames/ subdir.
     state_dir = d.parent
+    slug = state_dir.name  # Phase 6 PARA-04
     keep = set(args.keep) if args.keep else set()
     _emit_event(state_dir, "cleanup_frames", "started",
                 details={"keep_count": len(keep)})
@@ -991,7 +1023,7 @@ def cmd_cleanup_frames(args):
                 removed += 1
         _emit_event(state_dir, "cleanup_frames", "completed",
                     details={"removed": removed, "kept": len(keep)})
-        print(f"removed {removed} frames, kept {len(keep)}")
+        _log(slug, "cleanup_frames", f"removed {removed} frames, kept {len(keep)}")
     except Exception as e:
         _emit_event(state_dir, "cleanup_frames", "failed",
                     details={"error_type": type(e).__name__, "error": str(e)[:200]})
