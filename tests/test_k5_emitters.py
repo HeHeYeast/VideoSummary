@@ -21,6 +21,7 @@ from agent.tools import (
     cmd_glossary_audit,
     cmd_glossary_append,  # NEW Phase 08 TEACH-A3
     cmd_summary_lint,  # NEW Phase 09 CORR-03a
+    cmd_topics_bootstrap, cmd_topics_audit, cmd_topics_resolve,  # Phase 10 D-06
 )
 
 FORBIDDEN_LITERALS = ("summary.md", "plan.md", "schedule.json")
@@ -44,6 +45,31 @@ _WRITE_PATTERNS_FORBIDDEN = (
     r"_atomic_write\([^)]*summary\.md",
     r"_atomic_write\([^)]*plan\.md",
     r"_atomic_write\([^)]*schedule\.json",
+)
+
+# Phase 10 D-06: forbidden write targets for topics resolve. The literal
+# `index.json` is ALLOWED (legitimate write target for cmd_topics_resolve);
+# all 5 D-29 core artifacts are forbidden.
+_RESOLVE_FORBIDDEN_PATTERNS = (
+    r"write_text\([^)]*summary\.md", r"write_text\([^)]*plan\.md",
+    r"write_text\([^)]*paragraphs\.json", r"write_text\([^)]*segs\.json",
+    r"write_text\([^)]*meta\.json",
+    r"open\([^)]*summary\.md[^)]*['\"]w", r"open\([^)]*plan\.md[^)]*['\"]w",
+    r"open\([^)]*paragraphs\.json[^)]*['\"]w",
+    r"open\([^)]*segs\.json[^)]*['\"]w",
+    r"open\([^)]*meta\.json[^)]*['\"]w",
+    r"os\.replace\([^)]*summary\.md", r"os\.replace\([^)]*plan\.md",
+    r"os\.replace\([^)]*paragraphs\.json", r"os\.replace\([^)]*segs\.json",
+    r"os\.replace\([^)]*meta\.json",
+    r"_atomic_write\([^)]*summary\.md", r"_atomic_write\([^)]*plan\.md",
+    r"_atomic_write\([^)]*paragraphs\.json",
+    r"_atomic_write\([^)]*segs\.json",
+    r"_atomic_write\([^)]*meta\.json",
+    r"write_json_atomic\([^)]*summary\.md",
+    r"write_json_atomic\([^)]*plan\.md",
+    r"write_json_atomic\([^)]*paragraphs\.json",
+    r"write_json_atomic\([^)]*segs\.json",
+    r"write_json_atomic\([^)]*meta\.json",
 )
 
 
@@ -201,6 +227,73 @@ class TestK5BoundaryPhase07(unittest.TestCase):
             self.assertFalse(
                 _re.search(pat, src),
                 f"K5 violation: agent/summary_lint.py write pattern {pat!r} matches source",
+            )
+
+    # ── Phase 10 D-06 K5 boundary tests ──
+
+    def test_topics_bootstrap_no_index_json_writes(self):
+        """Phase 10 D-06.1: cmd_topics_bootstrap source has no `index.json`,
+        `summary.md`, `plan.md`, `schedule.json` literals (writes ONLY
+        the topics governance file)."""
+        src = inspect.getsource(cmd_topics_bootstrap)
+        for forbidden in ("index.json", "summary.md", "plan.md", "schedule.json"):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: cmd_topics_bootstrap mentions {forbidden!r}",
+            )
+
+    def test_topics_audit_no_writes(self):
+        """Phase 10 D-06.1: cmd_topics_audit must be read-only —
+        forbid any write API pattern (the literal `index.json` is fine
+        because audit READS them)."""
+        import re as _re
+        src = inspect.getsource(cmd_topics_audit)
+        write_patterns = (
+            r"\.write_text\(", r"\.write_bytes\(",
+            r"open\([^)]*['\"][aw]",
+            r"os\.replace\(",
+            r"_atomic_write\(", r"write_json_atomic\(",
+        )
+        for pat in write_patterns:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: cmd_topics_audit must be read-only; "
+                f"pattern {pat!r} found",
+            )
+
+    def test_topics_resolve_only_writes_topics_md_and_index_json(self):
+        """Phase 10 D-06.1: cmd_topics_resolve may write the topics governance
+        file and per-slug index sidecars; D-29 core artifacts are forbidden."""
+        import re as _re
+        src = inspect.getsource(cmd_topics_resolve)
+        for pat in _RESOLVE_FORBIDDEN_PATTERNS:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: cmd_topics_resolve write pattern {pat!r} found",
+            )
+
+    def test_topics_module_no_summary_writes(self):
+        """Phase 10 D-06.1: agent/topics.py module source must NOT contain
+        the literals `summary.md`, `plan.md`, `paragraphs.json`, `segs.json`,
+        `meta.json`, `schedule.json`. The literals `_topics.md` and
+        `index.json` are LEGITIMATE here."""
+        here = Path(__file__).parent.parent
+        src = (here / "agent" / "topics.py").read_text(encoding="utf-8")
+        forbidden_literals = (
+            "summary.md", "plan.md", "paragraphs.json",
+            "segs.json", "meta.json", "schedule.json",
+        )
+        for forbidden in forbidden_literals:
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: agent/topics.py contains forbidden literal "
+                f"{forbidden!r}",
+            )
+        import re as _re
+        for pat in _RESOLVE_FORBIDDEN_PATTERNS:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: agent/topics.py write pattern {pat!r} found",
             )
 
 
