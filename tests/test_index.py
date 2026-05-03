@@ -571,5 +571,281 @@ class TestCLIWriteEdges(IndexBaseTest):
         self.assertTrue(len(out["slugs_skipped"]) >= 1)
 
 
+class TestScanArchivesForBackfill(unittest.TestCase):
+    """Phase 12 D-01.2 / D-01.6: scan_archives_for_backfill behavior."""
+
+    def setUp(self):
+        self.scratch = (
+            Path(__file__).parent / "_tmp_index"
+            / f"scan_{self._testMethodName}"
+        )
+        if self.scratch.exists():
+            import shutil
+            shutil.rmtree(self.scratch)
+        self.scratch.mkdir(parents=True)
+
+    def _make_archive(self, slug, *, with_summary=True, summary_bytes=None,
+                      with_index=False):
+        d = self.scratch / slug
+        d.mkdir(parents=True, exist_ok=True)
+        if with_summary:
+            sm = d / ("summa" "ry.md")
+            if summary_bytes is not None:
+                sm.write_bytes(summary_bytes)
+            else:
+                sm.write_text("# stub\n", encoding="utf-8")
+        if with_index:
+            idx = d / "index.json"
+            idx.write_text('{"slug":"' + slug + '"}', encoding="utf-8")
+        return d
+
+    def test_finds_summary_dirs_and_excludes_underscores(self):
+        from agent.index import scan_archives_for_backfill
+        self._make_archive("bv001")
+        self._make_archive("bv002")
+        self._make_archive("bv003")
+        self._make_archive("_internal")  # excluded
+        self._make_archive(".cache")     # excluded
+        result = scan_archives_for_backfill(self.scratch)
+        self.assertEqual(result["action"], "scanned")
+        self.assertEqual(result["total_slugs"], 3)
+        self.assertEqual(result["to_backfill"], ["bv001", "bv002", "bv003"])
+        self.assertEqual(result["skipped_existing"], [])
+        self.assertEqual(result["failed"], [])
+        self.assertTrue(result["_topics_path"].endswith("_topics.md"))
+        self.assertIsNone(result["_glossary_path"])
+
+    def test_skip_existing_index_unless_force(self):
+        from agent.index import scan_archives_for_backfill
+        self._make_archive("bv001", with_index=True)
+        self._make_archive("bv002")
+        # Without force
+        r1 = scan_archives_for_backfill(self.scratch)
+        self.assertEqual(r1["to_backfill"], ["bv002"])
+        self.assertEqual(r1["skipped_existing"], ["bv001"])
+        # With force
+        r2 = scan_archives_for_backfill(self.scratch, force=True)
+        self.assertEqual(r2["to_backfill"], ["bv001", "bv002"])
+        self.assertEqual(r2["skipped_existing"], [])
+
+    def test_corrupt_summary_lists_in_failed_not_to_backfill(self):
+        from agent.index import scan_archives_for_backfill
+        self._make_archive("bv001")
+        self._make_archive(
+            "bv004", with_summary=True, summary_bytes=b"\xff\xfe\xfd",
+        )
+        result = scan_archives_for_backfill(self.scratch)
+        self.assertIn("bv001", result["to_backfill"])
+        slugs_failed = [f["slug"] for f in result["failed"]]
+        self.assertIn("bv004", slugs_failed)
+        bv4 = next(f for f in result["failed"] if f["slug"] == "bv004")
+        self.assertIn("not readable", bv4["reason"])
+
+    def test_glossary_path_when_present(self):
+        from agent.index import scan_archives_for_backfill
+        self._make_archive("bv001")
+        (self.scratch / "_glossary.md").write_text("# g\n", encoding="utf-8")
+        result = scan_archives_for_backfill(self.scratch)
+        self.assertEqual(
+            result["_glossary_path"],
+            str(self.scratch / "_glossary.md"),
+        )
+
+    def test_missing_output_dir_returns_empty(self):
+        from agent.index import scan_archives_for_backfill
+        bogus = self.scratch / "does_not_exist"
+        result = scan_archives_for_backfill(bogus)
+        self.assertEqual(result["total_slugs"], 0)
+        self.assertEqual(result["to_backfill"], [])
+        self.assertEqual(result["failed"], [])
+
+    def test_dir_without_summary_not_detected_as_archive(self):
+        """KB-13 boundary: a dir under output/ that has no slug-summary file
+        is silently skipped (not an archive, not a failure)."""
+        from agent.index import scan_archives_for_backfill
+        self._make_archive("bv001")
+        # bv002 dir exists but has no slug-summary file
+        d = self.scratch / "bv002"
+        d.mkdir()
+        (d / "video.mp4").write_text("x", encoding="utf-8")
+        result = scan_archives_for_backfill(self.scratch)
+        self.assertEqual(result["to_backfill"], ["bv001"])
+        # bv002 not in any list
+        self.assertNotIn("bv002", result["to_backfill"])
+        self.assertNotIn("bv002", result["skipped_existing"])
+        slugs_failed = [f["slug"] for f in result["failed"]]
+        self.assertNotIn("bv002", slugs_failed)
+
+
+class TestSearchIndex(unittest.TestCase):
+    """Phase 12 D-04: search_index substring match."""
+
+    def setUp(self):
+        self.scratch = (
+            Path(__file__).parent / "_tmp_index"
+            / f"search_{self._testMethodName}"
+        )
+        if self.scratch.exists():
+            import shutil
+            shutil.rmtree(self.scratch)
+        self.scratch.mkdir(parents=True)
+
+    def _seed_aggregator(self, entries):
+        agg_path = self.scratch / ".index.json"
+        agg_path.write_text(
+            json.dumps(entries, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def test_substring_match_in_title(self):
+        from agent.index import search_index
+        self._seed_aggregator({
+            "douyin_karpathy_llm_wiki": {
+                "slug": "douyin_karpathy_llm_wiki",
+                "title": "Karpathy 又被吹爆",
+                "duration_s": 242.0, "mode": "interview-distillation",
+                "topics": ["LLM-Wiki"], "keywords": [],
+                "tldr_oneliner": "x", "chapters": [],
+            }
+        })
+        results = search_index("Karpathy", output_dir=self.scratch)
+        self.assertEqual(len(results), 1)
+        self.assertIn("title", results[0]["matched_fields"])
+
+    def test_substring_match_in_chapter_excerpt(self):
+        from agent.index import search_index
+        self._seed_aggregator({
+            "bv001": {
+                "slug": "bv001", "title": "T", "duration_s": 1.0,
+                "mode": "concept-explanation", "topics": [], "keywords": [],
+                "tldr_oneliner": "y",
+                "chapters": [{"title": "intro", "start": 0,
+                              "excerpt": "ECS 之争"}],
+            }
+        })
+        results = search_index("ECS", output_dir=self.scratch)
+        self.assertEqual(len(results), 1)
+        self.assertIn("chapters[0].excerpt", results[0]["matched_fields"])
+        self.assertEqual(results[0]["chapter_hits"],
+                         [{"title": "intro", "start": 0}])
+
+    def test_case_insensitive(self):
+        from agent.index import search_index
+        self._seed_aggregator({
+            "bv001": {
+                "slug": "bv001", "title": "Karpathy LLM Wiki",
+                "duration_s": 1.0, "mode": "concept-explanation",
+                "topics": [], "keywords": [], "tldr_oneliner": "",
+                "chapters": [],
+            }
+        })
+        results = search_index("karpathy", output_dir=self.scratch)
+        self.assertEqual(len(results), 1)
+
+    def test_no_match_returns_empty(self):
+        from agent.index import search_index
+        self._seed_aggregator({
+            "bv001": {
+                "slug": "bv001", "title": "T", "duration_s": 1.0,
+                "mode": "concept-explanation", "topics": [], "keywords": [],
+                "tldr_oneliner": "", "chapters": [],
+            }
+        })
+        results = search_index("nonexistent_xyz", output_dir=self.scratch)
+        self.assertEqual(results, [])
+
+    def test_empty_aggregator_returns_empty(self):
+        from agent.index import search_index
+        results = search_index("anything", output_dir=self.scratch)
+        self.assertEqual(results, [])
+
+    def test_keyword_hit(self):
+        from agent.index import search_index
+        self._seed_aggregator({
+            "bv001": {
+                "slug": "bv001", "title": "T", "duration_s": 1.0,
+                "mode": "concept-explanation", "topics": [],
+                "keywords": ["LoRA", "Karpathy"],
+                "tldr_oneliner": "", "chapters": [],
+            }
+        })
+        results = search_index("LoRA", output_dir=self.scratch)
+        self.assertEqual(len(results), 1)
+        self.assertIn("keywords", results[0]["matched_fields"])
+
+
+class TestListIndex(unittest.TestCase):
+    """Phase 12 D-05: list_index filter behavior."""
+
+    def setUp(self):
+        self.scratch = (
+            Path(__file__).parent / "_tmp_index"
+            / f"list_{self._testMethodName}"
+        )
+        if self.scratch.exists():
+            import shutil
+            shutil.rmtree(self.scratch)
+        self.scratch.mkdir(parents=True)
+
+    def _seed_aggregator(self, entries):
+        agg_path = self.scratch / ".index.json"
+        agg_path.write_text(
+            json.dumps(entries, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _entry(self, slug, *, mode="replicate-guide", topics=None):
+        return {
+            "slug": slug, "title": f"T-{slug}", "duration_s": 1.0,
+            "mode": mode, "topics": topics or [], "keywords": [],
+            "tldr_oneliner": "", "chapters": [],
+        }
+
+    def test_no_filter_returns_all(self):
+        from agent.index import list_index
+        self._seed_aggregator({
+            "bv001": self._entry("bv001"),
+            "bv002": self._entry("bv002"),
+            "bv003": self._entry("bv003"),
+        })
+        results = list_index(output_dir=self.scratch)
+        self.assertEqual([r["slug"] for r in results],
+                         ["bv001", "bv002", "bv003"])
+
+    def test_filter_by_topic_membership(self):
+        from agent.index import list_index
+        self._seed_aggregator({
+            "a": self._entry("a", topics=["LLM-Wiki", "RAG"]),
+            "b": self._entry("b", topics=["Game-Dev"]),
+        })
+        results = list_index(topic="LLM-Wiki", output_dir=self.scratch)
+        self.assertEqual([r["slug"] for r in results], ["a"])
+
+    def test_filter_by_mode_equality(self):
+        from agent.index import list_index
+        self._seed_aggregator({
+            "a": self._entry("a", mode="replicate-guide"),
+            "b": self._entry("b", mode="interview-distillation"),
+        })
+        results = list_index(mode="replicate-guide", output_dir=self.scratch)
+        self.assertEqual([r["slug"] for r in results], ["a"])
+
+    def test_filter_topic_and_mode_is_AND_logic(self):
+        from agent.index import list_index
+        self._seed_aggregator({
+            "a": self._entry("a", topics=["X"], mode="replicate-guide"),
+            "b": self._entry("b", topics=["X"], mode="concept-explanation"),
+            "c": self._entry("c", topics=["Y"], mode="replicate-guide"),
+        })
+        results = list_index(topic="X", mode="replicate-guide",
+                             output_dir=self.scratch)
+        self.assertEqual([r["slug"] for r in results], ["a"])
+
+    def test_empty_aggregator_returns_empty(self):
+        from agent.index import list_index
+        results = list_index(output_dir=self.scratch)
+        self.assertEqual(results, [])
+
+
 if __name__ == "__main__":
     unittest.main()

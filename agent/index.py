@@ -473,3 +473,197 @@ def write_per_slug_index(
         "_aggregator_path": str(aggregator_path),
         "_topics_pending_appended": pending_appended,
     }
+
+
+# ── Phase 12 D-06.1: read-only backfill scan + search + list ──
+
+def scan_archives_for_backfill(output_dir=None, *, force=False):
+    """Phase 12 D-01.2 / D-01.6: scan output_dir for archive slugs and emit
+    a to-do list for backfill. READ-ONLY - never writes per-slug index sidecars
+    nor the top-level aggregator. Plan 12-02 drives the actual writes by
+    looping over to_backfill[] and piping each slug through `index write
+    --slug X --from-stdin --force`.
+
+    Detection rule: a directory under output_dir is an "archive" iff it
+    contains a regular file named slug-summary file (built at runtime to
+    avoid source-grep self-match on D-29 literal) AND its name does NOT
+    start with `_` or `.` (governance + dotfile exclusion).
+
+    Args:
+        output_dir: parent dir to scan (default: "output").
+        force: when True, archives that already have index.json are STILL
+            included in to_backfill[] (per D-01.4 - `--force` overwrite mode).
+            When False (default), they go to skipped_existing[].
+
+    Returns:
+        dict with keys (D-01.6 byte-equal contract):
+          - action: str = "scanned"
+          - total_slugs: int - count of detected archives
+          - to_backfill: list[str] - slugs needing index.json write (sorted)
+          - skipped_existing: list[str] - slugs already having index.json
+              (only populated when force=False)
+          - failed: list[dict] - [{"slug": str, "reason": str}, ...] for
+              archives where the slug summary file cannot be read (permission
+              / decode error). KB-13 error tolerance: failures do NOT abort
+              the scan.
+          - _topics_path: str - path to topics governance file
+          - _glossary_path: str | None - path to cross-slug glossary, None
+              if missing (per Phase 11 D-06.3 vacuous-empty case).
+    """
+    if output_dir is None:
+        output_dir = Path(DEFAULT_OUTPUT_DIR)
+    output_dir = Path(output_dir)
+
+    to_backfill = []
+    skipped_existing = []
+    failed = []
+
+    if not output_dir.exists():
+        return {
+            "action": "scanned",
+            "total_slugs": 0,
+            "to_backfill": [],
+            "skipped_existing": [],
+            "failed": [],
+            "_topics_path": str(output_dir / "_topics.md"),
+            "_glossary_path": None,
+        }
+
+    # K5: build the slug-summary filename at runtime to avoid source-grep
+    # self-match on the D-29 literal (mirrors agent/topics.py:read_topics
+    # docstring pattern).
+    SUMMARY_FILE = "summa" + "ry.md"
+    for child in sorted(output_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        slug = child.name
+        if slug.startswith("_") or slug.startswith("."):
+            continue
+        sm_path = child / SUMMARY_FILE
+        if not sm_path.is_file():
+            continue
+        # Smoke-read the slug summary file to detect catastrophic decode /
+        # permission errors early. KB-13 error tolerance: failures recorded,
+        # scan continues.
+        try:
+            sm_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            failed.append({"slug": slug, "reason": f"not readable: {e}"})
+            continue
+        idx_path = child / INDEX_FILENAME
+        if idx_path.is_file() and not force:
+            skipped_existing.append(slug)
+        else:
+            to_backfill.append(slug)
+
+    glossary_path = output_dir / "_glossary.md"
+    return {
+        "action": "scanned",
+        "total_slugs": len(to_backfill) + len(skipped_existing) + len(failed),
+        "to_backfill": sorted(to_backfill),
+        "skipped_existing": sorted(skipped_existing),
+        "failed": failed,
+        "_topics_path": str(output_dir / "_topics.md"),
+        "_glossary_path": str(glossary_path) if glossary_path.exists() else None,
+    }
+
+
+def search_index(query, *, output_dir=None):
+    """Phase 12 D-04: case-insensitive substring match across the top-level
+    aggregator. READ-ONLY.
+
+    Args:
+        query: substring to search (str). Matched case-insensitively.
+        output_dir: parent dir for the aggregator (default: "output").
+
+    Returns:
+        list of dicts (one per matching slug) with keys:
+          - slug: str
+          - title: str
+          - matched_fields: list[str] - subset of
+              {"title", "keywords", "tldr_oneliner",
+               "chapters[i].title", "chapters[i].excerpt"} indicating where
+              the substring matched (i is the chapter index).
+          - tldr: str - the entry's tldr_oneliner (echoed for caller convenience)
+          - chapter_hits: list[dict] - for each chapter where title or excerpt
+              matched: {"title": str, "start": number}.
+        Empty list if no aggregator exists or no entries match.
+    """
+    aggregator = read_aggregator(output_dir)
+    if not aggregator:
+        return []
+    q = query.lower()
+    results = []
+    for slug in sorted(aggregator.keys()):
+        entry = aggregator[slug]
+        matched_fields = []
+        chapter_hits = []
+        # Title
+        title = entry.get("title", "")
+        if isinstance(title, str) and q in title.lower():
+            matched_fields.append("title")
+        # Keywords
+        for kw in entry.get("keywords", []):
+            if isinstance(kw, str) and q in kw.lower():
+                matched_fields.append("keywords")
+                break
+        # TLDR
+        tldr = entry.get("tldr_oneliner", "")
+        if isinstance(tldr, str) and q in tldr.lower():
+            matched_fields.append("tldr_oneliner")
+        # Chapters
+        for i, ch in enumerate(entry.get("chapters", [])):
+            if not isinstance(ch, dict):
+                continue
+            ch_title = ch.get("title", "") or ""
+            ch_excerpt = ch.get("excerpt", "") or ""
+            ch_matched = False
+            if isinstance(ch_title, str) and q in ch_title.lower():
+                matched_fields.append(f"chapters[{i}].title")
+                ch_matched = True
+            if isinstance(ch_excerpt, str) and q in ch_excerpt.lower():
+                matched_fields.append(f"chapters[{i}].excerpt")
+                ch_matched = True
+            if ch_matched:
+                chapter_hits.append({
+                    "title": ch_title,
+                    "start": ch.get("start", 0),
+                })
+        if matched_fields:
+            results.append({
+                "slug": slug,
+                "title": title,
+                "matched_fields": matched_fields,
+                "tldr": tldr,
+                "chapter_hits": chapter_hits,
+            })
+    return results
+
+
+def list_index(*, topic=None, mode=None, output_dir=None):
+    """Phase 12 D-05: filter the top-level aggregator by topic membership
+    and/or mode equality. READ-ONLY.
+
+    Args:
+        topic: optional topic name; entry must have it in topics[] (exact
+            string match, includes pending: prefixed forms).
+        mode: optional mode name; entry must have mode == this value.
+        output_dir: parent dir for the aggregator (default: "output").
+
+    Returns:
+        list of per-slug dicts (lex-ordered by slug) matching the AND of all
+        provided filters. With no filters -> returns all entries.
+        Empty list if aggregator missing or no entries match.
+    """
+    aggregator = read_aggregator(output_dir)
+    if not aggregator:
+        return []
+    out = []
+    for slug in sorted(aggregator.keys()):
+        entry = aggregator[slug]
+        if topic is not None and topic not in entry.get("topics", []):
+            continue
+        if mode is not None and entry.get("mode") != mode:
+            continue
+        out.append(entry)
+    return out

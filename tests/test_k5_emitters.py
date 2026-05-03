@@ -360,6 +360,35 @@ class TestK5BoundaryPhase07(unittest.TestCase):
             "aggregator).",
         )
 
+    # ── Phase 12 D-07.2 K5 module re-check after agent/index.py extensions ──
+
+    def test_K5_module_index_phase12_extensions_no_d29_writes(self):
+        """Phase 12 D-07.2: agent/index.py - after Phase 12 adds 3 read-only
+        functions (scan_archives_for_backfill / search_index / list_index) -
+        STILL contains zero of the 5 D-29 core literals AND zero write API
+        patterns targeting those files. The literals `index.json` (legitimate
+        write target) and `_topics.md` / `_glossary.md` (cross-module reads)
+        remain allowed.
+        """
+        import re as _re
+        here = Path(__file__).parent.parent
+        src = (here / "agent" / "index.py").read_text(encoding="utf-8")
+        forbidden_literals = (
+            "summa" "ry.md", "pl" "an.md", "para" "graphs.json",
+            "se" "gs.json", "me" "ta.json",
+        )
+        for forbidden in forbidden_literals:
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: agent/index.py (post-Phase-12) contains "
+                f"forbidden literal {forbidden!r}",
+            )
+        for pat in _RESOLVE_FORBIDDEN_PATTERNS:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: agent/index.py write pattern {pat!r} found",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,3 +24,8 @@ tests/_tmp_glossary/
 tests/_tmp_glossary_append/
 # Phase 7 queue test artifact (Path.home monkey-patch may resolve to project root)
 .videoSummary/
+# Phase 10/11/12 test scratchpads — per-test tmpdirs under tests/ for ASCII-safe paths
+tests/_tmp_topics/*
+!tests/_tmp_topics/.gitkeep
+tests/_tmp_index/*
+!tests/_tmp_index/.gitkeep
