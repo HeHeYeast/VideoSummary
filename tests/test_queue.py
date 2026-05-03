@@ -242,8 +242,17 @@ class TestQueueRace(unittest.TestCase):
     def setUp(self):
         self._td = tempfile.TemporaryDirectory(dir=_ascii_tmpdir_root())
         self.fake_home = Path(self._td.name)
+        # WR-05: capture original Path.home BEFORE any worker / parent mutation
+        # so tearDown can restore it. Without this, pollution leaks into other
+        # test modules loaded later in `python -m unittest discover` runs.
+        self._orig_home = q.Path.home
 
     def tearDown(self):
+        # WR-05: restore Path.home BEFORE cleaning the temp dir so subsequent
+        # tests that call Path.home() don't get the lambda pointing to a
+        # deleted tmpdir. Also pop the env var (IN-04) for symmetry.
+        q.Path.home = self._orig_home
+        os.environ.pop("_QUEUE_TEST_HOME", None)
         self._td.cleanup()
 
     def test_T12_concurrent_add_no_corruption(self):
