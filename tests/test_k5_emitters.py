@@ -296,6 +296,32 @@ class TestK5BoundaryPhase07(unittest.TestCase):
                 f"K5 violation: agent/topics.py write pattern {pat!r} found",
             )
 
+    # ── Phase 11 D-10.1 K5 boundary tests for agent/index.py + cmd_index_* ──
+
+    def test_K5_module_index_no_summary_writes(self):
+        """Phase 11 D-10.1: agent/index.py module source must NOT contain the
+        5 D-29 core literals (`summary.md`, `plan.md`, `paragraphs.json`,
+        `segs.json`, `meta.json`). The literals `index.json` (own write
+        target) and `_topics.md` (Phase 10 dependency) ARE legitimate.
+
+        Note: `cmd_index_write` and `cmd_index_rebuild` handler-level K5 tests
+        are added in Plan 11-01 Task 2 (when the handlers ship in
+        `agent/tools.py`). This test ships in Task 1 since the module is
+        the Wave 0 deliverable.
+        """
+        here = Path(__file__).parent.parent
+        src = (here / "agent" / "index.py").read_text(encoding="utf-8")
+        forbidden_literals = (
+            "summary.md", "plan.md", "paragraphs.json",
+            "segs.json", "meta.json",
+        )
+        for forbidden in forbidden_literals:
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: agent/index.py contains forbidden literal "
+                f"{forbidden!r}",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
