@@ -54,7 +54,9 @@ See archive for full phase details, plans, and verification.
   3. **Self-contained zero-baseline header (D-01) renders correctly** — every new summary's top section: 标题 / UP / 时长 / 链接 → `## 读这篇前你需要知道` (≤ 3 行先决条件) → `## 你不需要知道什么` (≤ 3 行明确豁免) → optional `## 5 分钟速读版` (TEACH-B trigger) → 正文. Header hard cap ≤ 6 lines total (excluding TL;DR). Tone constraint: annotations never use "简单来说" / "说白了" / "你可能不知道" patterns (P-05 anti-patronizing).
   4. **Cross-slug glossary append works under FileLock without corruption (P-04)** — `output/_glossary.md` accepts append-only entries via `python -m agent.tools glossary append --slug <slug> --term "..." --definition "..."` CLI. `output/.glossary.lock` (reuses `agent/_lock.py`) serializes concurrent appends from two terminals; same (slug, term) pair is idempotent (skip if H2 anchor + slug-link exists). Inline-first invariant enforced by prompt: every first-mention term gets inline `术语 (English/中文释义)` REGARDLESS of glossary state — glossary is fallback-only, never excuses skipping inline annotation.
   5. **TL;DR drift prevented (P-06)** — `## 5 分钟速读版` block written LAST (after body + glossary appends), 10-15 lines hard cap (max 20), zero citations inside (uses section anchors `详见 §三、消化阶段` instead). Triggered by `paragraphs.json[-1].end > 1200` (20 min) OR `estimated_sections > 50`. Sync check (Claude self-verifies before phase close): TL;DR step count == body H2 step count for replicate-guide mode.
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 08-01-PLAN.md — TEACH-A3 glossary append code (agent/glossary.py + agent/tools.py glossary CLI subcommand + V11_FEATURES extension + tests/test_glossary.py FileLock race + extended K5 source-grep)
+  - [ ] 08-02-PLAN.md — CLAUDE.md prompt extensions (CORR-01b/c L2/L3 corrections + CORR-02 inline trace tokens & self-check + TEACH-A1 inline term annotation + TEACH-A2 zero-baseline header + TEACH-B 5-min TL;DR speedrun) + 5th format-spec invariant + cross-refs in /summarize-video Phase 2/6/7/8
 
 ### Phase 09: Correctness automation — verifier subagent + auto-rewrite
 **Goal**: Land the highest-token-cost layer last, so Phase 07 + 08 production data can inform per-layer cap tuning. Mechanical `summary_lint` checks format-spec + traces + glossary; Phase 7.5 verifier subagent (`Task(general-purpose)`) does scope-locked correctness review; critical findings auto-trigger ONE delta rewrite with backup; max-1 cap enforced; UNRESOLVED fallback for unfixable cases.
@@ -85,7 +87,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 05. Adaptive Output + UI Demos + Podcasts | v1.0 | 3/3 | ✅ Complete | 2026-05-02 |
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
-| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 0/? | Not started | — |
+| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 0/2 | Planned     | — |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
 
 ---

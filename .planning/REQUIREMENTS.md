@@ -82,13 +82,13 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 | TOOL-A | Phase 07 | 07-03 |
 | TOOL-B | Phase 07 | 07-03 |
 | CORR-01a | Phase 07 | 07-03 |
-| CORR-01b | Phase 08 | TBD |
-| CORR-01c | Phase 08 | TBD |
-| CORR-02 | Phase 08 | TBD |
-| TEACH-A1 | Phase 08 | TBD |
-| TEACH-A2 | Phase 08 | TBD |
-| TEACH-A3 | Phase 08 | TBD |
-| TEACH-B | Phase 08 | TBD |
+| CORR-01b | Phase 08 | 08-02 |
+| CORR-01c | Phase 08 | 08-02 |
+| CORR-02 | Phase 08 | 08-02 |
+| TEACH-A1 | Phase 08 | 08-02 |
+| TEACH-A2 | Phase 08 | 08-02 |
+| TEACH-A3 | Phase 08 | 08-01 |
+| TEACH-B | Phase 08 | 08-02 |
 | CORR-03a | Phase 09 | TBD |
 | CORR-03b | Phase 09 | TBD |
 | CORR-03c | Phase 09 | TBD |
@@ -97,8 +97,8 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 
 **Per-phase distribution:**
 - Phase 07: 8 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a) — **all mapped to specific plans (07-01/02/03)**
-- Phase 08: 7 reqs (CORR-01b/c + CORR-02 + TEACH-A1/A2/A3 + TEACH-B)
+- Phase 08: 7 reqs (CORR-01b/c + CORR-02 + TEACH-A1/A2/A3 + TEACH-B) — **all mapped to specific plans (08-01 = TEACH-A3 code; 08-02 = 6 prompt extensions)**
 - Phase 09: 3 reqs (CORR-03a/b/c)
 
 ---
-*Last updated: 2026-05-03 — Phase 07 plans (07-01/02/03) created and mapped 1:1 to all 8 Phase 07 reqs. Phase 08/09 plans pending. Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
+*Last updated: 2026-05-03 — Phase 07 plans (07-01/02/03) shipped; Phase 08 plans (08-01/02) created and mapped 1:1 to all 7 Phase 08 reqs (TEACH-A3 → 08-01 code, all 6 others → 08-02 CLAUDE.md prompt extensions). Phase 09 plans pending. Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
