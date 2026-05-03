@@ -24,7 +24,7 @@ See archive for full phase details, plans, and verification.
 ### v1.1 — summary-quality
 
 - [x] **Phase 07: Warm-up + K5 emitters + D-29 foundation** — Opt-in marker, 17-archive replay gate, token-budget baseline, 4 new K5 read-only signal CLIs, MISC打杂. Zero behavior change to summary.md. (completed 2026-05-03)
-- [ ] **Phase 08: Writing rules — CLAUDE.md extensions + glossary** — L2/L3 ASR context correction prompts, inline-trace tokens, zero-baseline header, inline term annotation, cross-slug glossary CLI, TL;DR speedrun. New summaries diverge in shape.
+- [x] **Phase 08: Writing rules — CLAUDE.md extensions + glossary** — L2/L3 ASR context correction prompts, inline-trace tokens, zero-baseline header, inline term annotation, cross-slug glossary CLI, TL;DR speedrun. New summaries diverge in shape. (completed 2026-05-03)
 - [ ] **Phase 09: Correctness automation — verifier subagent + auto-rewrite** — `summary_lint` mechanical checker + Phase 7.5 verifier subagent (`Task(general-purpose)`) + delta auto-rewrite (max-1) + UNRESOLVED fallback.
 
 ## Phase Details
@@ -56,7 +56,7 @@ See archive for full phase details, plans, and verification.
   5. **TL;DR drift prevented (P-06)** — `## 5 分钟速读版` block written LAST (after body + glossary appends), 10-15 lines hard cap (max 20), zero citations inside (uses section anchors `详见 §三、消化阶段` instead). Triggered by `paragraphs.json[-1].end > 1200` (20 min) OR `estimated_sections > 50`. Sync check (Claude self-verifies before phase close): TL;DR step count == body H2 step count for replicate-guide mode.
 **Plans**: 2 plans
   - [x] 08-01-PLAN.md — TEACH-A3 glossary append code (agent/glossary.py + agent/tools.py glossary CLI subcommand + V11_FEATURES extension + tests/test_glossary.py FileLock race + extended K5 source-grep)
-  - [ ] 08-02-PLAN.md — CLAUDE.md prompt extensions (CORR-01b/c L2/L3 corrections + CORR-02 inline trace tokens & self-check + TEACH-A1 inline term annotation + TEACH-A2 zero-baseline header + TEACH-B 5-min TL;DR speedrun) + 5th format-spec invariant + cross-refs in /summarize-video Phase 2/6/7/8
+  - [x] 08-02-PLAN.md — CLAUDE.md prompt extensions (CORR-01b/c L2/L3 corrections + CORR-02 inline trace tokens & self-check + TEACH-A1 inline term annotation + TEACH-A2 zero-baseline header + TEACH-B 5-min TL;DR speedrun) + 5th format-spec invariant + cross-refs in /summarize-video Phase 2/6/7/8
 
 ### Phase 09: Correctness automation — verifier subagent + auto-rewrite
 **Goal**: Land the highest-token-cost layer last, so Phase 07 + 08 production data can inform per-layer cap tuning. Mechanical `summary_lint` checks format-spec + traces + glossary; Phase 7.5 verifier subagent (`Task(general-purpose)`) does scope-locked correctness review; critical findings auto-trigger ONE delta rewrite with backup; max-1 cap enforced; UNRESOLVED fallback for unfixable cases.
@@ -87,7 +87,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 05. Adaptive Output + UI Demos + Podcasts | v1.0 | 3/3 | ✅ Complete | 2026-05-02 |
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
-| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 1/2 | In Progress|  |
+| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | Complete   | 2026-05-03 |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
 
 ---
