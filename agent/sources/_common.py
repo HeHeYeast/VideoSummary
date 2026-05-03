@@ -104,9 +104,18 @@ def ffprobe_video(video_path: str | Path) -> dict:
     codec = (v.get("codec_name") or "unknown").lower()
     fps_mode = _detect_vfr(v.get("r_frame_rate"), v.get("avg_frame_rate"))
 
-    # D-22: HEVC/AV1 warn-but-do-not-block
-    if codec in {"hevc", "av1"}:
+    # D-22 + Phase 07 MISC-01: HEVC stays WARN (some legacy ffmpeg builds slow on it);
+    # AV1 demoted to INFO — ubiquitous on Bilibili/抖音 2026+, warning is pure noise.
+    # Message text intentionally byte-equal across both levels so existing log-grep
+    # patterns keep working (P-08 spirit on log strings, not just artifacts).
+    if codec == "hevc":
         log.warning(
+            "Codec %s detected; if extract_frames runs slow, remux to h264 first: "
+            "`ffmpeg -i in -c:v libx264 -c:a copy out.mp4`",
+            codec,
+        )
+    elif codec == "av1":
+        log.info(
             "Codec %s detected; if extract_frames runs slow, remux to h264 first: "
             "`ffmpeg -i in -c:v libx264 -c:a copy out.mp4`",
             codec,
