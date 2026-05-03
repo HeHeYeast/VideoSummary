@@ -1298,13 +1298,29 @@ def cmd_transcribe_lint(args):
     from agent.io import load_segs
 
     slug_dir = Path(args.slug_dir)
+    # WR-04: validate slug_dir for CJK consistency with peer K5 emitters
+    # (cmd_mode_signals / cmd_schedule_suggest). Forward-compat: today this
+    # handler invokes no subprocess, but adding a future word-segmenter shell
+    # would expose the same GBK code-page hazard as --out paths (D-19).
+    _validate_out_path(slug_dir)
     if not slug_dir.is_dir():
         raise FileNotFoundError(f"slug dir not found: {slug_dir}")
     segs_path = slug_dir / "segs.json"
     if not segs_path.exists():
         raise FileNotFoundError(f"segs.json missing under {slug_dir}; run transcribe first")
+    # WR-03: tolerate corrupt meta.json (mirror agent/_v11.py / agent/queue.py
+    # tolerant-of-corrupt pattern). Title-token strategy gracefully no-ops when
+    # meta == {}, the other 4 strategies still run.
     meta_path = slug_dir / "meta.json"
-    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    meta: dict = {}
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            log.warning(
+                "meta.json at %s unreadable (%s); proceeding without title cross-reference",
+                meta_path, e,
+            )
 
     slug = slug_dir.name
     segs = load_segs(segs_path)
