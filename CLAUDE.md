@@ -164,6 +164,7 @@ YouTube ingest 在国内默认连不通（GFW + 2026 SABR + PO Token 三重阻�
    - `download` / `ingest`（除了上面的 vendor config 那一段已经锁住）— 自身是幂等的，meta.json 用 atomic write
    - `detect_scenes` / `detect_silence` / `doctor` — 决策支持/只读工具
    - `diarize` — opt-in，长任务 user 自己负责不重复触发
+   - `queue` 子命令（Phase 7 加入新锁域 `~/.videoSummary/.queue.lock`，详见下方 `## v1.1 opt-in marker + 4 K5 emitters (Phase 07)` 段的 "Multi-terminal lock 域扩展" 小节）
 
 ### per-slug isolation vs 跨 slug 并发
 
@@ -1085,6 +1086,56 @@ VTT 优先级（locked at `agent/sources/youtube.py` Phase 5 D-31 / WR-02）：`
 - `meta.json.subtitle_origin == "creator"` → manual / creator-uploaded VTT，**直接信任引用**
 - `meta.json.subtitle_origin == "auto"` → auto-generated 字幕，与 ASR 同等可信度，照常 ASR 重跑
 - `meta.json.subtitle_origin == "none"` → 无 VTT，必走 ASR 路径（faster-whisper + `--profile podcast`）
+
+---
+
+## v1.1 opt-in marker + 4 K5 emitters (Phase 07)
+
+> 这一节是 v1.1 summary-quality milestone 的入口契约。**v1.0 archives 永远不被动升级** — 只有显式 opt-in 的 slug 才走 v1.1 路径。
+
+### `.v11_features.json` opt-in marker
+
+每个 slug 的 `output/<slug>/.v11_features.json` 是 v1.1 路径的开关。Schema：
+
+```json
+{
+  "version": 1,
+  "features_enabled": ["transcribe_lint", "mode_signals", "schedule_suggest", "trace_tokens", "self_contained_header", "glossary", "tldr", "verifier"],
+  "marker_set_at": "<ISO-8601 UTC>"
+}
+```
+
+- **缺失 marker**：silently 走 v1.0 path，所有 v1.1 sidecar 不写、prompt extension 不触发（D-29 byte-equal preserved）
+- **显式 opt-in**：用 `python -c "from agent._v11 import set_v11_marker; set_v11_marker('output/<slug>', ['transcribe_lint', 'mode_signals'])"` 选择性开启
+- **regression test**：每次 phase 07 / 08 / 09 close 前必跑 `python -m scripts.replay_v10_archives`；任一字节 diff = phase 不可 ship
+
+### 4 个 K5 read-only signal emitters
+
+Phase 07 ship 4 个工具，**只发信号、不写决策 artifact**。Claude 读完信号后仍是唯一决策者（K5 边界）。
+
+| 命令 | 输出 | 用途 |
+|---|---|---|
+| `python -m agent.tools transcribe_lint output/<slug>` | `transcribe_warnings.json` | L1 ASR 可疑词检测：5 strategies = title_token + frequency_variance + mixed_script + hapax + **homophone_cluster** (pypinyin 同音聚类，CORR-01a 4 mandated 之一)。Phase 08 L2 prompt 读它做上下文修复 |
+| `python -m agent.tools mode_signals output/<slug>/paragraphs.json --out output/<slug>/mode_signals.json` | `mode_signals.json` | 5 个客观信号（code-fence rate / step markers / question density / speaker turns / cross-tool comparisons）+ raw evidence。**没有** `recommended_mode` 字段（K5 边界，PITFALLS P-07）。Claude 写 plan 时可参考 |
+| `python -m agent.tools schedule_suggest output/<slug> [--duration <float>]` | `schedule_suggestion.json` | 组合 paragraphs + scenes + silence 输出建议 fps 段 + **强制 FPS-04 baseline**（fps ≤ 0.1 覆盖全片，避免 strict-only 触雷 D-08 fallback gate）。Claude 拿建议自己 author schedule artifact。`--duration` 用于 video.mp4 已清理的归档（W5 fix） |
+| `python -m agent.tools glossary_audit` | stdout (or `--json`) | Read-only 审计 `output/_glossary.md`（Phase 08 TEACH-A3 落地）：报重复 term + 冲突定义。**永不**改 glossary 文件（K5） |
+
+**Schema 锁死**：4 个 emitter 的输出 schema 在 `.planning/phases/07-warm-up-k5-emitters-d-29-foundation/07-03-PLAN.md` 的 interfaces section。Phase 08/09 读这些 sidecar 时按锁死的 key 名解析。
+
+**K5 boundary 静态断言**：4 个 emitter 的源代码（含 docstring）**不允许**包含字面量 `summary.md` / `plan.md` / `schedule.json`。`tests/test_k5_emitters.py` 在 `inspect.getsource()` 上强校验（每个 cmd_* 函数 + 每个模块文件）。说明里改用 "the schedule artifact" / "the plan artifact" / "the summary artifact" 这种描述性短语。
+
+### Token budget baseline
+
+`output/<slug>/.token_budget.json` 在 3 个代表性 v1.0 archive 上落地（PRE-V11-03）：
+- `output/BV132wizyEEB/.token_budget.json` — replicate-guide 基线
+- `output/douyin_karpathy_llm_wiki/.token_budget.json` — interview-distillation 基线
+- `output/douyin_claude_code_hooks/.token_budget.json` — extension-applications 基线
+
+Phase 09 SC#4 断言：v1.1 全开 ≤ 2x baseline。超出则 phase verification fail。
+
+### Multi-terminal lock 域扩展
+
+`~/.videoSummary/.queue.lock` (Phase 07 MISC-02) 是 v1.1 第一个跨 terminal 锁域。复用 `agent/_lock.py:FileLock`，stale-PID 接管逻辑同 `.resume.lock`。Phase 08 TEACH-A3 会再加 `output/.glossary.lock`（cross-slug glossary append 串行化）。
 
 ---
 

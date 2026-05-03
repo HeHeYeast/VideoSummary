@@ -1287,6 +1287,171 @@ def cmd_queue_skip(args):
     print(f"queue skip: {args.slug} (reason: {args.reason or '<none>'})")
 
 
+def cmd_transcribe_lint(args):
+    """Phase 07 CORR-01a: L1 ASR suspect-token detection.
+
+    K5 boundary: writes ONLY the L1 warnings sibling artifact;
+    NEVER mutates segs.json (D-29 invariant). Source must not reference
+    the plan artifact / summary artifact / schedule artifact filenames.
+    """
+    from agent.transcribe_lint import detect_warnings, WARNINGS_FILENAME
+    from agent.io import load_segs
+
+    slug_dir = Path(args.slug_dir)
+    if not slug_dir.is_dir():
+        raise FileNotFoundError(f"slug dir not found: {slug_dir}")
+    segs_path = slug_dir / "segs.json"
+    if not segs_path.exists():
+        raise FileNotFoundError(f"segs.json missing under {slug_dir}; run transcribe first")
+    meta_path = slug_dir / "meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+
+    slug = slug_dir.name
+    segs = load_segs(segs_path)
+    warnings = detect_warnings(segs, meta=meta)
+
+    out = slug_dir / WARNINGS_FILENAME
+    obj = {"version": 1, "warnings": warnings}
+    write_json_atomic(out, obj)
+    _log(slug, "transcribe_lint", f"detected {len(warnings)} suspect tokens")
+    _log(slug, "transcribe_lint", f"output: {out}")
+
+
+def cmd_mode_signals(args):
+    """Phase 07 TOOL-A: emit mode-classification signals from paragraphs.
+
+    K5 boundary: writes ONLY the mode-signals sibling artifact;
+    NO `recommended_mode` field in output (per PITFALLS P-07). Claude maps
+    signals -> mode in the plan artifact, not this tool.
+    """
+    from agent.mode_signals import compute_signals, SIGNALS_FILENAME
+    from agent.io import load_paragraphs
+    import hashlib
+
+    out = Path(args.out)
+    _validate_out_path(out)
+    slug = Path(args.out).parent.name
+
+    paragraphs = load_paragraphs(args.paragraphs_json)
+    signals = compute_signals(paragraphs)
+
+    # paragraphs hash — proves staleness when plan was authored later (P-07 mitigation)
+    payload = json.dumps(paragraphs, ensure_ascii=False, sort_keys=True)
+    p_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    obj = {
+        "version": 1,
+        "video": Path(args.paragraphs_json).parent.name + ".mp4",
+        "paragraphs_hash": p_hash,
+        "signals": signals,
+    }
+    write_json_atomic(out, obj)
+
+    summary = ", ".join(
+        f"{k}={v.get('per_paragraph') if 'per_paragraph' in v else v.get('count') or v.get('intro_phrase_count')}"
+        for k, v in signals.items()
+    )
+    _log(slug, "mode_signals", summary)
+    _log(slug, "mode_signals", f"output: {out}")
+
+
+def cmd_schedule_suggest(args):
+    """Phase 07 TOOL-B: emit fps-segment suggestion combining paragraphs + scenes + silence.
+
+    K5 boundary: writes ONLY the fps-segment suggestion artifact; Claude
+    reads, refines, and writes the final schedule artifact. Source phrases
+    "the schedule artifact" not the literal filename.
+
+    W5 fix: accepts --duration <float> override flag for archives without
+    retained video.mp4 (skip the ffprobe call entirely when override given).
+    """
+    from agent.schedule_suggestion import compute_suggestion, SUGGESTION_FILENAME
+    from agent.io import load_paragraphs
+
+    slug_dir = Path(args.slug_dir)
+    if not slug_dir.is_dir():
+        raise FileNotFoundError(f"slug dir not found: {slug_dir}")
+    out = Path(args.out) if args.out else slug_dir / SUGGESTION_FILENAME
+    _validate_out_path(out)
+    slug = slug_dir.name
+
+    paragraphs_path = slug_dir / "paragraphs.json"
+    if not paragraphs_path.exists():
+        raise FileNotFoundError(f"paragraphs.json missing under {slug_dir}; run aggregate first")
+    paragraphs = load_paragraphs(paragraphs_path)
+
+    # Optional inputs — gracefully absent (per ARCHITECTURE.md degrade path)
+    scenes = None
+    scenes_path = slug_dir / "scenes.json"
+    if scenes_path.exists():
+        scenes_obj = json.loads(scenes_path.read_text(encoding="utf-8"))
+        scenes = scenes_obj.get("scenes", [])
+
+    silence_map = None
+    silence_path = slug_dir / "silence_map.json"
+    if silence_path.exists():
+        silence_obj = json.loads(silence_path.read_text(encoding="utf-8"))
+        silence_map = silence_obj.get("silence_intervals", [])
+
+    # W5 fix: --duration override skips ffprobe entirely. Required for archives
+    # without retained video.mp4 (some 17-archive slugs are audio-only after cleanup).
+    if args.duration is not None:
+        duration_s = float(args.duration)
+        duration_source = "--duration-override"
+        video_filename = "video.mp4"  # nominal name when no real video file present
+    else:
+        from agent.sources._common import ffprobe_video
+        video_files = list(slug_dir.glob("video.mp4")) or list(slug_dir.glob("*.mp4"))
+        if not video_files:
+            raise FileNotFoundError(
+                f"no .mp4 in {slug_dir} for duration probe; "
+                f"pass --duration <float> to skip ffprobe (W5 archive-without-video path)"
+            )
+        probe = ffprobe_video(video_files[0])
+        duration_s = probe.get("duration_s", 0.0)
+        duration_source = "ffprobe"
+        video_filename = video_files[0].name
+
+    suggestion = compute_suggestion(
+        paragraphs,
+        scenes=scenes,
+        silence_map=silence_map,
+        duration_s=duration_s,
+        video_filename=video_filename,
+        duration_source=duration_source,
+    )
+    write_json_atomic(out, suggestion)
+
+    _log(slug, "schedule_suggest",
+         f"emitted {len(suggestion['suggested_segments'])} suggested segments "
+         f"(scenes={suggestion['suggestion_meta']['scene_cut_count']}, "
+         f"flagged_silences={suggestion['suggestion_meta']['flagged_silences']}, "
+         f"duration_source={duration_source})")
+    _log(slug, "schedule_suggest", f"output: {out}")
+
+
+def cmd_glossary_audit(args):
+    """Phase 07 read-only glossary audit (Phase 08 TEACH-A3 helper stub).
+
+    K5: read-only; never edits the glossary file. Source must not reference
+    the summary artifact / plan artifact filenames.
+    """
+    from agent.glossary_audit import audit_glossary
+
+    result = audit_glossary(path=args.glossary_path)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"glossary_audit: {result['glossary_path']}")
+        print(f"  exists: {result['exists']}")
+        print(f"  term_count: {result['term_count']}")
+        print(f"  duplicate_terms: {result['duplicate_terms']}")
+        if result['conflicting_definitions']:
+            print(f"  conflicting_definitions: {len(result['conflicting_definitions'])} terms with divergent defs")
+            for c in result['conflicting_definitions'][:3]:
+                print(f"    - {c['term']}: {len(c['definitions'])} variants")
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -1426,6 +1591,43 @@ def main():
     qskip.add_argument("slug")
     qskip.add_argument("--reason", default=None)
 
+    # ── Phase 07 K5 emitters (CORR-01a + TOOL-A + TOOL-B + glossary_audit) ──
+    p = sub.add_parser(
+        "transcribe_lint",
+        help="K5: L1 ASR 可疑词检测 -> transcribe_warnings.json (CORR-01a; pypinyin)",
+    )
+    p.add_argument("slug_dir", help="path to output/<slug>/ (must contain segs.json + meta.json)")
+
+    p = sub.add_parser(
+        "mode_signals",
+        help="K5: paragraphs -> mode_signals.json (TOOL-A; signals only, no recommended_mode)",
+    )
+    p.add_argument("paragraphs_json", help="path to output/<slug>/paragraphs.json")
+    p.add_argument("--out", required=True, help="path to output mode_signals.json")
+
+    p = sub.add_parser(
+        "schedule_suggest",
+        help="K5: paragraphs + scenes + silence -> schedule_suggestion.json (TOOL-B; "
+             "includes mandatory FPS-04 baseline)",
+    )
+    p.add_argument("slug_dir", help="path to output/<slug>/")
+    p.add_argument("--out", default=None, help="path to output (default: <slug_dir>/schedule_suggestion.json)")
+    # W5 fix: --duration override for archives without retained video.mp4
+    p.add_argument(
+        "--duration", type=float, default=None,
+        help="W5: override duration in seconds; skips ffprobe call. "
+             "Required for archives where video.mp4 was cleaned up after summary "
+             "but you still want to regenerate schedule_suggestion.json",
+    )
+
+    p = sub.add_parser(
+        "glossary_audit",
+        help="K5 read-only: audit output/_glossary.md for duplicates / conflicts (Phase 08 TEACH-A3 helper)",
+    )
+    p.add_argument("--glossary-path", default=None,
+                   help="path to glossary file (default: output/_glossary.md)")
+    p.add_argument("--json", action="store_true", help="emit JSON instead of text")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -1456,6 +1658,11 @@ def main():
         "classify_frame": cmd_classify_frame,
         "ocr_frame": cmd_ocr_frame,
         "doctor": cmd_doctor,  # NEW (Phase 2 RES-07)
+        # ── Phase 07 K5 emitters (CORR-01a + TOOL-A + TOOL-B + glossary_audit) ──
+        "transcribe_lint": cmd_transcribe_lint,    # Phase 07 CORR-01a
+        "mode_signals": cmd_mode_signals,          # Phase 07 TOOL-A
+        "schedule_suggest": cmd_schedule_suggest,  # Phase 07 TOOL-B
+        "glossary_audit": cmd_glossary_audit,      # Phase 07 (Phase 08 helper stub)
     }
     queue_cmds = {  # Phase 07 MISC-02 — nested dispatch for `queue {add|list|next|done|skip}`
         "add": cmd_queue_add,
