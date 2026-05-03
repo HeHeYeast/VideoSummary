@@ -51,7 +51,9 @@ See archive for full phase details, plans, and verification.
   3. **`python -m agent.tools topics audit [--json]` 输出 pending 队列 + 引用计数 + 孤儿检测** — 命令读 `output/_topics.md` + 扫所有 `output/<slug>/index.json`（如有），输出三段报告：(a) `## Pending` 段所有 entry + 申请来源；(b) 每个 approved topic 的引用计数（# of slugs referencing it）；(c) 孤儿 topic 检测（approved 但 0 slug 引用）。`--json` flag 给 Claude consumption（结构化输出）。**只读** — 永不改 `_topics.md`（K5 边界）。
   4. **`python -m agent.tools topics resolve <pending-name> [--rename <new>]` 把 pending 挪到正式段并自动更新所有引用 index.json** — 命令把 `## Pending` 中的 entry 移到 `## Approved Taxonomy`（可选 rename）；同时扫 `output/<slug>/index.json` 中所有 `topics: ["pending: <name>"]` → 改为 `topics: ["<name>"]`（rename 时改成 new 名）。Atomic write 保证 _topics.md + 多个 index.json 一起改完才落盘。
   5. **Claude 申请新 topic 走 governance 闭环（K5 边界 statically asserted）** — Phase 11 写 index.json 时遇到现有 approved topic 都不合适 → 在 `## Pending` 段 append（必填 3 字段：申请来源 slug + chapter title + 提议理由），该 chapter `topics: ["pending: <name>"]`。Approved topics 从 `output/_topics.md` 顶部段读取作为白名单。CLI source-grep 测试断言 `topics bootstrap/audit/resolve` 三个 cmd 不写 `index.json` / `summary.md`（K5 boundary，mirror v1.1 K5 emitter 静态断言模式）。
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 10-01-PLAN.md — agent/topics.py module + 3 nested CLI subcommands + 4 K5 boundary tests + behavior tests (Wave 1, autonomous)
+- [ ] 10-02-PLAN.md — first real `topics bootstrap` invocation: Claude reads 17+ archives, proposes JSON taxonomy, populates output/_topics.md (Wave 2, autonomous, depends_on 10-01)
 
 ### Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook
 **Goal**: 落地 v1.2 知识库的"中颗粒索引层"——给每个 `output/<slug>/` 写 `index.json`（schema 锁死 8 字段），keywords 优先复用 `_glossary.md` H2 anchors 避免分裂，顶层 `output/.index.json` atomic rebuild 让 Claude 一次 Read 拿全 23+ 条概览。`/summarize-video` Phase 7.6 hook 让新视频自动同步生成；老归档 backfill 复用同一 generator（Phase 12 用）保证一致性。D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。
@@ -97,7 +99,7 @@ To start the next milestone cycle after v1.2 completes, run `/gsd-new-milestone`
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | ✅ Complete | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
-| 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 0/TBD | Not started | — |
+| 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 0/2 | Not started | — |
 | 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 0/TBD | Not started | — |
 | 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/TBD | Not started | — |
 
