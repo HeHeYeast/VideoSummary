@@ -23,7 +23,7 @@ See archive for full phase details, plans, and verification.
 
 ### v1.1 — summary-quality
 
-- [ ] **Phase 07: Warm-up + K5 emitters + D-29 foundation** — Opt-in marker, 17-archive replay gate, token-budget baseline, 4 new K5 read-only signal CLIs, MISC打杂. Zero behavior change to summary.md.
+- [x] **Phase 07: Warm-up + K5 emitters + D-29 foundation** — Opt-in marker, 17-archive replay gate, token-budget baseline, 4 new K5 read-only signal CLIs, MISC打杂. Zero behavior change to summary.md. (completed 2026-05-03)
 - [ ] **Phase 08: Writing rules — CLAUDE.md extensions + glossary** — L2/L3 ASR context correction prompts, inline-trace tokens, zero-baseline header, inline term annotation, cross-slug glossary CLI, TL;DR speedrun. New summaries diverge in shape.
 - [ ] **Phase 09: Correctness automation — verifier subagent + auto-rewrite** — `summary_lint` mechanical checker + Phase 7.5 verifier subagent (`Task(general-purpose)`) + delta auto-rewrite (max-1) + UNRESOLVED fallback.
 
@@ -40,9 +40,9 @@ See archive for full phase details, plans, and verification.
   4. **4 new K5 emitters land with statically-asserted source-grep tests** — `transcribe_lint`, `mode_signals`, `schedule_suggest`, `glossary_audit` (read-only audit) CLIs all callable from `python -m agent.tools <cmd>`. Static test: each tool's source MUST NOT reference `schedule.json` / `plan.md` / `summary.md` filenames (mirrors v1.0 `cmd_detect_scenes` K5 assertion). User can run each CLI on any v1.0 archive and get JSON output without modifying any v1.0-shape artifact.
   5. **MISC打杂 shipped** — AV1 codec WARNING demoted to INFO (single line change in `agent/sources/_common.py` ffprobe gate); `python -m agent.tools queue {add|list|next|done|skip}` CLI works against `~/.videoSummary/queue.json` with `~/.videoSummary/.queue.lock` FileLock (reuses `agent/_lock.py`). Two-terminal `queue add` race test passes (no JSON corruption); `queue next` marks `in_progress: <pid>` so the other terminal skips to the next free slug.
 **Plans**: 3 plans
-  - [ ] 07-01-PLAN.md — D-29 foundation (PRE-V11-01/02/03): `agent/_v11.py` opt-in marker helpers + `scripts/replay_v10_archives.py` 17-archive byte-equal regression test + `scripts/measure_token_budget.py` baseline writer + 3 representative archive `.token_budget.json` files
-  - [ ] 07-02-PLAN.md — MISC chrome (MISC-01/02): AV1 WARNING→INFO single-line demote + `agent/queue.py` cross-terminal queue with `~/.videoSummary/.queue.lock` + 5 `queue {add|list|next|done|skip}` subcommands wired into `agent/tools.py`
-  - [ ] 07-03-PLAN.md — K5 emitters (CORR-01a, TOOL-A, TOOL-B + Phase-08-helper stub): `pypinyin>=0.55.0` install + `agent/transcribe_lint.py` + `agent/mode_signals.py` (no `recommended_mode` field) + `agent/schedule_suggestion.py` (mandatory FPS-04 baseline) + `agent/glossary_audit.py` stub + `tests/test_k5_emitters.py` source-grep K5 boundary assertions + CLAUDE.md "v1.1 opt-in marker + 4 K5 emitters" section
+  - [x] 07-01-PLAN.md — D-29 foundation (PRE-V11-01/02/03): `agent/_v11.py` opt-in marker helpers + `scripts/replay_v10_archives.py` 17-archive byte-equal regression test + `scripts/measure_token_budget.py` baseline writer + 3 representative archive `.token_budget.json` files
+  - [x] 07-02-PLAN.md — MISC chrome (MISC-01/02): AV1 WARNING→INFO single-line demote + `agent/queue.py` cross-terminal queue with `~/.videoSummary/.queue.lock` + 5 `queue {add|list|next|done|skip}` subcommands wired into `agent/tools.py`
+  - [x] 07-03-PLAN.md — K5 emitters (CORR-01a, TOOL-A, TOOL-B + Phase-08-helper stub): `pypinyin>=0.55.0` install + `agent/transcribe_lint.py` + `agent/mode_signals.py` (no `recommended_mode` field) + `agent/schedule_suggestion.py` (mandatory FPS-04 baseline) + `agent/glossary_audit.py` stub + `tests/test_k5_emitters.py` source-grep K5 boundary assertions + CLAUDE.md "v1.1 opt-in marker + 4 K5 emitters" section
 
 ### Phase 08: Writing rules — CLAUDE.md extensions + glossary
 **Goal**: Make new summaries (slugs with `.v11_features.json` marker) diverge in shape — inline ASR corrections via L2/L3 prompts, inline trace tokens after every load-bearing claim, zero-baseline self-contained header, first-mention inline term annotations, cross-slug `output/_glossary.md` accumulation with FileLock, optional 5-min TL;DR speedrun for long videos. All format changes are prompt + Markdown convention; only the glossary append needs new Python.
@@ -84,7 +84,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 04. Frame fps Automation | v1.0 | 2/2 | ✅ Complete | 2026 |
 | 05. Adaptive Output + UI Demos + Podcasts | v1.0 | 3/3 | ✅ Complete | 2026-05-02 |
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
-| 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 0/3 | Planned | — |
+| 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 0/? | Not started | — |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
 
