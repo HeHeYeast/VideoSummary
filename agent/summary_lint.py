@@ -112,6 +112,14 @@ _GLOSSARY_H2_RE = re.compile(
     r"^##\s+([A-Z][A-Za-z0-9_-]{1,30})\s*\(([^)]{1,80})\)"
 )
 
+# WR-04 (Phase 09 review): H2 heading detector for section classification.
+# Use regex `^##\s+(.+)$` instead of literal `startswith("## ")` so headings
+# with tabs / multiple spaces / non-breaking-space variants still match.
+# CommonMark requires at least one whitespace between `##` and the heading
+# text, so `\s+` is the safer default (rejects `##速读版` zero-space form
+# per spec; if that surfaces in real Claude output, switch to `\s*` later).
+_H2_HEADING_RE = re.compile(r"^##\s+(.+)$")
+
 
 def _now_iso() -> str:
     """ISO-8601 UTC timestamp ending with `Z` (matches schema contract)."""
@@ -130,8 +138,9 @@ def _classify_section(line: str, current_section: str | None) -> str | None:
     counts as `body` for citation_eligibility purposes — actual TL;DR /
     prelude blocks always live under their dedicated H2).
     """
-    if line.startswith("## "):
-        heading = line[3:].strip()
+    m = _H2_HEADING_RE.match(line)
+    if m:
+        heading = m.group(1).strip()
         for substr, label in _FORBIDDEN_CITATION_SECTIONS:
             if substr in heading:
                 return label
