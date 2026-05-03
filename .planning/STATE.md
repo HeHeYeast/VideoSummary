@@ -4,14 +4,14 @@ milestone: v1.2
 milestone_name: — knowledge-base
 status: executing
 stopped_at: ROADMAP.md created, REQUIREMENTS.md traceability filled, awaiting `/gsd-plan-phase 10`
-last_updated: "2026-05-03T17:21:18.453Z"
-last_activity: 2026-05-03
+last_updated: "2026-05-03T17:56:22.077Z"
+last_activity: 2026-05-03 -- Phase 11 execution started
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
+  total_plans: 4
   completed_plans: 2
-  percent: 100
+  percent: 50
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-03 — v1.2 knowledge-base milestone added)
 
 **Core value:** 把视频提炼成对学习者真有教学价值的 Markdown 文档（不是字幕翻译），并保持全流程 ¥0。
-**Current focus:** v1.2 knowledge-base — 把 23+ 已总结视频升级为 Claude-queryable 知识库
+**Current focus:** Phase 11 — per-slug index.json + 顶层聚合 + Phase 7.6 hook
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-03
+Phase: 11 (per-slug index.json + 顶层聚合 + Phase 7.6 hook) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 11
+Last activity: 2026-05-03 -- Phase 11 execution started
 
 ## Performance Metrics
 

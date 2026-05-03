@@ -65,7 +65,9 @@ See archive for full phase details, plans, and verification.
   3. **顶层 `output/.index.json` 自动同步 + atomic rebuild + stale detection** — 顶层文件 schema = `{"<slug>": <per-slug-index>, ...}` 扁平合并（无 `related_slugs` 字段，per D-07）。每次 per-slug index.json 写入触发 rebuild；体积 ~5-10KB（23 条 × 100-300 字/条）让 Claude 一次 Read 拿全。`python -m agent.tools index rebuild` 手动兜底 CLI 跑出相同结果（idempotent）；命令具备 stale detection（per-slug index.json mtime 比顶层 .index.json 新时显式提示哪些 slug 待 rebuild）。
   4. **keywords 优先复用 `output/_glossary.md` H2 anchors 避免术语分裂** — generator 抽 keywords 时先读 `output/_glossary.md` 所有 H2 anchors（v1.1 已 ship 的 cross-slug 术语累积），把 summary.md 里命中的 H2 anchor term 作为 keyword 候选优先选；新概念才创造新 keyword。验证：跑 generator 在含 "LoRA" 术语的 archive 上，输出 keyword 必须 byte-equal `_glossary.md` 中的 canonical 形式（如 `LoRA (Low-Rank Adaptation)`），而不是 `Lora` / `low-rank adaptation` 散落形式。
   5. **D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）** — Phase 11 ship 后跑 `python scripts/replay_v10_archives.py` 输出 33 PASS / 0 FAIL / 30 archives 比对 4 核心文件（summary.md / segs.json / paragraphs.json / meta.json）byte-equal。`index.json` 作为新 sidecar **不**进 replay 比对集；任一字节 diff 在 4 核心文件上 → phase NOT shippable。Phase 11 verification 主动跑一次确认。
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 11-01-PLAN.md — agent/index.py module + cmd_index_{write,rebuild} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous)
+- [ ] 11-02-PLAN.md — CLAUDE.md /summarize-video Phase 7.6 hook insertion + D-29 byte-equal close gate + 11-02-SUMMARY (Wave 2, autonomous, depends_on 11-01)
 
 ### Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI
 **Goal**: v1.2 收尾——把 Phase 11 的 generator 复用到 17 v1.0/v1.1 archives 上一次性 backfill 写 index.json，让 Claude 一开会话 Read 顶层 `.index.json` 就能看全 23 条；CLAUDE.md 加自然语言推荐 prompt rule（D-09 锁，不加 slash command，mirror v1.1 anti-hallucination 字面规则风格）；顺手 ship `index search/list` 兜底 CLI；末尾再跑一次 D-29 replay 确认 33/0/30。E2E 用户行为：用户在新会话说"推荐 LLM Wiki 相关的视频"→ Claude FIRST ACTION Read `.index.json` → 返回 top-N 带 chapter 入口。
