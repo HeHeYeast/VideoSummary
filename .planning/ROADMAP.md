@@ -55,7 +55,7 @@ See archive for full phase details, plans, and verification.
   4. **Cross-slug glossary append works under FileLock without corruption (P-04)** — `output/_glossary.md` accepts append-only entries via `python -m agent.tools glossary append --slug <slug> --term "..." --definition "..."` CLI. `output/.glossary.lock` (reuses `agent/_lock.py`) serializes concurrent appends from two terminals; same (slug, term) pair is idempotent (skip if H2 anchor + slug-link exists). Inline-first invariant enforced by prompt: every first-mention term gets inline `术语 (English/中文释义)` REGARDLESS of glossary state — glossary is fallback-only, never excuses skipping inline annotation.
   5. **TL;DR drift prevented (P-06)** — `## 5 分钟速读版` block written LAST (after body + glossary appends), 10-15 lines hard cap (max 20), zero citations inside (uses section anchors `详见 §三、消化阶段` instead). Triggered by `paragraphs.json[-1].end > 1200` (20 min) OR `estimated_sections > 50`. Sync check (Claude self-verifies before phase close): TL;DR step count == body H2 step count for replicate-guide mode.
 **Plans**: 2 plans
-  - [ ] 08-01-PLAN.md — TEACH-A3 glossary append code (agent/glossary.py + agent/tools.py glossary CLI subcommand + V11_FEATURES extension + tests/test_glossary.py FileLock race + extended K5 source-grep)
+  - [x] 08-01-PLAN.md — TEACH-A3 glossary append code (agent/glossary.py + agent/tools.py glossary CLI subcommand + V11_FEATURES extension + tests/test_glossary.py FileLock race + extended K5 source-grep)
   - [ ] 08-02-PLAN.md — CLAUDE.md prompt extensions (CORR-01b/c L2/L3 corrections + CORR-02 inline trace tokens & self-check + TEACH-A1 inline term annotation + TEACH-A2 zero-baseline header + TEACH-B 5-min TL;DR speedrun) + 5th format-spec invariant + cross-refs in /summarize-video Phase 2/6/7/8
 
 ### Phase 09: Correctness automation — verifier subagent + auto-rewrite
@@ -87,7 +87,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 05. Adaptive Output + UI Demos + Podcasts | v1.0 | 3/3 | ✅ Complete | 2026-05-02 |
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
-| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 0/2 | Planned     | — |
+| 08. Writing rules — CLAUDE.md + glossary | v1.1 | 1/2 | In Progress|  |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
 
 ---
