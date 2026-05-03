@@ -1139,6 +1139,276 @@ Phase 09 SC#4 断言：v1.1 全开 ≤ 2x baseline。超出则 phase verificatio
 
 ---
 
+## v1.1 自适应教学文档增强 (Phase 08)
+
+> 这一节是 **opt-in 增强规则**。**只有** `output/<slug>/.v11_features.json` marker 显式启用对应 feature 的 slug 才走以下规则。无 marker 的 slug（包括 17 archived）继续按 v1.0 形态写 summary.md（D-29 byte-equal preserved）。
+>
+> **检查方式**：写每条 summary 之前，先用 `python -c "from agent._v11 import is_v11_enabled; print(is_v11_enabled('output/<slug>', '<feature_name>'))"` 检查 marker 是否启用对应 feature。返回 `False` 则该 feature 不触发，按 v1.0 path 写。
+>
+> **6 条 feature 一栏速查**（V11_FEATURES allowlist 中的对应 flag 名）：
+>
+> | Feature flag | 触发的规则 | 在 /summarize-video 哪个 phase 生效 |
+> |---|---|---|
+> | `l2_l3_correction` | CORR-01b/c — 读 `transcribe_lint_warnings.json` 做 L2 上下文修复 + L3 多模态兜底 | Phase 2（写 plan.md 时） |
+> | `inline_trace_tokens` | CORR-02 — 每个 claim 后加 `[seg_*.jpg @ HH:MM:SS]` 行内溯源 token | Phase 6（写正文时） |
+> | `self_check_confidence` | CORR-02 self-check pass — confidence < 80% 加 `[?]`，summary 末尾汇总 | Phase 8（收尾时） |
+> | `self_contained_header` | TEACH-A1 + TEACH-A2 — 顶部"你需要知道什么"+"你不需要知道什么"+ 首次术语 inline 注解 | Phase 6（写正文起始时） |
+> | `cross_slug_glossary` | TEACH-A3 — 首次术语用 `glossary append` CLI 写到 `output/_glossary.md` | Phase 6（每写完一个新术语时） |
+> | `tldr_speedrun` | TEACH-B — 长视频顶部"5 分钟速读版"块 | Phase 7（写完正文后 LAST） |
+
+### CORR-01b — L2 上下文修复（在 Phase 2 写 plan.md 时执行）
+
+**触发条件**：`is_v11_enabled(slug, "l2_l3_correction")` 返回 True AND `output/<slug>/transcribe_lint_warnings.json` 存在且 `warnings` 数组非空。
+
+**步骤**：
+
+1. Read `output/<slug>/transcribe_lint_warnings.json`（Phase 07 CORR-01a 产出；schema 见 `agent/transcribe_lint.py` 模块 docstring）
+2. Read `output/<slug>/meta.json`（标题 + UP 主 + description）
+3. 对每个 warning，按 evidence_source + 上下文交叉验证决定是否采纳：
+   - **L2 evidence sources**（每个 source 算 1 条独立证据）：
+     - meta.title 子串匹配 suggested_text
+     - meta.uploader / channel name 子串匹配
+     - meta.description 子串匹配
+     - segs.json 同段或相邻段（±2 段）出现 suggested_text 的高频形式
+     - 视频简介 / chapter 标题（如有）
+   - **采纳门槛（HARD CAP，违反则跳过）**：≥ 2 条独立 evidence sources 同时支持 suggested_text，才采纳
+4. **采纳上限**：max 10 auto-applied corrections per slug。超过 10 条候选时按 L1 confidence 降序取前 10。其余记入 plan.md "未采纳的候选" 段。
+5. 把所有 **采纳的** corrections 写到 `output/<slug>/plan.md` 顶部新增 段（在 5 字段 YAML front-matter 之后、第一个章节标题之前）：
+
+```markdown
+## 已自动修正的术语 (CORR-01b L2)
+
+| 错误形式 | 正确形式 | 出现段 | 证据来源 | L1 confidence |
+|---|---|---|---|---|
+| Lora | LoRA (Low-Rank Adaptation) | para_0003 / para_0017 | meta.title + segs.json (LoRA × 4) | 0.65 |
+| 木下 | Mucha | para_0021 | meta.description + frequency_variance | 0.72 |
+
+> 自动修正自 transcribe_lint_warnings.json 的 L1 候选；L2 上下文交叉验证 ≥ 2 sources 才采纳。
+> 全文写作时按"正确形式"列引用；不再回头改 segs.json (D-29 invariant)。
+```
+
+6. **D-29 invariant**：**绝不**修改 `segs.json`。修正只发生在 plan.md（透明性表）+ summary.md 写作时（按 plan.md 的"正确形式"列引用）。`segs.json` 永远是 ASR 原始输出。
+
+### CORR-01c — L3 多模态兜底（在 Phase 4 看帧时执行）
+
+**触发条件**：`is_v11_enabled(slug, "l2_l3_correction")` 返回 True AND 某 warning 满足 `L1 confidence < 60% AND L2 evidence < 2 sources`（即 L2 不足以采纳）。
+
+**步骤**：
+
+1. 对每个触发 L3 的 warning：
+   - 取 warning 的 `start` 时间戳（来自 transcribe_lint_warnings.json）
+   - **时间窗 HARD CAP**：抽帧范围 `[start - 0.5s, start + 0.5s]`（共 1 秒窗口）
+   - **帧数 HARD CAP**：max 5 frames per warning
+2. 用 `python -m agent.tools extract_frames <video> --out output/<slug>/frames --fps 5 --start <start-0.5> --end <start+0.5>` 抽帧
+3. Read 抽出的 ≤ 5 帧，看图片中是否出现 suspect_text 或 suggested_text 的视觉形态（标题板 / 工具 UI / 代码 fence 中的拼写）
+4. 决策：
+   - 帧中**清晰出现** suggested_text → 采纳，写入 plan.md "已自动修正的术语" 表（标 evidence_source = `multimodal_frame`）
+   - 帧中**清晰出现** suspect_text 且与 suggested_text 不一致 → 拒绝采纳，标 `[?]` 在 summary 中（CORR-02 self-check 会汇总）
+   - 帧中**都无清晰证据** → 拒绝采纳，标 `[?]`
+5. **采纳上限**：L3 采纳计入 CORR-01b 的 10 条总额（不分开计算），避免 L3 绕过总上限
+
+### CORR-02 — 行内溯源 token + 自检 pass
+
+**触发条件 (token)**：`is_v11_enabled(slug, "inline_trace_tokens")` 返回 True
+**触发条件 (self-check)**：`is_v11_enabled(slug, "self_check_confidence")` 返回 True
+
+#### 行内溯源 token 格式（Phase 6 写正文时）
+
+**Token 格式锁**（违反一项即 5th format-spec invariant 违规）：
+
+- **图片引用 token**：`[seg_NNNN_NNNNNN.jpg @ HH:MM:SS]`（HH:MM:SS 严格 8 字符，per 1st format-spec invariant）
+- **段落引用 token**：`[para_NNNN @ HH:MM:SS]`（para_ID 来自 paragraphs.json，4 位补零）
+- **位置**：紧跟 claim 句末，在句号 / 问号 / 感叹号**之前**插入；多个 token 用 ` + ` 分隔
+- **示例**：
+  - 单图：`这一步的 fps 设为 0.4 [seg_0030_000015.jpg @ 00:01:23]。`
+  - 单段：`UP 反对 ECS 的核心论点是抽象层次错位 [para_0042 @ 00:09:00]。`
+  - 多源：`Karpathy 在 OpenAI 待了 18 个月 [para_0007 @ 00:00:25] + [seg_0010_000003.jpg @ 00:00:25]。`
+
+#### 引用资格规则（哪些句子需要 token）
+
+**REQUIRED token 的句子类型**：
+- 具体 claim（"UP 在 IDE 里输入了 X"）
+- 具体参数值（"fps 设为 0.4 / context_window=4096 / temperature=0.7"）
+- 代码片段引用（"以下代码来自 main.py，逐行抄录"——代码 fence 上方需 token）
+- UI 操作引用（"点击工具栏第 3 个图标 / 按 Cmd+K 打开命令面板"）
+- 截图引用（任何 `![](frames/seg_*.jpg)` 之前需 token；图片本身的 caption alt 不算 claim）
+
+**FORBIDDEN token 的位置**（强制不放 token）：
+- TL;DR 块内（`## 5 分钟速读版` — 用 `详见 §三、消化阶段` 的章节锚点替代）
+- Glossary 内的 inline term annotation（`术语 (English / 中文释义)` 后不加 token）
+- 顶部 "你需要知道什么" / "你不需要知道什么" prelude 段
+- 章节末尾的 "*章节小结*" / "*为什么这么做*" transition 段（这些是 Claude 的提炼，不是字面 claim）
+
+**OPTIONAL token 的位置**：
+- Narrative 连接句（"接下来 UP 切换到了..."—— 可加可不加，看是否有时间戳锚点价值）
+- Paraphrase 概述（"这一节核心论点是 X"——如果是 Claude 提炼，无字面 claim，可不加）
+
+**密度目标**：avg ≤ 1 citation per 3 sentences（Phase 09 `summary_lint` 会量化校验）
+
+#### 自检 pass（Phase 8 收尾时）
+
+**触发条件**：`is_v11_enabled(slug, "self_check_confidence")` 返回 True
+
+**步骤**：
+1. 写完正文后，重读全文（第 2 遍）
+2. 对每个带 token 的 claim 句，自评 confidence：
+   - **≥ 80%**（基于字幕原文 + 帧截图 + meta，3 source 中至少 2 个直接支持）→ 不动
+   - **< 80%**（仅 1 source 支持 / 部分推断 / 帧不清晰）→ 在句末 token 之后 + 句号之前插入 `[?]` 标记
+   - **示例**：`这一步的 fps 设为 0.4 [seg_0030_000015.jpg @ 00:01:23][?]。`
+3. 在 summary.md 末尾追加 `## 写作自检 (CORR-02)` 段：
+
+```markdown
+## 写作自检 (CORR-02)
+
+- 总 claim 数（带 token 的句子）：47
+- 低置信度标记 `[?]` 数：3
+- 低置信度比例：6.4% (3/47)
+- 修正历史 plan.md "已自动修正的术语" 表 → 7 条 L2 + 1 条 L3 共 8 条采纳
+
+> 低置信度 `[?]` 句子的具体行号：
+> - L142: "UP 提到 LangChain 的某个版本 [?]" — 帧中只看到 "LangChain" 字样未确认版本号
+> - L257: "Tokenizer 在 GPT-4 上 vocab_size=100k [?]" — 字幕里只说"差不多十万"
+> - L389: "训练用了大约 8000 步 [?]" — 字幕里说"8 千步左右"
+
+详细引用资格规则见 § v1.1 自适应教学文档增强 → CORR-02 → 引用资格规则。
+```
+
+### TEACH-A1 — 首次术语 inline 注解
+
+**触发条件**：`is_v11_enabled(slug, "self_contained_header")` 返回 True
+
+**规则**：
+- 每个**新术语第一次出现**时加 inline 注解：`术语 (English / 中文释义)`
+- 后续出现可省略
+- **FORBIDDEN 注解的术语**（普世术语，注解会显得 patronizing）：
+  - 编程语言名：`Python` / `JavaScript` / `Go` / `Rust` / `Ruby` / `C++`
+  - 数据格式：`JSON` / `YAML` / `XML` / `CSV` / `Markdown`
+  - 工具基础：`Claude` / `Git` / `Docker` / `npm` / `pip`
+  - HTTP 基础：`URL` / `API` / `HTTP` / `HTTPS`
+  - 通用名词：`AI` / `ML` / `LLM`（除非视频专门讨论 LLM 内部机制）
+- **REQUIRED 注解的术语类型**：
+  - 领域专属概念：`LoRA (Low-Rank Adaptation)` / `ECS (Entity-Component-System)` / `RAG (Retrieval-Augmented Generation)`
+  - 工具内部术语：`MCP (Model Context Protocol)` / `Compound Engineering (复利工程)`
+  - 缩写首次出现：`SDXL (Stable Diffusion XL)`
+
+**示例**：
+- ✓ `本节用 LoRA (Low-Rank Adaptation) 微调，相比全参微调显存降到 1/10。后续段落直接说 LoRA，不再注解。`
+- ✗ `打开 Python (一种编程语言)` — 普世术语注解会 patronizing
+
+### TEACH-A2 — 自包含零基础 header（顶部固定结构）
+
+**触发条件**：`is_v11_enabled(slug, "self_contained_header")` 返回 True
+
+**结构（写在 summary.md 顶部，紧接标题之后）**：
+
+```markdown
+# <视频标题>
+
+> UP / 来源：@xxx · 时长 MM:SS · [原视频链接](https://...)
+
+## 读这篇前你需要知道
+
+- <≤ 3 行先决条件>。每行写"知道什么 + 为什么需要"。
+- <第 2 条>
+- <第 3 条>
+
+## 你不需要知道什么
+
+- <≤ 3 行豁免>。每行写"不需要先学 X，文中会注解"。
+- <第 2 条>
+- <第 3 条>
+
+[optional: ## 5 分钟速读版（TEACH-B 触发时插入这里，详见下文）]
+
+---
+
+# 一、<第一章正文标题>
+
+...
+```
+
+**Hard caps**:
+- "你需要知道什么" 段 ≤ 3 行
+- "你不需要知道什么" 段 ≤ 3 行
+- Header 总计 ≤ 6 行（不含 TL;DR 块）
+- TL;DR 块（如有）独立 10-15 行 hard cap，不计入 header
+
+**Tone constraints (anti-patronizing)**:
+- **FORBIDDEN 短语**（违反则要 self-edit 重写该句）：
+  - `简单来说` / `说白了` / `一言以蔽之` / `说人话就是`
+  - `你可能不知道` / `相信很多人不清楚` / `你是不是觉得`
+  - `通俗讲` / `打个比方` 单独使用（"打个比方" 后接具体类比 OK；空打比方禁用）
+- **REQUIRED 语气**：直接陈述事实 + 第二人称指令式（"你需要先理解 X" 不是 "你可能没听说过 X"）
+
+### TEACH-A3 — 跨 slug glossary 累积（在写正文遇到首次术语时执行）
+
+**触发条件**：`is_v11_enabled(slug, "cross_slug_glossary")` 返回 True
+
+**inline-first invariant (CRITICAL)**：每个首次出现的术语**必须**先按 TEACH-A1 加 inline 注解，**然后**再调用 glossary append。Glossary 是 fallback / 跨文档累积参考，**不是**首选阅读路径。**禁止**用"glossary 里有"作为跳过 inline 注解的理由。
+
+**步骤**（每写完一个新术语的 inline 注解后立即执行）：
+
+1. 调用 glossary append CLI（Plan 08-01 提供）：
+
+```bash
+python -m agent.tools glossary append \
+  --slug <current_slug> \
+  --term "LoRA (Low-Rank Adaptation)" \
+  --definition "参数高效的微调技术 — 冻结预训练权重，只训练插入的低秩矩阵。" \
+  --context "本视频用 LoRA 减少显存占用"
+```
+
+2. CLI 返回 `{"action": "appended"}` 或 `{"action": "skipped", "reason": "duplicate_slug_link"}`。两者都 OK，继续写作。
+3. CLI 是 idempotent + FileLock 串行化（多个 terminal 并行写不同 slug 时不会撕裂）。
+4. **绝不**在 summary.md 中嵌入 glossary 的链接（如 `详见 [output/_glossary.md](../../_glossary.md)`）—— glossary 是聚合视图，summary 应自包含可读。
+
+**audit (Phase 7 收尾时建议跑一次)**：
+
+```bash
+python -m agent.tools glossary audit --json
+```
+
+报告 `duplicate_terms` / `conflicting_definitions` — 如有冲突（同一 term 不同 slug 给了不同 definition），由 Claude 决定是否手动统一（first-seen-wins 是默认 schema，但 audit 提示有歧义）。
+
+### TEACH-B — 长视频 5 分钟速读版
+
+**触发条件**：`is_v11_enabled(slug, "tldr_speedrun")` 返回 True AND（`paragraphs.json` 末尾段的 `end > 1200`（视频 > 20 分钟）OR plan.md front-matter `estimated_sections > 50`）
+
+**位置**：在 TEACH-A2 header 之后、正文之前的 `## 5 分钟速读版` 段。
+
+**结构（10-15 行 hard cap，max 20）**：
+
+```markdown
+## 5 分钟速读版
+
+**核心结论**：<1 句，整篇 summary 最重要的一个判断>
+
+**工作流速查表**：
+1. <动词短语，章节 1 的核心动作>（详见 §一、<章节 1 标题>）
+2. <动词短语>（详见 §二、<章节 2 标题>）
+3. <动词短语>（详见 §三、<章节 3 标题>）
+[... 最多 5-7 步，超过则压缩到 5 步以内]
+
+**必看时间戳**（3-5 个）：
+- `[00:01:23]` <这个时间戳为什么必看>
+- `[00:09:00]` <第 2 个>
+- `[00:15:42]` <第 3 个>
+
+**何时跳读**：如果你只关心 X，直接跳到 §四、<章节 4>。
+```
+
+**关键规则**：
+
+1. **写在 LAST**：必须在写完正文 + glossary appends 后才生成 TL;DR。这是防 drift 的核心约束（per P-06）。先写 TL;DR 再写正文 → 正文偏离 TL;DR 承诺。
+2. **零 citation 在内**：FORBIDDEN 在 TL;DR 块内放 `[seg_*.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` token。改用 markdown 章节锚点 `详见 §三、消化阶段`（per CORR-02 引用资格规则的 FORBIDDEN 列）。
+3. **同步检查（写完后自检）**：
+   - **replicate-guide mode**：TL;DR "工作流速查表" 步数 ≈ 正文一级 H2 章节数（差距 ≤ 20%）。差距 > 20% → 在 plan.md 末尾追加一行 `tldr_drift_warning: TL;DR steps=N, body H2=M, ratio=...`，**不**自动修复（Claude is decider，per K2）
+   - **interview-distillation mode**：TL;DR "必看时间戳" 数 ≈ chapters.json `chapters` 数（差距 ≤ 30%）
+   - 其他 mode：sync check 由 Claude 自定义判断
+4. **行数硬上限**：10-15 行是目标，max 20 行。超 20 行 → 重写 TL;DR 压缩信息密度，不是放宽上限。
+
+---
+
 ## /summarize-video 完整工作流
 
 当用户说"总结这个视频"或给出 B 站 URL 时，**严格按以下步骤执行**。
