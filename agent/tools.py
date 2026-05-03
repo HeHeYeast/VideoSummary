@@ -1532,8 +1532,15 @@ def cmd_summary_lint(args):
     `summary.md` is permitted ONLY in the argparse help= text and as the
     input arg path receiver (agent/glossary.py-style exception, asserted
     by write-pattern regex in tests/test_k5_emitters.py).
+
+    WR-01 (Phase 09 review): explicit `is_v11_enabled(slug_dir, "summary_lint")`
+    gate added defense-in-depth so future Phase 7 auto-invokers cannot break
+    D-29 byte-equal on archives without the marker. Today the CLI is opt-in
+    by virtue of being a separate sub-command; tomorrow this guard prevents
+    silent sidecar writes into v1.0 archive directories.
     """
     from agent.summary_lint import lint_summary, LINT_FILENAME
+    from agent._v11 import is_v11_enabled
 
     summary_path = Path(args.summary_path)
     _validate_out_path(summary_path)
@@ -1541,6 +1548,10 @@ def cmd_summary_lint(args):
         raise FileNotFoundError(f"input not found: {summary_path}")
     slug_dir = summary_path.parent
     slug = slug_dir.name
+    if not is_v11_enabled(slug_dir, "summary_lint"):
+        _log(slug, "summary_lint",
+             "skip: .v11_features.json missing or summary_lint not enabled")
+        return
     glossary_path = (
         Path(args.glossary_path) if args.glossary_path
         else slug_dir.parent / "_glossary.md"
