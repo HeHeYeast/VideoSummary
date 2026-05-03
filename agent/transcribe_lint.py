@@ -34,7 +34,7 @@ from pypinyin import lazy_pinyin  # CORR-01a strategy #5: homophone_cluster
 
 log = logging.getLogger(__name__)
 
-WARNINGS_FILENAME = "transcribe_warnings.json"
+WARNINGS_FILENAME = "transcribe_lint_warnings.json"  # CR-01: distinct from Phase 5 D-23 transcribe_warnings.json (repetition guard); coexists side-by-side
 ALLOWED_EVIDENCE_SOURCES = (
     "title_token",
     "frequency_variance",

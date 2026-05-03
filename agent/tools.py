@@ -1594,7 +1594,7 @@ def main():
     # ── Phase 07 K5 emitters (CORR-01a + TOOL-A + TOOL-B + glossary_audit) ──
     p = sub.add_parser(
         "transcribe_lint",
-        help="K5: L1 ASR 可疑词检测 -> transcribe_warnings.json (CORR-01a; pypinyin)",
+        help="K5: L1 ASR 可疑词检测 -> transcribe_lint_warnings.json (CORR-01a; pypinyin)",
     )
     p.add_argument("slug_dir", help="path to output/<slug>/ (must contain segs.json + meta.json)")
 

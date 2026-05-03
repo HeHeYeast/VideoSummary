@@ -145,8 +145,8 @@ class TestTranscribeLint(unittest.TestCase):
         self.assertEqual(detect_warnings([], meta=None), [])
 
     def test_11_warnings_filename_constant(self):
-        """Test 11: WARNINGS_FILENAME == 'transcribe_warnings.json'."""
-        self.assertEqual(WARNINGS_FILENAME, "transcribe_warnings.json")
+        """Test 11: WARNINGS_FILENAME == 'transcribe_lint_warnings.json' (CR-01: distinct from Phase 5 D-23 transcribe_warnings.json)."""
+        self.assertEqual(WARNINGS_FILENAME, "transcribe_lint_warnings.json")
 
     def test_12_homophone_cluster_pinyin_match(self):
         """B1 fix: prove pypinyin homophone_cluster strategy actually fires.
