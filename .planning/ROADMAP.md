@@ -90,7 +90,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | Complete    | 2026-05-03 |
-| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | Complete   | 2026-05-03 |
+| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | Complete    | 2026-05-03 |
 
 ---
 
