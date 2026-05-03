@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "slug": "douyin_karpathy_llm_wiki",
+  "mode": "interview-distillation",
+  "measured_at": "2026-05-03T01:28:24.561027+00:00",
+  "approx_method": "chars/3.5 (Chinese-heavy proxy)",
+  "layers": {
+    "transcribe": {
+      "chars": 8802,
+      "approx_tokens": 2515
+    },
+    "aggregate": {
+      "chars": 3808,
+      "approx_tokens": 1088
+    },
+    "plan": {
+      "chars": 0,
+      "approx_tokens": 0,
+      "note": "plan.md missing (likely pre-Phase-5 archive)"
+    },
+    "write": {
+      "chars": 5770,
+      "approx_tokens": 1649
+    },
+    "cleanup": {
+      "chars": 0,
+      "approx_tokens": 0
+    }
+  },
+  "total_approx_tokens": 5252
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "slug": "BV132wizyEEB",
+  "mode": "replicate-guide",
+  "measured_at": "2026-05-03T01:28:24.560205+00:00",
+  "approx_method": "chars/3.5 (Chinese-heavy proxy)",
+  "layers": {
+    "transcribe": {
+      "chars": 3106,
+      "approx_tokens": 887
+    },
+    "aggregate": {
+      "chars": 1255,
+      "approx_tokens": 359
+    },
+    "plan": {
+      "chars": 0,
+      "approx_tokens": 0,
+      "note": "plan.md missing (likely pre-Phase-5 archive)"
+    },
+    "write": {
+      "chars": 2347,
+      "approx_tokens": 671
+    },
+    "cleanup": {
+      "chars": 0,
+      "approx_tokens": 0
+    }
+  },
+  "total_approx_tokens": 1917
+}

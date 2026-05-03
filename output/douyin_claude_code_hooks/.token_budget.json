@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "slug": "douyin_claude_code_hooks",
+  "mode": "extension-applications",
+  "measured_at": "2026-05-03T01:28:24.561675+00:00",
+  "approx_method": "chars/3.5 (Chinese-heavy proxy)",
+  "layers": {
+    "transcribe": {
+      "chars": 2083,
+      "approx_tokens": 595
+    },
+    "aggregate": {
+      "chars": 1042,
+      "approx_tokens": 298
+    },
+    "plan": {
+      "chars": 0,
+      "approx_tokens": 0,
+      "note": "plan.md missing (likely pre-Phase-5 archive)"
+    },
+    "write": {
+      "chars": 3547,
+      "approx_tokens": 1013
+    },
+    "cleanup": {
+      "chars": 0,
+      "approx_tokens": 0
+    }
+  },
+  "total_approx_tokens": 1906
+}
