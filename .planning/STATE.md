@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: — knowledge-base
-status: executing
-stopped_at: ROADMAP.md created, REQUIREMENTS.md traceability filled, awaiting `/gsd-plan-phase 10`
-last_updated: "2026-05-03T19:29:53.150Z"
+status: shipped
+stopped_at: v1.2 milestone shipped 2026-05-03; awaiting next milestone via `/gsd-new-milestone`
+last_updated: "2026-05-04T00:00:00.000Z"
 last_activity: 2026-05-03
 progress:
   total_phases: 3
@@ -18,77 +18,61 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-03 — v1.2 knowledge-base milestone added)
+See: .planning/PROJECT.md (updated 2026-05-03 — v1.2 milestone shipped)
 
 **Core value:** 把视频提炼成对学习者真有教学价值的 Markdown 文档（不是字幕翻译），并保持全流程 ¥0。
-**Current focus:** Phase 11 — per-slug index.json + 顶层聚合 + Phase 7.6 hook
+**Current focus:** Planning next milestone (v1.2 shipped — run `/gsd-new-milestone` to start)
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: Executing Phase 11
-Last activity: 2026-05-03
+Phase: — (no active phase)
+Plan: —
+Status: v1.2 shipped; awaiting next milestone
+Last activity: 2026-05-03 — v1.2 knowledge-base milestone closed
+
+Progress: [██████████] 100% (3/3 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 29 (v1.0: 16 plans / 31 tasks; v1.1: 7 plans / 19 tasks; v1.2: 0)
-- Average duration: —
-- Total execution time: —
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| (v1.0 archived to MILESTONES.md) | 16 | — | — |
-| (v1.1 archived to MILESTONES.md) | 7 | — | — |
-| 10 (planned) | TBD | — | — |
-| 11 (planned) | TBD | — | — |
-| 12 (planned) | TBD | — | — |
-| 10 | 2 | - | - |
-| 11 | 2 | - | - |
+- Total plans completed across all milestones: 29 (v1.0: 16 / v1.1: 7 / v1.2: 6)
+- Total tests: 297 (v1.0 baseline 170 → v1.1 +26=196 → v1.2 +75 net new=297)
+- K5 boundary tests: 0 → 13 (v1.1) → 23 (v1.2)
+- D-29 byte-equal replay: 33 PASS / 0 FAIL preserved across v1.0/v1.1/v1.2
 
 **Recent Trend:**
 
-- Last 5 plans: (v1.1 Phase 09 02 — completed 2026-05-03)
-- Trend: v1.1 closed clean as `tech_debt` (5 manual UAT inherent); v1.2 starts greenfield on already-shipped output/ corpus.
-
-*Updated after each plan completion*
+- v1.2 closed clean as `tech_debt` (16/16 reqs satisfied, 2 inherent deferred E2E manual UATs + 1 cosmetic finding)
+- Milestones cadence: v1.0 (2026-05-02, 6 phases) → v1.1 (2026-05-03, 3 phases) → v1.2 (2026-05-03, 3 phases)
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting v1.2:
+Decisions logged in PROJECT.md Key Decisions table. v1.2 added 5 new entries (D-01..D-09 architectural decisions plus per-D-XX outcomes), all marked ✓ Good after milestone close.
 
-- 9 D-XX 锁死（D-01..D-09 in `.planning/v1.2-CANDIDATES.md`），来自 v1.1 ship 后用户实测的明确意图
-- 知识库消费者 = Claude（D-01）→ 索引 JSON 优先，不做 markdown index（避免与 `_glossary.md` 职责重叠）
-- 颗粒度 = summary keywords + chapter 导航锚点（D-02）→ chapter 内无独立 keywords 字段
-- topic taxonomy = 预定义 + Claude 申请新增（D-04）→ K5 边界延伸到 governance（output/_topics.md 顶部已批准段 + 底部 # Pending 段）
-- backlink drop（D-07）→ single-user 23 条规模不需要；跨 summary 关联走 Claude 即时 Read .index.json
-- 推荐入口 = 自然语言（D-09）→ CLAUDE.md prompt rule，不加 slash command（少加一个 phase）
-- D-29 byte-equal 守不破 — index.json 是新 sidecar，replay test 不需要修改
-- Phase 10 → 11 → 12 数据流约束：taxonomy bootstrap → generator + 顶层聚合 → 17 archives backfill + 推荐 prompt rule
+Cross-cutting invariants preserved through v1.2:
+- ¥0 hard constraint (zero new pip deps in v1.2)
+- D-29 byte-equal (4 core files preserved; v1.2 sidecars are NEW files outside replay scope)
+- K5 boundary (Claude is decider; tools statically asserted via `tests/test_k5_emitters.py` 23 tests)
+- Backward-compatibility (老 5 CLI 仍可用; new sidecars are additive)
+- Single-user assumption (no multi-user / SaaS / shared state)
 
 ### Pending Todos
 
-- /gsd-plan-phase 10 — Topic taxonomy governance + bootstrap CLI（KB-07..KB-11，5 reqs）
-- (later) /gsd-plan-phase 11 — per-slug index.json + 顶层聚合 + Phase 7.6 hook（KB-01..KB-06，6 reqs）
-- (later) /gsd-plan-phase 12 — 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI（KB-12, KB-13, KB-14, KB-15, KB-MISC-01，5 reqs）
+- (none active — v1.2 shipped; user may run `/gsd-new-milestone` to plan next milestone)
 
 ### Blockers/Concerns
 
-- v1.1 还有 5 manual UAT 项 deferred (inherent to design)。下次处理真实视频时跑 `/gsd-verify-work 07` + `/gsd-verify-work 09` 清掉。**不阻塞 v1.2** — v1.1 测的是 summary 写作质量，v1.2 加的是知识库索引层，正交。
-- D-29 byte-equal regression test (`scripts/replay_v10_archives.py`) 在 v1.2 加 index.json sidecar 后必须仍 PASS。index.json 是 sidecar 文件，不在 replay 比对范围内 — Phase 11 SC#5 + Phase 12 SC#2 双重 gate 主动跑一次确认 33/0/30。
-- `output/_topics.md` bootstrap 是新 governance 文件 — 首次 bootstrap 由 Claude 从 17 archives 归纳，**用户需要 review 一次**（人类介入 by design，per D-04 K5 governance）。这是唯一一处用户必须做的操作；其他流程全自动。
+- v1.1 still has 5 manual UAT items deferred (inherent to design — independent of v1.2). To clear: run `/gsd-verify-work 07` + `/gsd-verify-work 09` against representative real videos.
+- v1.2 has 2 manual UAT items deferred (Phase 11 KB-02 + Phase 12 KB-15 — both behavioral E2E). To clear: run `/gsd-verify-work 11` + `/gsd-verify-work 12` next time processing real video / using natural-language recommendation in fresh session.
+- v1.2 cosmetic finding: `topics audit` reports `Misc` umbrella category as orphan. Not a wiring break; user can run `python -m agent.tools topics resolve Misc --remove` if undesired.
 
 ## Session Continuity
 
-Last session: 2026-05-04 — `/gsd-roadmap` v1.2 (3 phases authored, 16 reqs mapped 1:1, ROADMAP.md committed)
-Stopped at: ROADMAP.md created, REQUIREMENTS.md traceability filled, awaiting `/gsd-plan-phase 10`
+Last session: 2026-05-03 — v1.2 knowledge-base milestone shipped via `/gsd-autonomous`
+Stopped at: Milestone audit `tech_debt` accepted; archive completed
 Resume file: —
 
-Next session command: `/gsd-plan-phase 10`
+Next session command: `/gsd-new-milestone` (to start next milestone) OR `/gsd-verify-work 07/09/11/12` (to clear deferred manual UATs against real video processing)

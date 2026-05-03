@@ -8,29 +8,6 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 
 把视频提炼成对学习者真有教学价值的 Markdown 文档（不是字幕翻译），并保持全流程 ¥0。
 
-## Current Milestone: v1.2 knowledge-base
-
-**Goal:** 把 23+ 条已总结视频从"一摞独立 markdown"升级成 Claude-queryable 知识库。用户在新会话里用自然语言提问（"我之前看过哪些 LLM Wiki 相关的视频？"/"推荐学习 ECS 的视频"），Claude FIRST ACTION 读 `output/.index.json` 给出 top-N 推荐 + chapter 入口。所有索引自动生成、零用户手维操作。
-
-**Target features:**
-- per-slug `output/<slug>/index.json` 中颗粒生成（summary keywords/topics + chapter 导航锚点）— KB-01
-- topic taxonomy governance（`output/_topics.md` + bootstrap/audit/resolve CLIs）— KB-02
-- 顶层聚合 `output/.index.json` 自动同步 + 手动 rebuild CLI 兜底 — KB-03
-- 23 条已存档语料一次性 backfill（17 v1.0 archives + 6 队列视频）— KB-04
-- CLAUDE.md 自然语言推荐入口 prompt rule（FIRST ACTION + anti-hallucination）— KB-05
-- search/list CLI 兜底（顺手做）— KB-MISC-01
-
-**Locked design decisions** (9 D-XX from `.planning/v1.2-CANDIDATES.md`，all from v1.1 ship 后用户实测反馈):
-- D-01: 消费者 = Claude (不是用户 ad-hoc grep) → 索引格式 JSON 优先, no markdown index
-- D-02: 颗粒度 = summary 一层 keywords/topics + chapter 只做导航锚点
-- D-03: keywords 来源 = Claude 自动抽 + `_glossary.md` 复用
-- D-04: topic taxonomy = 预定义 + Claude 申请新增（K5 边界延伸）
-- D-05: 初始 taxonomy = Claude bootstrap from 17 archives
-- D-06: backfill = v1.2 ship 时一次性 17 archives + 6 队列走新流程
-- D-07: drop backlinks (single-user 23 条规模 over-engineering)
-- D-08: 顶层 `.index.json` 自动同步 + 手动 rebuild CLI 兜底
-- D-09: Claude 推荐 entry point = 自然语言（不加 slash command）
-
 ## Requirements
 
 ### Validated
@@ -59,16 +36,15 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 - ✓ **零基础自包含 summary（D-01）** — 每 summary 顶部 自包含 header (你需要 ≤ 3行 / 你不需要 ≤ 3行) + first-mention inline 术语注解 (FORBIDDEN universal terms Python/JSON/Claude) + cross-slug `output/_glossary.md` accumulator (FileLock 串行化 / first-seen-wins / inline-first invariant) + 长视频 5-min TL;DR speedrun (>20min OR >50 sections, write LAST, 10-15 line cap, zero citations) — v1.1 Phase 08 (TEACH-A1/A2/A3, TEACH-B)
 - ✓ **K5 决策辅助 signal emitters** — `mode_signals.json` (5 objective signals, no `recommended_mode` field) + `schedule_suggestion.json` (combines paragraphs + scenes + silence_map, with `--duration` override) + `glossary_audit` (read-only) + `summary_lint` (4+1 format invariants + citation density + glossary drift). 13 K5 boundary static-asserted tests (intent-correct write-pattern regex per Phase 07-03 deviation #2 + Phase 08-01 lessons) — v1.1 Phases 07+09 (TOOL-A, TOOL-B, CORR-03a)
 - ✓ **运维杂项打杂** — AV1 codec WARNING demoted to INFO；cross-terminal `python -m agent.tools queue {add\|list\|next\|done\|skip}` CLI with `~/.videoSummary/.queue.lock` 串行化 + `in_progress: <pid>` marker + 5-subprocess race test passes — v1.1 Phase 07 (MISC-01, MISC-02)
+- ✓ **Topic taxonomy governance layer** — `output/_topics.md` governance 文件 (顶部 Approved + 底部 Pending 段) + 3 nested CLIs (`topics bootstrap` / `audit` / `resolve`) + governance Pending 申请闭环；24 nodes / 5 categories ground-truth taxonomy；K5 边界 statically asserted；FileLock 序列化 (`output/.topics.lock`) — v1.2 Phase 10 (KB-07..KB-11)
+- ✓ **per-slug index.json + 顶层聚合 + Phase 7.6 hook** — `agent/index.py` 5 public functions + `glossary_h2_anchors` helper + 8 字段 schema lock；`/summarize-video` Phase 7.6 hook 让新视频自动同步生成 (`### Phase 7.6` H3 in CLAUDE.md L1836); keywords 优先复用 `_glossary.md` H2 anchors；顶层 `output/.index.json` atomic auto-rebuild — v1.2 Phase 11 (KB-01..KB-06)
+- ✓ **23-archive backfill + 自然语言推荐 prompt rule + search/list CLI** — 33 archives backfilled via `index backfill --all` + per-slug `index write --from-stdin --force` loop；`output/.index.json` aggregator 33 entries lex-sorted；CLAUDE.md `## v1.2 知识库自然语言推荐入口` H2 (L1625) 触发 phrase 锁 + FIRST ACTION + 推荐回复格式锁 + 6-entry FORBIDDEN list (anti-hallucination)；`index search/list` 兜底 CLI — v1.2 Phase 12 (KB-12..KB-15, KB-MISC-01)
 
 ### Active
 
-<!-- v1.2-knowledge-base milestone started 2026-05-03. 5 必做 + 1 顺手 candidates from `.planning/v1.2-CANDIDATES.md` (9 D-XX locked). 上一里程碑 v1.1 5 manual UAT 项仍 deferred 到 /gsd-verify-work 07/09 处理真实视频时清。 -->
+<!-- v1.2-knowledge-base milestone shipped 2026-05-03. 2 manual UAT items deferred (Phase 11 KB-02 + Phase 12 KB-15 — both inherent to design, mirror v1.1 P-09 pattern). v1.1 5 manual UAT 项仍 deferred. 下次里程碑通过 /gsd-new-milestone 重新规划。 -->
 
-- ⏳ **knowledge-base 索引架构** — per-slug `output/<slug>/index.json` (中颗粒：summary keywords/topics + chapter 导航锚点) + 顶层聚合 `output/.index.json` 自动同步 — v1.2 KB-01/KB-03
-- ⏳ **topic taxonomy governance** — `output/_topics.md` 顶部已批准段 + 底部 `# Pending` 段 + bootstrap/audit/resolve CLIs；Claude 申请新 topic 走 governance — v1.2 KB-02
-- ⏳ **23 条已存档语料 backfill** — 17 v1.0 archives + 6 队列视频走新流程一次性补齐 index.json；D-29 byte-equal 不破（index.json 是新 sidecar）— v1.2 KB-04
-- ⏳ **Claude 自然语言推荐 entry point** — CLAUDE.md prompt rule：用户提"推荐 / 相关 / 我之前看过 / 学过 / 找一下我"等触发词时，FIRST ACTION = `Read output/.index.json` → keyword + topic 匹配 → top-3 推荐 + chapter 进入点；FORBIDDEN 编造 slug — v1.2 KB-05
-- ⏳ **search/list CLI 兜底**（顺手做，可推 v1.3）— `python -m agent.tools index search/list` 极简 grep 兜底 — v1.2 KB-MISC-01
+(none — v1.2 shipped; pending manual UATs tracked in 11-HUMAN-UAT.md + 12-HUMAN-UAT.md + v1.1 deferred items)
 
 ### Out of Scope
 
@@ -114,11 +90,12 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 | Pyannote diarization spike 走 degrade fast-path | 用户在 /gsd-autonomous 中选择跳过 700MB pyannote install + HF token 申请；infrastructure ship 但实测 deferred | — Pending — GPU 机器可未来补 SPIKE.md 并升 accept |
 | v1.1 锁死 D-01 自包含、D-02 三层校验、D-03 自动化优先 | 用户在 v1.0 实测 BV1HG9JBsEPK + BV1rsd7BsEnA 两份 summary 后给出原话："不能假定我的阅读顺序，也不能假定阅读后一定有理解" + "尽可能避免文档撰写中的人工参与" | — Active — v1.1 milestone 开启时锁定，详见 `.planning/v1.1-CANDIDATES.md` |
 | v1.1 一次 ship 全部 8 候选（必做 4 + 想做 2 + 顺手 2） | 用户主动调 /gsd-new-milestone 时选 "全做"；v1.0 工具链已稳，质量铁律必须一次落地不分批 | ✓ Good — v1.1 shipped 2026-05-03，18/18 reqs delivered |
-| v1.2 锁死 D-01..D-09（9 条架构决策） | v1.1 ship 后用户实测产生明确意图："开 claude code 会话，让他给我推荐我需要学习的视频" + "逐个遍历 chapter 不太合理" + "给一组预定义的 topic 让 claude 挑" + "backlink 先 drop 吧" + "推荐用自然语言不加 slash command" — 9 D-XX 是用户原话翻译为设计契约 | — Active — v1.2 milestone 开启时锁定，详见 `.planning/v1.2-CANDIDATES.md` |
-| v1.2 知识库消费者 = Claude（D-01） | 用户原话："开 claude code 会话，说明需求，让他给我推荐"。索引格式优先 Claude 友好（结构化 JSON），不优先人类 grep 友好；markdown 索引一律不做（_glossary.md 已是术语索引） | — Active — KB-01/KB-03 schema 锁结构化 JSON |
-| v1.2 颗粒度 = summary keywords + chapter 导航锚点（D-02） | 用户原话："逐个遍历 chapter 来获取关键词不太合理"。每 chapter 重新抽 keywords 是过度切碎；keywords 在 summary 维度匹配，chapter 只做"找到之后跳转"用 | — Active — index.json schema 中 chapter 无独立 keywords 字段 |
-| v1.2 backlink drop（D-07） | 用户原话："先 drop 吧，我感觉作用也不大"。single-user 23 条规模 over-engineering；跨 summary 关联完全靠 Claude 在会话里 Read .index.json 即时计算即可 | — Active — index.json schema 不含 related_slugs，summary.md 不加"## 相关推荐"段 |
-| v1.2 推荐入口 = 自然语言不加 slash command（D-09） | 用户原话："开 claude code 会话，说明我当前的需求"，已习惯自然语言；slash command 是 nice-to-have 不是必须；少加一个 phase 减低迭代成本 | — Active — KB-05 走 CLAUDE.md prompt rule（mirror v1.1 FORBIDDEN list 字面规则） |
+| v1.2 锁死 D-01..D-09（9 条架构决策） | v1.1 ship 后用户实测产生明确意图："开 claude code 会话，让他给我推荐我需要学习的视频" + "逐个遍历 chapter 不太合理" + "给一组预定义的 topic 让 claude 挑" + "backlink 先 drop 吧" + "推荐用自然语言不加 slash command" — 9 D-XX 是用户原话翻译为设计契约 | ✓ Good — v1.2 shipped 2026-05-03，16/16 reqs delivered，9 D-XX honored byte-equal |
+| v1.2 知识库消费者 = Claude（D-01） | 用户原话："开 claude code 会话，说明需求，让他给我推荐"。索引格式优先 Claude 友好（结构化 JSON），不优先人类 grep 友好；markdown 索引一律不做（_glossary.md 已是术语索引） | ✓ Good — v1.2 KB-01 8 字段 JSON schema + 顶层 .index.json aggregator 33 entries |
+| v1.2 颗粒度 = summary keywords + chapter 导航锚点（D-02） | 用户原话："逐个遍历 chapter 来获取关键词不太合理"。每 chapter 重新抽 keywords 是过度切碎；keywords 在 summary 维度匹配，chapter 只做"找到之后跳转"用 | ✓ Good — v1.2 index.json schema 中 chapter 无独立 keywords 字段（仅 title + start + excerpt） |
+| v1.2 backlink drop（D-07） | 用户原话："先 drop 吧，我感觉作用也不大"。single-user 23 条规模 over-engineering；跨 summary 关联完全靠 Claude 在会话里 Read .index.json 即时计算即可 | ✓ Good — v1.2 index.json schema 不含 related_slugs；summary.md 不加 "## 相关推荐" 段 |
+| v1.2 推荐入口 = 自然语言不加 slash command（D-09） | 用户原话："开 claude code 会话，说明我当前的需求"，已习惯自然语言；slash command 是 nice-to-have 不是必须；少加一个 phase 减低迭代成本 | ✓ Good — v1.2 KB-14 落地 CLAUDE.md `## v1.2 知识库自然语言推荐入口` H2 段，7 触发 phrase + FIRST ACTION + 3-line 推荐格式锁 + 6-entry FORBIDDEN anti-hallucination list |
+| v1.2 topic taxonomy 走 K5 governance（D-04） | 用户原话："给出一组预定义的 topic，然后 claude 从中挑，如果 claude 需要新增主题关键词可以提出请求"。K5 边界延伸到 governance — Claude 决策选/申请，但用户决定批 Pending | ✓ Good — v1.2 Phase 10 ship `_topics.md` Approved + Pending 段 + 3 CLI；首次 bootstrap 默认批（24 nodes from 22+ archives ground truth） |
 
 ## Evolution
 
@@ -138,7 +115,7 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-03 — v1.2 knowledge-base milestone started. 6 candidates (5 必做 + 1 顺手) sourced from `.planning/v1.2-CANDIDATES.md` with 9 D-XX architectural decisions locked. Phase numbering continues from v1.1 last phase 09 → v1.2 starts at Phase 10. v1.1 5 manual UAT items still deferred (inherent to design — Python orchestrators cannot auto-invoke `/summarize-video`); to be cleared by `/gsd-verify-work 07` and `/gsd-verify-work 09` against representative real videos when next processing them.*
+*Last updated: 2026-05-03 — v1.2 knowledge-base milestone shipped. 3 phases (10-12) / 6 plans / 11 tasks. All Active v1.2 requirements moved to Validated. Audit: 16/16 requirements satisfied (100%), 3/3 phases verified, 7/7 integration points, 4/4 E2E flows complete, 297 tests pass (+75 net new from v1.1 baseline 222), K5 boundary count 17→23 (+6), D-29 33/0/30 byte-equal preserved. **Status: tech_debt** — 2 manual UAT items deferred (Phase 11 KB-02 + Phase 12 KB-15, both inherent to v1.2 design — Python orchestrators cannot auto-invoke `/summarize-video` Claude slash command nor simulate fresh-session recommendation behavior) + 1 cosmetic finding (`topics audit` "Misc" orphan note). v1.1 5 manual UAT items still deferred (independent of v1.2). See `.planning/MILESTONES.md` and `.planning/milestones/v1.2-MILESTONE-AUDIT.md`. Next milestone via `/gsd-new-milestone`.*
 
 *2026-05-03 — v1.1 summary-quality milestone shipped. 3 phases (07-09) / 7 plans / 19 tasks. All Active v1.1 requirements moved to Validated. Audit: 18/18 requirements (1 partial pending manual gate), 3/3 phases, 8/8 integration, 4/4 E2E flows verified, 196 tests pass, D-29 33/0/30 byte-equal preserved. **Status: tech_debt** — 5 manual UAT items + 6 info findings deferred (all inherent to v1.1 design — Python orchestrators cannot auto-invoke `/summarize-video` Claude slash command). See `.planning/MILESTONES.md` and `.planning/milestones/v1.1-MILESTONE-AUDIT.md`.*
 
