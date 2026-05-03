@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: — knowledge-base
-status: defining_requirements
-stopped_at: PROJECT.md updated, awaiting REQUIREMENTS.md + ROADMAP.md
-last_updated: "2026-05-03T00:00:00.000Z"
-last_activity: 2026-05-03
+status: ready_to_plan
+stopped_at: ROADMAP.md created (3 phases / 16 reqs / 100% coverage), awaiting /gsd-plan-phase 10
+last_updated: "2026-05-04T00:00:00.000Z"
+last_activity: 2026-05-04
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-03 — v1.2 knowledge-base milestone 
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: **Phase 10 ready to plan** — Topic taxonomy governance + bootstrap CLI
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-03 — Milestone v1.2 started
+Status: Roadmap committed, awaiting `/gsd-plan-phase 10`
+Last activity: 2026-05-04 — ROADMAP.md created (3 phases / 16 reqs mapped 100%)
 
 ## Performance Metrics
 
@@ -69,23 +69,24 @@ Recent decisions affecting v1.2:
 - backlink drop（D-07）→ single-user 23 条规模不需要；跨 summary 关联走 Claude 即时 Read .index.json
 - 推荐入口 = 自然语言（D-09）→ CLAUDE.md prompt rule，不加 slash command（少加一个 phase）
 - D-29 byte-equal 守不破 — index.json 是新 sidecar，replay test 不需要修改
+- Phase 10 → 11 → 12 数据流约束：taxonomy bootstrap → generator + 顶层聚合 → 17 archives backfill + 推荐 prompt rule
 
 ### Pending Todos
 
-- /gsd-discuss-phase 10 OR /gsd-plan-phase 10 — first v1.2 phase（topic taxonomy governance + bootstrap CLI 候选）
-- (later) /gsd-plan-phase 11 — per-slug index.json + 顶层聚合 + Phase 7.6 hook
-- (later) /gsd-plan-phase 12 — 17 archives + 6 队列 backfill + CLAUDE.md 推荐 prompt rule + (optional) search/list CLI
+- /gsd-plan-phase 10 — Topic taxonomy governance + bootstrap CLI（KB-07..KB-11，5 reqs）
+- (later) /gsd-plan-phase 11 — per-slug index.json + 顶层聚合 + Phase 7.6 hook（KB-01..KB-06，6 reqs）
+- (later) /gsd-plan-phase 12 — 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI（KB-12, KB-13, KB-14, KB-15, KB-MISC-01，5 reqs）
 
 ### Blockers/Concerns
 
 - v1.1 还有 5 manual UAT 项 deferred (inherent to design)。下次处理真实视频时跑 `/gsd-verify-work 07` + `/gsd-verify-work 09` 清掉。**不阻塞 v1.2** — v1.1 测的是 summary 写作质量，v1.2 加的是知识库索引层，正交。
-- D-29 byte-equal regression test (`scripts/replay_v10_archives.py`) 在 v1.2 加 index.json sidecar 后必须仍 PASS。index.json 是 sidecar 文件，不在 replay 比对范围内 — 但 phase verification 要主动跑一次确认 33/0/30。
+- D-29 byte-equal regression test (`scripts/replay_v10_archives.py`) 在 v1.2 加 index.json sidecar 后必须仍 PASS。index.json 是 sidecar 文件，不在 replay 比对范围内 — Phase 11 SC#5 + Phase 12 SC#2 双重 gate 主动跑一次确认 33/0/30。
 - `output/_topics.md` bootstrap 是新 governance 文件 — 首次 bootstrap 由 Claude 从 17 archives 归纳，**用户需要 review 一次**（人类介入 by design，per D-04 K5 governance）。这是唯一一处用户必须做的操作；其他流程全自动。
 
 ## Session Continuity
 
-Last session: 2026-05-03 — /gsd-new-milestone v1.2-knowledge-base (milestone setup step)
-Stopped at: PROJECT.md updated, awaiting REQUIREMENTS.md + ROADMAP.md
+Last session: 2026-05-04 — `/gsd-roadmap` v1.2 (3 phases authored, 16 reqs mapped 1:1, ROADMAP.md committed)
+Stopped at: ROADMAP.md created, REQUIREMENTS.md traceability filled, awaiting `/gsd-plan-phase 10`
 Resume file: —
 
-Next session command: `/gsd-plan-phase 10` (after REQUIREMENTS.md + ROADMAP.md committed)
+Next session command: `/gsd-plan-phase 10`

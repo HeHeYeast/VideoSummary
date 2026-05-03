@@ -86,29 +86,34 @@ Filled by gsd-roadmapper during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 | Phase TBD | Pending |
-| KB-02 | Phase TBD | Pending |
-| KB-03 | Phase TBD | Pending |
-| KB-04 | Phase TBD | Pending |
-| KB-05 | Phase TBD | Pending |
-| KB-06 | Phase TBD | Pending |
-| KB-07 | Phase TBD | Pending |
-| KB-08 | Phase TBD | Pending |
-| KB-09 | Phase TBD | Pending |
-| KB-10 | Phase TBD | Pending |
-| KB-11 | Phase TBD | Pending |
-| KB-12 | Phase TBD | Pending |
-| KB-13 | Phase TBD | Pending |
-| KB-14 | Phase TBD | Pending |
-| KB-15 | Phase TBD | Pending |
-| KB-MISC-01 | Phase TBD | Pending |
+| KB-01 | Phase 11 | Pending |
+| KB-02 | Phase 11 | Pending |
+| KB-03 | Phase 11 | Pending |
+| KB-04 | Phase 11 | Pending |
+| KB-05 | Phase 11 | Pending |
+| KB-06 | Phase 11 | Pending |
+| KB-07 | Phase 10 | Pending |
+| KB-08 | Phase 10 | Pending |
+| KB-09 | Phase 10 | Pending |
+| KB-10 | Phase 10 | Pending |
+| KB-11 | Phase 10 | Pending |
+| KB-12 | Phase 12 | Pending |
+| KB-13 | Phase 12 | Pending |
+| KB-14 | Phase 12 | Pending |
+| KB-15 | Phase 12 | Pending |
+| KB-MISC-01 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 16 total (15 必做 + 1 顺手)
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 16 ⚠️ (will be 0 after roadmap)
+- Mapped to phases: 16 (Phase 10: 5 / Phase 11: 6 / Phase 12: 5)
+- Unmapped: 0 ✓ (100% coverage)
+
+**By phase:**
+- **Phase 10** (Topic taxonomy governance + bootstrap CLI): KB-07, KB-08, KB-09, KB-10, KB-11 (5 reqs)
+- **Phase 11** (per-slug index.json + 顶层聚合 + Phase 7.6 hook): KB-01, KB-02, KB-03, KB-04, KB-05, KB-06 (6 reqs)
+- **Phase 12** (17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI): KB-12, KB-13, KB-14, KB-15, KB-MISC-01 (5 reqs)
 
 ---
 *Requirements defined: 2026-05-03*
 *Source: `.planning/v1.2-CANDIDATES.md` 9 D-XX locks*
-*Last updated: 2026-05-03 after initial definition*
+*Last updated: 2026-05-04 after roadmap creation — Traceability filled, 16/16 reqs mapped 1:1 across 3 phases (10-12).*
