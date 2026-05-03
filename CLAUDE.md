@@ -1769,6 +1769,62 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 >
 > 完整规则 + verifier prompt 全文 + UNRESOLVED.md 模板见 § v1.1 校对自动化 (Phase 09)。
 
+### Phase 7.6: 知识库索引（v1.2 ship 后默认启用）
+
+> **v1.2 hook (默认)**：满足以下**全部 3 条**才走 Phase 7.6（Claude is decider）：
+> 1. `output/_topics.md` 存在（v1.2 Phase 10 ship 后默认存在）
+> 2. `output/<slug>/summary.md` 已写完（Phase 7 完成 + Phase 7.5 verifier 已通过）
+> 3. `output/<slug>/index.json` 不存在 OR 用户显式要求重新生成
+
+**Phase 7.6 步骤**（按顺序）：
+
+1. **Read 5 个文件**：`output/<slug>/summary.md` / `output/<slug>/meta.json` / `output/<slug>/plan.md` / `output/_glossary.md` / `output/_topics.md`。**这 5 个文件全部 READ-ONLY**——D-29 invariant 锁死 4 核心文件（summary.md / segs.json / paragraphs.json / meta.json）byte-equal 不破；不要用 Edit / Write 工具改动它们，哪怕你读时发现 typo 也不改（K5 边界 + Plan 11-01 K5 source-grep 测试覆盖 CLI 侧；本节是 prompt 侧的对应锁）。
+   - **`plan.md` 缺失情况**（17 v1.0/v1.1 archives 没有 plan.md — verified via `ls output/<slug>/`）→ `mode = "replicate-guide"` per CLAUDE.md `### 模式分类 (Phase 2 末尾步骤) → Fallback 规则`
+   - **`_glossary.md` 缺失情况**（v1.1 TEACH-A3 cross_slug_glossary 是 opt-in；当前 branch + 17 archives + 16 douyin/BV 全部没有）→ `keywords` 候选集为空，由 Claude 直接从 `summary.md` 自由提议（`agent.index.glossary_h2_anchors` 在文件缺失时 silently 返回 `[]`，不抛异常）
+
+2. **推断 8 字段** (`slug` / `title` / `duration_s` / `mode` / `topics[]` / `keywords[]` / `tldr_oneliner` / `chapters[]`)：
+   - `slug` = 目录名（与 `--slug <slug>` arg 一致）
+   - `title` = `meta.json["title"]`
+   - `duration_s` = `meta.json["duration"]`（浮点秒；可能是 int 或 float — schema validator 都接受）
+   - `mode` = `plan.md` front-matter 的 `mode` 字段；缺失时 fallback `"replicate-guide"`（4 modes 之一：`replicate-guide` / `concept-explanation` / `extension-applications` / `interview-distillation`）
+   - `topics[]` **必须从 `output/_topics.md` 的 `## Approved Taxonomy` 段选取**（白名单约束）。当前 ground truth 24 nodes / 5 categories（Phase 10 plan-02 ship）。**新概念**（不在 Approved 白名单内）→ 用 `"pending: <new-name>"` 字面形态（前缀 6 字节 `pending: ` 后跟新 topic 名）。CLI 收到后自动 append 到 `## Pending` 段（调用 `agent.topics.append_pending`）；普通 string topic 不在 Approved 集合 AND 没有 `pending: ` 前缀 → CLI fail-fast。
+   - `keywords[]` **优先复用 `output/_glossary.md` H2 anchors 的 byte-equal canonical 形式**（如 `LoRA (Low-Rank Adaptation)` 是 canonical；不要写 `LoRA` / `Lora` / `low-rank adaptation` 散落形态）。`agent.index.glossary_h2_anchors(Path("output/_glossary.md"))` 给你 candidate set；先看 summary 里命中的 H2 anchor，命中即用 canonical 形态。新概念才创造新 keyword，不强制 append 回 `_glossary.md`（`_glossary.md` 由 v1.1 TEACH-A3 维护，写时机不同）。
+   - `tldr_oneliner` = 1 行视频核心，10-50 字。每 mode 自然形态参考（仅 prior，不是 template）：
+     - `replicate-guide`: "用 X 做 Y 的 N 步流程"
+     - `concept-explanation`: "X 不是 Y，而是 Z"
+     - `extension-applications`: "X 在 N 个场景里的应用对比"
+     - `interview-distillation`: "嘉宾的核心判断 + 反共识立场"
+   - `chapters[]` = `[{title, start, excerpt}, ...]`，**每项无独立 keywords 字段** per D-02。
+     - `chapters[i].title` = summary.md 里对应 H2 章节的标题文字（去掉 `[HH:MM]` timestamp 前缀如有）
+     - **`chapters[i].start` = 浮点秒**（与 segs.json / paragraphs.json 一致单位）。**关键：cross-reference `paragraphs.json` 拿真实浮点 start**——summary.md 的 `[HH:MM]` 是秒级 round（精度损失），`paragraphs.json` 的 `paragraphs[i].start` 是浮点。不同 mode 的章节 H2 约定不一致（`interview-distillation` 多用 `## [HH:MM] topic`，`replicate-guide` 多用 `## 一、Chinese-numeral`，`extension-applications` 混合）—**不要单纯 regex `summary.md`**，而是把每个 H2 章节标题语义匹配到 paragraphs.json 中最接近的 paragraph，用其 `start` 浮点值。
+     - `chapters[i].excerpt` = 1-2 行（≤ 200 字）章节核心摘要；从该章节正文提炼，不要 verbatim 抄第一段
+
+3. **Pipe JSON 给 CLI**：
+   ```bash
+   python -m agent.tools index write --slug <slug> --from-stdin <<EOF
+   {"slug": "<slug>", "title": "...", "duration_s": ..., "mode": "...",
+    "topics": [...], "keywords": [...], "tldr_oneliner": "...",
+    "chapters": [{"title": "...", "start": ..., "excerpt": "..."}, ...]}
+   EOF
+   ```
+   JSON 结构 = per-slug index.json 8 字段 verbatim（不需要 wrapping object）；CLI 会自动在 stdin 缺 `slug` 字段时从 `--slug` arg 注入；`slug` 字段值 mismatch `--slug` arg → CLI fail-fast。
+
+4. **CLI 自动**：
+   - 验证 8 字段 schema (`agent.index.validate_per_slug_index`) — 缺字段 / 类型错 / mode 不在 4 之内 / topic 不在白名单且非 `pending: ` 前缀 → `IndexValidationError` + stderr 详细错误 + exit 1
+   - 持锁 `output/.index.lock`（Phase 11 D-09.1，第 4 个跨 slug 锁域）
+   - atomic 写 `output/<slug>/index.json`（tempfile + os.fsync + os.replace）
+   - 立刻 rebuild 顶层 `output/.index.json`（atomic write — sorted lexicographic by slug；扁平 dict `{"<slug>": <per-slug>, ...}`，无 backlinks per D-07）
+   - 输出 stdout JSON: `{"action": "written" | "skipped", "slug": "...", "_index_path": "...", "_aggregator_path": "...", "_topics_pending_appended": [<names>, ...]}`
+   - Idempotent: 已存在 `output/<slug>/index.json` AND stdin JSON byte-equal → no-op + `action: "skipped"`；任何字段不一致 → 覆盖（视为新版本）
+
+5. **错误处理**：
+   - schema 校验失败 → CLI exit 1 + stderr 详细错误（field name 显式）；Claude 修正 JSON 重试
+   - topic 不在白名单 AND 非 `pending: <name>` 形态 → 同上 fail-fast；Claude 改写为 `pending: <name>` 后重试（CLI 会 append 到 `_topics.md` Pending 段）
+   - lock contended（其他终端正在写 `output/.index.json`）→ exit 1 + stderr `lock contended`；Claude 等待 / 重试 / 检查孤儿 PID
+   - slug dir 不存在 → exit 1 + stderr `slug dir not found`；Claude 检查 `--slug` arg 是否拼对、`--output-dir` 是否对
+
+> **K5 边界提醒**：Phase 7.6 hook 的 5 个被 Read 的文件中，4 个核心文件（summary.md / segs.json [虽不在本 hook Read 列表但仍受保护] / paragraphs.json / meta.json）+ plan.md 永远 **READ-ONLY**。Plan 11-01 的 K5 source-grep 测试已经禁止 `agent/index.py` + `cmd_index_write` + `cmd_index_rebuild` 包含这 5 文件 literal；本 hook 是对应的 prompt-level invariant。Phase 11 close 前会跑 `python scripts/replay_v10_archives.py` 双重 verify 4 核心文件 byte-equal 不破（D-07.1 close gate）。
+
 ### Phase 8: 收尾
 
 - 质量自检（时间戳真实？代码从截图抄？图片对应步骤？无废话？）
