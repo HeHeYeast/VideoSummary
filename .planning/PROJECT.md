@@ -31,37 +31,17 @@ videoSummary 是一个本地 ¥0 视频学习文档化工具。把 B 站 / 抖�
 - ✓ **新视频类型** — UI 操作演示 4 子规则 + Podcast/interview-distillation skeleton + `--profile podcast` (VAD + paragraph aggregation) + opt-in pyannote diarize CLI（degrade fast-path）+ whisper repetition guard — v1.0 Phase 5
 - ✓ **现有路径 backward-compatible** — 17 archive re-runs byte-identical (D-29 invariant)；老 CLI 5 命令保留可用；新功能全部 opt-in/additive — v1.0 (持续验证 Phases 1-6)
 - ✓ **多 agent 并行（Nice-to-have shipped）** — cross-platform stdlib FileLock + per-slug `.resume.lock` + vendor config 锁 + slug-prefix logs + cookies-in-memory cache — v1.0 Phase 6 (PARA-01..PARA-06)
+- ✓ **D-29 byte-equal 基础设施** — `agent/_v11.py` opt-in marker (`output/<slug>/.v11_features.json`，15 entries 跨 v1.1 三 phase) gates ALL v1.1 paths；`scripts/replay_v10_archives.py` 17-archive 字节相等 regression test (33 PASS / 0 FAIL)；3 representative archive `.token_budget.json` baselines — v1.1 Phase 07 (PRE-V11-01/02/03)
+- ✓ **Summary 正确性自动化（D-02 三层校验）** — L1 ASR `transcribe_lint` (5 strategies inc. pypinyin homophone_cluster) + L2/L3 prompts in CLAUDE.md (max 10 corrections, ≥ 2 evidence sources, ≤ 5 frames/warning) + CORR-02 inline trace tokens with 3-tier eligibility + CORR-03b Phase 7.5 verifier subagent (`Task(general-purpose)` scope-locked, FORBIDDEN pedagogical critique) + CORR-03c delta auto-rewrite max-1 with `summary.md.pre-review` backup + UNRESOLVED.md fallback + `VIDEOSUMMARY_SKIP_REVIEWER=1` env degrade — v1.1 Phases 07+08+09 (CORR-01a/b/c, CORR-02, CORR-03a/b/c)
+- ✓ **零基础自包含 summary（D-01）** — 每 summary 顶部 自包含 header (你需要 ≤ 3行 / 你不需要 ≤ 3行) + first-mention inline 术语注解 (FORBIDDEN universal terms Python/JSON/Claude) + cross-slug `output/_glossary.md` accumulator (FileLock 串行化 / first-seen-wins / inline-first invariant) + 长视频 5-min TL;DR speedrun (>20min OR >50 sections, write LAST, 10-15 line cap, zero citations) — v1.1 Phase 08 (TEACH-A1/A2/A3, TEACH-B)
+- ✓ **K5 决策辅助 signal emitters** — `mode_signals.json` (5 objective signals, no `recommended_mode` field) + `schedule_suggestion.json` (combines paragraphs + scenes + silence_map, with `--duration` override) + `glossary_audit` (read-only) + `summary_lint` (4+1 format invariants + citation density + glossary drift). 13 K5 boundary static-asserted tests (intent-correct write-pattern regex per Phase 07-03 deviation #2 + Phase 08-01 lessons) — v1.1 Phases 07+09 (TOOL-A, TOOL-B, CORR-03a)
+- ✓ **运维杂项打杂** — AV1 codec WARNING demoted to INFO；cross-terminal `python -m agent.tools queue {add\|list\|next\|done\|skip}` CLI with `~/.videoSummary/.queue.lock` 串行化 + `in_progress: <pid>` marker + 5-subprocess race test passes — v1.1 Phase 07 (MISC-01, MISC-02)
 
 ### Active
 
-<!-- v1.1 milestone Active requirements — 详见 .planning/REQUIREMENTS.md（traceability 在 ROADMAP 写完后回填）。 -->
+<!-- v1.1 milestone shipped 2026-05-03. 5 manual UAT items deferred to /gsd-verify-work 07/09 when next processing real video. 下次里程碑通过 /gsd-new-milestone 重新规划。 -->
 
-- [ ] **Summary 正确性自动化** — 三层叠加校验（自检 + 行内溯源 + 第二 agent 复审）+ ASR 术语自动校正（L1 检测/L2 上下文/L3 多模态兜底） — v1.1
-- [ ] **零基础自包含 summary** — 每篇术语 inline 注解 + `output/_glossary.md` 累积 + 顶部"你需要/不需要知道什么"段 + 长视频顶部 5 分钟速读版 — v1.1
-- [ ] **Mode + 抽帧决策辅助信号** — `mode_signals.json` + `schedule_suggestion.json` 工具（K5 边界：仅出建议，Claude 仍决策） — v1.1
-- [ ] **运维杂项打杂** — AV1 警告降级 + Video queue helper CLI — v1.1
-
-## Current Milestone: v1.1 summary-quality
-
-**Goal:** 把 v1.0 工具链产出的 summary 从"读起来正确"升级为"自动可信、零基础读者也能学到东西"——所有错误自动检测/修复/复审，新读者不依赖外部知识也能读懂。
-
-**Target features:**
-
-- 🔴 必做 — CORR-01 ASR 术语自动校正（3 层）/ CORR-02 自检 + 行内溯源 / CORR-03 第二 agent 复审 / TEACH-A 零基础自包含
-- 🟡 想做 — TEACH-B 长 summary 顶部速读版 / TOOL-A mode_signals.json / TOOL-B schedule_suggestion.json
-- 🟢 顺手做 — MISC-01 AV1 警告降级 / MISC-02 video queue helper CLI
-
-**Locked design decisions** (`v1.1-CANDIDATES.md` D-01/02/03，不再讨论)：
-
-- D-01：每篇 summary 自包含、零基础视角（不假定阅读顺序，不假定阅读后理解）
-- D-02：正确性校验三层叠加（自检 + 行内溯源 + 二次复审）
-- D-03：自动化优先（任何"用户手动做"的方案先 reject）
-
-**Continuity from v1.0:**
-
-- D-29 backward-compat 仍守：未触发新 warning 的旧视频行为 byte-equal v1.0
-- K5 决策权不外移：所有新 _signals 工具仅出建议，Claude 仍是决策者
-- 老 5 CLI + `output/<slug>/` 目录约定保留
+(none — v1.1 shipped; pending manual UATs tracked in 07-HUMAN-UAT.md + 09-HUMAN-UAT.md)
 
 ### Out of Scope
 
@@ -126,7 +106,7 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-03 — v1.1 summary-quality milestone started (`/gsd-new-milestone`). 8 candidate requirements adopted from `.planning/v1.1-CANDIDATES.md` (4 必做 + 2 想做 + 2 顺手). Locked design decisions D-01/02/03 from user feedback after BV1HG9JBsEPK + BV1rsd7BsEnA summary实测. Phases TBD via `/gsd-new-milestone` roadmapper.*
+*Last updated: 2026-05-03 — v1.1 summary-quality milestone shipped. 3 phases (07-09) / 7 plans / 19 tasks. All Active v1.1 requirements moved to Validated. Audit: 18/18 requirements (1 partial pending manual gate), 3/3 phases, 8/8 integration, 4/4 E2E flows verified, 196 tests pass, D-29 33/0/30 byte-equal preserved. **Status: tech_debt** — 5 manual UAT items + 6 info findings deferred (all inherent to v1.1 design — Python orchestrators cannot auto-invoke `/summarize-video` Claude slash command). See `.planning/MILESTONES.md` and `.planning/milestones/v1.1-MILESTONE-AUDIT.md`. Next milestone via `/gsd-new-milestone`.*
 
 *2026-05-02 — v1.0 milestone shipped. 6 phases / 16 plans / 31 tasks. All Active requirements moved to Validated. Audit: 52/52 requirements satisfied, 6/6 phases passed, 4/4 E2E flows verified. See `.planning/MILESTONES.md` and `.planning/milestones/v1.0-MILESTONE-AUDIT.md`.*
 
