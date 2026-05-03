@@ -374,7 +374,12 @@ def lint_summary(summary_path, glossary_path=None) -> dict:
     """
     sp = Path(summary_path)
     text = sp.read_text(encoding="utf-8") if sp.exists() else ""
-    lines = text.splitlines() or [""]
+    # WR-02 (Phase 09 review): drop the `or [""]` defensive default — it
+    # creates a phantom empty line for 0-byte files. All `_check_*` helpers
+    # iterate `lines` and return [] cleanly when given []; the citation
+    # eligibility / trace-after-claim checks handle the empty-section case
+    # via in_fence_mask / section_map (both empty when lines == []).
+    lines = text.splitlines()
 
     # Build section map (one entry per line, parallel index)
     section_map: list[str | None] = []
