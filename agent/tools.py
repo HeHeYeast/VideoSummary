@@ -1584,6 +1584,171 @@ def cmd_summary_lint(args):
     })
 
 
+def cmd_topics_bootstrap(args):
+    """Phase 10 KB-08: write Claude-proposed initial taxonomy to the topics
+    governance file via stdin JSON. K5: this CLI is a mechanical writer; the
+    taxonomy content comes from Claude (--from-stdin), never from algorithmic
+    derivation. K5 boundary forbids algorithmic taxonomy generation.
+    """
+    from agent.topics import write_approved_taxonomy, _resolve_paths
+    if not args.from_stdin:
+        print("error: bootstrap requires --from-stdin (taxonomy JSON on stdin)",
+              file=sys.stderr)
+        sys.exit(1)
+    raw = sys.stdin.read()
+    if not raw.strip():
+        print("error: --from-stdin requires JSON input on stdin; got empty",
+              file=sys.stderr)
+        sys.exit(1)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"error: malformed JSON on stdin: {e}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(payload, dict) or "taxonomy" not in payload:
+        print("error: stdin JSON must have top-level 'taxonomy' key",
+              file=sys.stderr)
+        sys.exit(1)
+    taxonomy = payload["taxonomy"]
+    if not isinstance(taxonomy, list):
+        print(f"error: 'taxonomy' must be a list, got {type(taxonomy).__name__}",
+              file=sys.stderr)
+        sys.exit(1)
+    topics_md, _ = _resolve_paths(args.output_dir, None)
+    try:
+        result = write_approved_taxonomy(topics_md, taxonomy)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+    out = {"action": result["action"], "approved_count": result["approved_count"],
+           "_topics_path": str(topics_md)}
+    if result["action"] == "skipped":
+        print("WARNING: topics file already exists with non-empty Approved "
+              "Taxonomy. Re-bootstrap by removing the file or use `topics "
+              "resolve` to add individual topics.", file=sys.stderr)
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+    else:
+        print(f"{out['action']}: {out['approved_count']} approved entries -> {out['_topics_path']}")
+
+
+def cmd_topics_audit(args):
+    """Phase 10 KB-09: read-only report on pending + reference counts +
+    orphan topics. K5: ZERO writes anywhere — pure read.
+    """
+    import datetime
+    from agent.topics import read_topics, _resolve_paths
+    _now_utc = datetime.datetime.now(datetime.timezone.utc)
+    topics_md, _ = _resolve_paths(args.output_dir, None)
+    topics_data = read_topics(topics_md)
+    # Glob output/<slug>/index.json — may be empty pre-Phase-11
+    output_dir = Path(args.output_dir)
+    index_paths = sorted(output_dir.glob("*/index.json"))
+    # Flatten approved tree to a set of all topic names (every node, every depth)
+    approved_names: set[str] = set()
+
+    def _collect(items):
+        for it in items:
+            approved_names.add(it["name"])
+            _collect(it.get("subtopics", []))
+
+    _collect(topics_data["approved"])
+    approved_with_counts = {n: 0 for n in approved_names}
+    # Scan each per-slug sidecar for `topics` arrays — count per topic
+    for ip in index_paths:
+        try:
+            obj = json.loads(ip.read_text(encoding="utf-8"))
+        except Exception as e:
+            log.warning("topics audit: skipped %s (parse error: %s)", ip, e)
+            continue
+        seen = set()
+        # Top-level topics
+        for t in obj.get("topics", []):
+            if isinstance(t, str) and t in approved_names:
+                seen.add(t)
+        # Per-chapter topics
+        for ch in obj.get("chapters", []):
+            for t in (ch.get("topics", []) if isinstance(ch, dict) else []):
+                if isinstance(t, str) and t in approved_names:
+                    seen.add(t)
+        for t in seen:
+            approved_with_counts[t] += 1
+    # Orphan detection — only meaningful when sidecar files exist
+    if not index_paths:
+        orphans: list[str] = []
+        audit_note = ("No output/<slug>/index sidecars found (Phase 11 not "
+                      "yet shipped). Orphan detection skipped; all approved "
+                      "topics shown with count=0.")
+    else:
+        orphans = sorted(n for n, c in approved_with_counts.items() if c == 0)
+        audit_note = ""
+    result = {
+        "pending": topics_data["pending"],
+        "approved_with_counts": approved_with_counts,
+        "orphans": orphans,
+        "audit_note": audit_note,
+        "read_at": _now_utc.isoformat(timespec="seconds").replace("+00:00", "Z"),
+    }
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        # Human-readable markdown
+        print(f"# Topics Audit (read at {result['read_at']})\n")
+        if audit_note:
+            print(f"> {audit_note}\n")
+        print("## Pending\n")
+        if not result["pending"]:
+            print("(none)\n")
+        else:
+            for p in result["pending"]:
+                print(f"### {p['name']}")
+                print(f"- 申请来源 slug: {p.get('from_slug', '')}")
+                print(f"- chapter title: {p.get('chapter_title', '')}")
+                print(f"- 提议理由: {p.get('reason', '')}\n")
+        print("## Approved (with reference counts)\n")
+        for n in sorted(approved_with_counts):
+            print(f"- {n}: {approved_with_counts[n]}")
+        print("\n## Orphans\n")
+        if not orphans:
+            print("(none)" if index_paths else "(skipped — no per-slug sidecars yet)")
+        else:
+            for n in orphans:
+                print(f"- {n}")
+
+
+def cmd_topics_resolve(args):
+    """Phase 10 KB-10: promote / rename / remove a pending entry; atomically
+    update the topics governance file plus all per-slug index sidecars that
+    reference the pending name.
+    """
+    from agent.topics import resolve_pending, _resolve_paths
+    topics_md, _ = _resolve_paths(args.output_dir, None)
+    try:
+        result = resolve_pending(
+            topics_md, args.pending_name,
+            rename=args.rename, remove=args.remove,
+            output_dir=Path(args.output_dir),
+            timeout=args.timeout,
+        )
+    except KeyError:
+        print(f"error: pending entry not found: {args.pending_name}",
+              file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+    if args.remove:
+        print("WARNING: --remove cleared topic refs in affected per-slug "
+              "sidecars; review affected slugs and re-tag if needed.",
+              file=sys.stderr)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"{result['action']}: {result['pending_name']} -> "
+              f"{result.get('final_name') or '(removed)'} "
+              f"(updated {len(result['index_json_updated'])} sidecars)")
+
+
 def cmd_v11_enable(args):
     """Auto-enable v1.1 全部 features for a slug (called by /summarize-video Phase 1.5).
 
@@ -1849,6 +2014,48 @@ def main():
     )
     p.add_argument("slug", help="slug directory path (e.g., output/<slug>)")
 
+    # ── Phase 10 D-07: nested `topics` subparser (bootstrap + audit + resolve) ──
+    p = sub.add_parser(
+        "topics",
+        help="Topic taxonomy governance: bootstrap (init from Claude-proposed JSON) / "
+             "audit (read-only pending+orphan report) / resolve (promote/rename/remove pending)",
+    )
+    tsub = p.add_subparsers(dest="topics_cmd", required=True)
+
+    tboot = tsub.add_parser(
+        "bootstrap",
+        help="One-shot init from Claude-proposed taxonomy (read --from-stdin JSON)",
+    )
+    tboot.add_argument("--from-stdin", action="store_true",
+                       help="REQUIRED: read taxonomy JSON from stdin "
+                            "(prevents script-driven taxonomy generation; K5 boundary)")
+    tboot.add_argument("--output-dir", default="output",
+                       help="parent dir for the topics governance file (default: output)")
+    tboot.add_argument("--json", action="store_true", help="emit JSON action result")
+
+    taudit = tsub.add_parser(
+        "audit",
+        help="K5 read-only: list pending + reference counts + orphan topics",
+    )
+    taudit.add_argument("--output-dir", default="output",
+                        help="parent dir for the topics governance file (default: output)")
+    taudit.add_argument("--json", action="store_true", help="emit JSON instead of markdown")
+
+    tresolve = tsub.add_parser(
+        "resolve",
+        help="Promote / rename / remove a pending name; atomically update governance + all per-slug sidecars",
+    )
+    tresolve.add_argument("pending_name", help="exact name from the ## Pending segment")
+    grp = tresolve.add_mutually_exclusive_group()
+    grp.add_argument("--rename", default=None,
+                     help="promote to a different canonical name (supports 'category/leaf' nested syntax)")
+    grp.add_argument("--remove", action="store_true",
+                     help="reject pending: remove H3 entry + clear refs in affected per-slug sidecars")
+    tresolve.add_argument("--output-dir", default="output")
+    tresolve.add_argument("--timeout", type=float, default=10.0,
+                          help="FileLock acquisition timeout in seconds")
+    tresolve.add_argument("--json", action="store_true", help="emit JSON action result")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -1898,10 +2105,17 @@ def main():
         "append": cmd_glossary_append,
         "audit": cmd_glossary_audit,
     }
+    topics_cmds = {  # Phase 10 D-07 — nested dispatch for `topics {bootstrap|audit|resolve}`
+        "bootstrap": cmd_topics_bootstrap,
+        "audit": cmd_topics_audit,
+        "resolve": cmd_topics_resolve,
+    }
     if args.command == "queue":
         queue_cmds[args.queue_cmd](args)
     elif args.command == "glossary":
         glossary_cmds[args.glossary_cmd](args)
+    elif args.command == "topics":  # NEW Phase 10
+        topics_cmds[args.topics_cmd](args)
     else:
         cmds[args.command](args)
 
