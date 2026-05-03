@@ -15,3 +15,6 @@ vendor/
 tests/_tmp_batch/
 tests/_tmp_scenes/
 tests/_tmp_silence/
+# Phase 7 test scratchpads — same pattern as Phase 4 (ASCII-safe per-test tmpdirs).
+tests/_tmp_v11/
+tests/_tmp_replay/
