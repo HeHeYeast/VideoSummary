@@ -1211,6 +1211,82 @@ def cmd_ocr_frame(args):
     print(result.strip())
 
 
+def cmd_queue_add(args):
+    """Phase 07 MISC-02: enqueue a video for later /summarize-video processing."""
+    from agent.queue import queue_add
+    try:
+        added = queue_add(url=args.url, slug=args.slug)
+    except ValueError as e:
+        print(f"queue add: {e}", file=sys.stderr)
+        sys.exit(1)
+    if added:
+        print(f"queue add: enqueued {args.slug} ({args.url})")
+    else:
+        print(f"queue add: {args.slug} already in queue (no-op)")
+
+
+def cmd_queue_list(args):
+    """Phase 07 MISC-02: pretty-print queue state. JSON via --json."""
+    from agent.queue import queue_list, QueueState
+    items = queue_list()
+    if args.json:
+        print(json.dumps({"version": 1, "items": items}, ensure_ascii=False, indent=2))
+        return
+    if not items:
+        print("queue list: (empty)")
+        return
+    counts = QueueState(items).count_by_status()
+    print(f"queue list: {len(items)} items "
+          f"(pending={counts['pending']} in_progress={counts['in_progress']} "
+          f"done={counts['done']} skipped={counts['skipped']})")
+    print(f"  {'STATUS':12s}  {'PID':>6s}  {'SLUG':30s}  URL")
+    print(f"  {'-'*12}  {'-'*6}  {'-'*30}  {'-'*40}")
+    for item in items:
+        pid_s = str(item.get("in_progress_pid") or "")
+        print(f"  {item['status']:12s}  {pid_s:>6s}  {item['slug']:30s}  {item['url']}")
+
+
+def cmd_queue_next(args):
+    """Phase 07 MISC-02: pop next pending item; mark in_progress with this PID."""
+    from agent.queue import queue_next
+    item = queue_next()
+    if item is None:
+        print("queue next: (no pending items)")
+        sys.exit(2)  # exit 2 so shell scripts can detect "queue exhausted"
+    if args.json:
+        print(json.dumps(item, ensure_ascii=False, indent=2))
+    else:
+        print(f"queue next: {item['slug']}")
+        print(f"  url: {item['url']}")
+        print(f"  in_progress_pid: {item['in_progress_pid']}")
+        print(f"  added_at: {item['added_at']}")
+        print()
+        print("Run /summarize-video manually with this URL, then:")
+        print(f"  python -m agent.tools queue done {item['slug']}")
+
+
+def cmd_queue_done(args):
+    """Phase 07 MISC-02: mark a slug done."""
+    from agent.queue import queue_done
+    try:
+        queue_done(args.slug)
+    except KeyError as e:
+        print(f"queue done: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"queue done: {args.slug}")
+
+
+def cmd_queue_skip(args):
+    """Phase 07 MISC-02: mark a slug skipped."""
+    from agent.queue import queue_skip
+    try:
+        queue_skip(args.slug, reason=args.reason or "")
+    except KeyError as e:
+        print(f"queue skip: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"queue skip: {args.slug} (reason: {args.reason or '<none>'})")
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -1326,6 +1402,30 @@ def main():
     p.add_argument("dir", help="output/<slug>/ 目录")
     p.add_argument("--json", action="store_true", help="输出 JSON (替代 ASCII 表)")
 
+    # ── Phase 07 MISC-02: queue helper CLI ──
+    p = sub.add_parser(
+        "queue",
+        help="跨终端视频队列 (Phase 07 MISC-02 — ~/.videoSummary/queue.json + .queue.lock)",
+    )
+    queue_sub = p.add_subparsers(dest="queue_cmd", required=True)
+
+    qadd = queue_sub.add_parser("add", help="入队一条 URL")
+    qadd.add_argument("url", help="video URL")
+    qadd.add_argument("--slug", required=True, help="unique slug for this entry")
+
+    qlist = queue_sub.add_parser("list", help="列出全部 queue 项")
+    qlist.add_argument("--json", action="store_true", help="emit JSON instead of table")
+
+    qnext = queue_sub.add_parser("next", help="标记下一条 pending 为 in_progress 并打印")
+    qnext.add_argument("--json", action="store_true", help="emit JSON instead of text")
+
+    qdone = queue_sub.add_parser("done", help="标记一条为 done")
+    qdone.add_argument("slug")
+
+    qskip = queue_sub.add_parser("skip", help="标记一条为 skipped (附 reason)")
+    qskip.add_argument("slug")
+    qskip.add_argument("--reason", default=None)
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -1357,7 +1457,17 @@ def main():
         "ocr_frame": cmd_ocr_frame,
         "doctor": cmd_doctor,  # NEW (Phase 2 RES-07)
     }
-    cmds[args.command](args)
+    queue_cmds = {  # Phase 07 MISC-02 — nested dispatch for `queue {add|list|next|done|skip}`
+        "add": cmd_queue_add,
+        "list": cmd_queue_list,
+        "next": cmd_queue_next,
+        "done": cmd_queue_done,
+        "skip": cmd_queue_skip,
+    }
+    if args.command == "queue":
+        queue_cmds[args.queue_cmd](args)
+    else:
+        cmds[args.command](args)
 
 
 if __name__ == "__main__":
