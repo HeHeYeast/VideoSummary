@@ -1584,6 +1584,33 @@ def cmd_summary_lint(args):
     })
 
 
+def cmd_v11_enable(args):
+    """Auto-enable v1.1 全部 features for a slug (called by /summarize-video Phase 1.5).
+
+    Default behavior: NEW slugs (no summary.md yet) get all 15 v1.1 flags.
+    D-29 safe: archived slugs (summary.md exists) are LEFT UNTOUCHED so re-runs
+    stay v1.0 byte-equal. Idempotent on already-marked slugs (preserves user
+    overrides).
+
+    Outputs JSON: {"slug": "...", "status": "enabled|preserved|v10_archive",
+                   "marker_path": "..."}.
+    """
+    from agent._v11 import enable_v11_default, _marker_path
+
+    slug_dir = Path(args.slug)
+    _validate_out_path(slug_dir)
+    if not slug_dir.exists():
+        raise FileNotFoundError(f"slug dir not found: {slug_dir}")
+
+    status = enable_v11_default(slug_dir)
+    out = {
+        "slug": slug_dir.name,
+        "status": status,
+        "marker_path": str(_marker_path(slug_dir)),
+    }
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -1814,6 +1841,14 @@ def main():
         help="path to glossary file (default: <slug_dir>/../_glossary.md if it exists)",
     )
 
+    # ── v1.1 自动启用 (called by /summarize-video Phase 1.5; D-29 safe) ──
+    p = sub.add_parser(
+        "v11_enable",
+        help="auto-enable v1.1 全部 features for a NEW slug (no summary.md yet); "
+             "archived slugs left untouched — D-29 byte-equal preserved",
+    )
+    p.add_argument("slug", help="slug directory path (e.g., output/<slug>)")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -1850,6 +1885,7 @@ def main():
         "schedule_suggest": cmd_schedule_suggest,  # Phase 07 TOOL-B
         "glossary_audit": cmd_glossary_audit,      # Phase 07 (Phase 08 helper stub) — backward-compat alias
         "summary_lint": cmd_summary_lint,          # Phase 09 CORR-03a — mechanical format-spec checker
+        "v11_enable": cmd_v11_enable,              # auto-enable v1.1 全部 features for new slugs (D-29 safe)
     }
     queue_cmds = {  # Phase 07 MISC-02 — nested dispatch for `queue {add|list|next|done|skip}`
         "add": cmd_queue_add,

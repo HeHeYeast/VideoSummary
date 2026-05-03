@@ -123,3 +123,32 @@ def set_v11_marker(slug_dir, features: list[str]) -> None:
         "marker_set_at": now_iso(),
     }
     write_json_atomic(target, obj)
+
+
+def enable_v11_default(slug_dir) -> str:
+    """Auto-enable v1.1 全部 features for a slug if it's a NEW video.
+
+    "New video" = summary.md does NOT yet exist. This is the D-29 byte-equal
+    safety check: archived slugs (those already with a written summary.md)
+    are LEFT untouched so re-running /summarize-video on them continues to
+    produce v1.0-byte-equal output. Only fresh slugs get v1.1 全开。
+
+    Returns one of:
+      - "enabled"      — wrote marker with all V11_FEATURES
+      - "preserved"    — marker already exists (user already opted in/out)
+      - "v10_archive"  — summary.md already exists; refused to write marker
+                         (D-29 invariant — re-runs of archived slugs must
+                          stay v1.0 byte-equal)
+
+    Idempotent: repeated calls on a "preserved" or "v10_archive" slug
+    return the same status without touching disk.
+    """
+    slug_path = Path(slug_dir)
+    marker = _marker_path(slug_path)
+    if marker.exists():
+        return "preserved"
+    if (slug_path / "summary.md").exists():
+        # D-29 safety: never auto-promote an existing v1.0 archive.
+        return "v10_archive"
+    set_v11_marker(slug_path, list(V11_FEATURES))
+    return "enabled"

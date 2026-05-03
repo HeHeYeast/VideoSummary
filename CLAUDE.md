@@ -1645,6 +1645,12 @@ python -m agent.tools aggregate output/BVxxx/segs.json --out output/BVxxx/paragr
 
 如果 segs.json / paragraphs.json 已存在，跳过对应步骤。
 
+**1.4** **自动启用 v1.1 全部能力**（D-29 safe，新视频默认全开；老归档因 summary.md 已存在会自动 refuse）：
+```bash
+python -m agent.tools v11_enable output/BVxxx
+```
+输出 JSON 三种 status 之一：`enabled` (新视频，写了 marker) / `preserved` (用户已手动设过 marker) / `v10_archive` (summary.md 已存在，跳过保 D-29 byte-equal)。后两种都是 idempotent 安全调用。
+
 ### Phase 2: 理解内容
 
 **2.1** Read `meta.json` — 标题、时长、UP主
