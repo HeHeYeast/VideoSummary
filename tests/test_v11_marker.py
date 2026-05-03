@@ -160,13 +160,20 @@ class TestV11Marker(unittest.TestCase):
             "tldr_speedrun",
             "l2_l3_correction",
         )
+        # Phase 09 ADD (this plan extends 13 → 15):
+        phase_09_names = (
+            "summary_lint",       # CORR-03a — mechanical lint CLI explicit name
+            "verifier_phase_75",  # CORR-03b/c — Phase 7.5 verifier subagent
+        )
         # tuple OR list — both acceptable; we check membership + count.
-        # Phase 08 extension: 8 Phase 07 + 5 NEW Phase 08 = 13 entries.
-        self.assertEqual(len(V11_FEATURES), 13)
+        # Phase 09 extension: 8 Phase 07 + 5 Phase 08 + 2 NEW Phase 09 = 15 entries.
+        self.assertEqual(len(V11_FEATURES), 15)
         for f in phase_07_names:
             self.assertIn(f, V11_FEATURES, f"Phase 07 name {f} must remain (backward-compat)")
         for f in phase_08_names:
-            self.assertIn(f, V11_FEATURES, f"Phase 08 name {f} must be added")
+            self.assertIn(f, V11_FEATURES, f"Phase 08 name {f} must remain (backward-compat)")
+        for f in phase_09_names:
+            self.assertIn(f, V11_FEATURES, f"Phase 09 name {f} must be added")
 
 
 if __name__ == "__main__":
