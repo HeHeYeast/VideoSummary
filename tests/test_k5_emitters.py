@@ -303,11 +303,6 @@ class TestK5BoundaryPhase07(unittest.TestCase):
         5 D-29 core literals (`summary.md`, `plan.md`, `paragraphs.json`,
         `segs.json`, `meta.json`). The literals `index.json` (own write
         target) and `_topics.md` (Phase 10 dependency) ARE legitimate.
-
-        Note: `cmd_index_write` and `cmd_index_rebuild` handler-level K5 tests
-        are added in Plan 11-01 Task 2 (when the handlers ship in
-        `agent/tools.py`). This test ships in Task 1 since the module is
-        the Wave 0 deliverable.
         """
         here = Path(__file__).parent.parent
         src = (here / "agent" / "index.py").read_text(encoding="utf-8")
@@ -321,6 +316,49 @@ class TestK5BoundaryPhase07(unittest.TestCase):
                 f"K5 violation: agent/index.py contains forbidden literal "
                 f"{forbidden!r}",
             )
+
+    def test_K5_handler_cmd_index_write(self):
+        """Phase 11 D-10.1: cmd_index_write source contains zero of the 5
+        D-29 core literals (`summary.md`, `plan.md`, `paragraphs.json`,
+        `segs.json`, `meta.json`)."""
+        from agent.tools import cmd_index_write
+        src = inspect.getsource(cmd_index_write)
+        for forbidden in (
+            "summary.md", "plan.md", "paragraphs.json",
+            "segs.json", "meta.json",
+        ):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: cmd_index_write contains forbidden literal "
+                f"{forbidden!r}",
+            )
+
+    def test_K5_cmd_index_rebuild_read_only_per_slug(self):
+        """Phase 11 D-10.1: cmd_index_rebuild must not write to per-slug
+        sidecars; only the top-level aggregator.
+
+        Asserts (a) zero of the 5 D-29 core literals AND (b) source does not
+        import or call `write_per_slug_index` (rebuild is read-only on
+        per-slug, write-only on the top-level aggregator). Q-D simpler-
+        alternative recommendation.
+        """
+        from agent.tools import cmd_index_rebuild
+        src = inspect.getsource(cmd_index_rebuild)
+        for forbidden in (
+            "summary.md", "plan.md", "paragraphs.json",
+            "segs.json", "meta.json",
+        ):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: cmd_index_rebuild contains forbidden literal "
+                f"{forbidden!r}",
+            )
+        self.assertNotIn(
+            "write_per_slug_index", src,
+            "K5 violation: cmd_index_rebuild must not call write_per_slug_index "
+            "(rebuild reads per-slug sidecars, writes only the top-level "
+            "aggregator).",
+        )
 
 
 if __name__ == "__main__":

@@ -452,5 +452,124 @@ class TestAtomic(IndexBaseTest):
         self.assertIn("BVb", agg)
 
 
+class TestCLIWriteEdges(IndexBaseTest):
+    """Phase 11 Q-G: CLI subprocess edge cases for `index write` / `rebuild`."""
+
+    def _run_cli(self, args, stdin=""):
+        """Invoke `python -m agent.tools` with given argv + stdin; return CompletedProcess."""
+        repo_root = Path(__file__).parent.parent
+        return subprocess.run(
+            [sys.executable, "-m", "agent.tools", *args],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=30,
+        )
+
+    def _make_slug_dir(self, name="BVcli"):
+        sd = self.tmpdir / name
+        sd.mkdir(parents=True, exist_ok=True)
+        return sd
+
+    def _valid_payload(self, slug):
+        return json.dumps(_make_minimal_index(slug=slug))
+
+    def test_missing_from_stdin_flag(self):
+        self._make_slug_dir("BVcli1")
+        r = self._run_cli([
+            "index", "write", "--slug", "BVcli1",
+            "--output-dir", str(self.tmpdir),
+        ])
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--from-stdin", r.stderr)
+
+    def test_empty_stdin(self):
+        self._make_slug_dir("BVcli2")
+        r = self._run_cli(
+            ["index", "write", "--slug", "BVcli2",
+             "--from-stdin", "--output-dir", str(self.tmpdir)],
+            stdin="",
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("got empty", r.stderr)
+
+    def test_malformed_json(self):
+        self._make_slug_dir("BVcli3")
+        r = self._run_cli(
+            ["index", "write", "--slug", "BVcli3",
+             "--from-stdin", "--output-dir", str(self.tmpdir)],
+            stdin="{not json",
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("malformed JSON", r.stderr)
+
+    def test_slug_mismatch(self):
+        self._make_slug_dir("BVcli4")
+        # stdin has slug=BVother but --slug=BVcli4 -> fail
+        bad_payload = json.dumps(_make_minimal_index(slug="BVother"))
+        r = self._run_cli(
+            ["index", "write", "--slug", "BVcli4",
+             "--from-stdin", "--output-dir", str(self.tmpdir)],
+            stdin=bad_payload,
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("does not match", r.stderr)
+
+    def test_slug_dir_not_found(self):
+        # No mkdir of BVnoexist
+        r = self._run_cli(
+            ["index", "write", "--slug", "BVnoexist",
+             "--from-stdin", "--output-dir", str(self.tmpdir)],
+            stdin=self._valid_payload("BVnoexist"),
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not found", r.stderr)
+
+    def test_happy_path_writes_per_slug_and_aggregator(self):
+        self._make_slug_dir("BVok")
+        r = self._run_cli(
+            ["index", "write", "--slug", "BVok", "--from-stdin",
+             "--output-dir", str(self.tmpdir), "--json"],
+            stdin=self._valid_payload("BVok"),
+        )
+        self.assertEqual(r.returncode, 0, f"stderr: {r.stderr}")
+        out = json.loads(r.stdout)
+        self.assertEqual(out["action"], "written")
+        self.assertEqual(out["slug"], "BVok")
+        # Per-slug + aggregator both written
+        self.assertTrue((self.tmpdir / "BVok" / INDEX_FILENAME).exists())
+        self.assertTrue((self.tmpdir / AGGREGATOR_FILENAME).exists())
+        agg = json.loads(
+            (self.tmpdir / AGGREGATOR_FILENAME).read_text(encoding="utf-8")
+        )
+        self.assertIn("BVok", agg)
+
+    def test_rebuild_empty_dir(self):
+        # Fresh tmp with only _topics.md - no slugs
+        r = self._run_cli(
+            ["index", "rebuild",
+             "--output-dir", str(self.tmpdir), "--json"],
+        )
+        self.assertEqual(r.returncode, 0, f"stderr: {r.stderr}")
+        out = json.loads(r.stdout)
+        self.assertEqual(out["slugs_included"], 0)
+        self.assertEqual(out["slugs_skipped"], [])
+
+    def test_rebuild_zero_valid_with_skips_returncode_1(self):
+        # Pre-create one corrupt per-slug; no valid -> returncode 1
+        bad_dir = self.tmpdir / "BVbad"
+        bad_dir.mkdir()
+        (bad_dir / INDEX_FILENAME).write_text("{not json", encoding="utf-8")
+        r = self._run_cli(
+            ["index", "rebuild",
+             "--output-dir", str(self.tmpdir), "--json"],
+        )
+        self.assertEqual(r.returncode, 1, f"stderr: {r.stderr}")
+        out = json.loads(r.stdout)
+        self.assertEqual(out["slugs_included"], 0)
+        self.assertTrue(len(out["slugs_skipped"]) >= 1)
+
+
 if __name__ == "__main__":
     unittest.main()

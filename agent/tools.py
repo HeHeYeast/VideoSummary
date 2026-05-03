@@ -1776,6 +1776,146 @@ def cmd_v11_enable(args):
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
+def cmd_index_write(args):
+    """Phase 11 D-05: write per-slug index sidecar + immediate aggregator rebuild.
+
+    K5: this CLI ingests Claude-decided JSON via stdin. Module source contains
+    zero of the literals for the slug summary / plan / paragraphs / segs /
+    meta artifacts. The literal index dot json is the legitimate write target.
+
+    Stdout JSON locked byte-equal to D-05.5 contract.
+    """
+    from agent.index import (
+        write_per_slug_index, IndexValidationError, AGGREGATOR_FILENAME,
+    )
+    from agent._lock import LockContended
+
+    if not args.from_stdin:
+        print("error: index write requires --from-stdin (8-field JSON on stdin)",
+              file=sys.stderr)
+        sys.exit(1)
+    raw = sys.stdin.read()
+    if not raw.strip():
+        print("error: --from-stdin requires JSON input on stdin; got empty",
+              file=sys.stderr)
+        sys.exit(1)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"error: malformed JSON on stdin: {e}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(payload, dict):
+        print(
+            f"error: stdin JSON must be a top-level object, "
+            f"got {type(payload).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Inject slug if stdin omitted (defense-in-depth); fail-fast on mismatch.
+    if "slug" not in payload:
+        payload["slug"] = args.slug
+    elif payload.get("slug") != args.slug:
+        print(
+            f"error: stdin JSON slug={payload.get('slug')!r} does not match "
+            f"--slug {args.slug!r}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    out_dir = Path(args.output_dir)
+    slug_dir = out_dir / args.slug
+
+    # Path-traversal hardening: --slug must resolve under --output-dir.
+    try:
+        slug_dir_resolved = slug_dir.resolve()
+        out_dir_resolved = out_dir.resolve()
+    except OSError as e:
+        print(f"error: cannot resolve paths: {e}", file=sys.stderr)
+        sys.exit(1)
+    sep = os.sep
+    if not (
+        str(slug_dir_resolved) == str(out_dir_resolved)
+        or str(slug_dir_resolved).startswith(str(out_dir_resolved) + sep)
+    ):
+        print(
+            "error: --slug must be a subdirectory of --output-dir",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if not slug_dir.exists():
+        print(f"error: slug dir not found: {slug_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        result = write_per_slug_index(
+            slug_dir, payload,
+            output_dir=out_dir, timeout=args.timeout,
+            force=args.force,
+        )
+    except IndexValidationError as e:
+        print(f"error: schema validation failed: {e}", file=sys.stderr)
+        sys.exit(1)
+    except LockContended as e:
+        print(f"error: lock contended: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Phase 6 PARA-04 slug-prefix log goes to stderr so --json stdout stays
+    # byte-equal-parseable per D-05.5 (CLAUDE.md PARA-04: structured-output
+    # cmds do not add slug prefix on stdout; routing the prefix to stderr
+    # preserves both the multi-terminal grep affordance AND the JSON contract).
+    print(f"[{args.slug}] index_write: {result['action']}", file=sys.stderr)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"{result['action']}: {result['_index_path']}")
+
+
+def cmd_index_rebuild(args):
+    """Phase 11 D-04: manual rebuild of the top-level aggregator from all
+    per-slug index sidecars.
+
+    K5: read-only on per-slug index sidecars; writes only the top-level
+    aggregator. Module source contains zero of the literals for the slug
+    summary / plan / paragraphs / segs / meta artifacts.
+
+    Stdout JSON locked byte-equal to D-04.4 contract.
+    """
+    from agent.index import rebuild_aggregator, AGGREGATOR_FILENAME
+    from agent._lock import LockContended
+
+    out_dir = Path(args.output_dir)
+    try:
+        result = rebuild_aggregator(out_dir, timeout=args.timeout)
+    except LockContended as e:
+        print(f"error: lock contended: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    aggregator = out_dir / AGGREGATOR_FILENAME
+    out = {
+        "action": "rebuilt",
+        "slugs_included": result["slugs_included"],
+        "slugs_skipped": result["slugs_skipped"],
+        "stale_detected": result["stale_detected"],
+        "_index_path": str(aggregator),
+    }
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+    else:
+        print(
+            f"rebuilt: {result['slugs_included']} slugs included, "
+            f"{len(result['slugs_skipped'])} skipped, "
+            f"{len(result['stale_detected'])} stale"
+        )
+        for s in result["slugs_skipped"]:
+            print(f"  SKIPPED {s['slug']}: {s['reason']}", file=sys.stderr)
+
+    # D-04.3 exit code: zero valid AND non-empty skipped -> 1; else 0.
+    if result["slugs_included"] == 0 and result["slugs_skipped"]:
+        sys.exit(1)
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -2056,6 +2196,37 @@ def main():
                           help="FileLock acquisition timeout in seconds")
     tresolve.add_argument("--json", action="store_true", help="emit JSON action result")
 
+    # ── Phase 11 D-08.4: nested `index` subparser (write + rebuild) ──
+    p = sub.add_parser(
+        "index",
+        help="Knowledge-base index: write (Phase 7.6 hook target — read --from-stdin JSON) "
+             "/ rebuild (manual top-level aggregator rebuild)",
+    )
+    isub = p.add_subparsers(dest="index_cmd", required=True)
+
+    iwrite = isub.add_parser(
+        "write",
+        help="Phase 7.6 hook target: read 8-field index JSON from stdin and atomic-write "
+             "per-slug index sidecar + rebuild the top-level aggregator",
+    )
+    iwrite.add_argument("--slug", required=True,
+                        help="slug name (e.g., BV132wizyEEB) — must match dir under --output-dir")
+    iwrite.add_argument("--from-stdin", action="store_true",
+                        help="REQUIRED: read 8-field index JSON from stdin")
+    iwrite.add_argument("--output-dir", default="output")
+    iwrite.add_argument("--force", action="store_true",
+                        help="skip Approved Taxonomy strict whitelist (Phase 12 backfill emergency only)")
+    iwrite.add_argument("--timeout", type=float, default=10.0)
+    iwrite.add_argument("--json", action="store_true")
+
+    irebuild = isub.add_parser(
+        "rebuild",
+        help="Manual rebuild of the top-level aggregator from all per-slug index sidecars",
+    )
+    irebuild.add_argument("--output-dir", default="output")
+    irebuild.add_argument("--timeout", type=float, default=10.0)
+    irebuild.add_argument("--json", action="store_true")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -2110,12 +2281,18 @@ def main():
         "audit": cmd_topics_audit,
         "resolve": cmd_topics_resolve,
     }
+    index_cmds = {  # Phase 11 D-08.4 — nested dispatch for `index {write|rebuild}`
+        "write": cmd_index_write,
+        "rebuild": cmd_index_rebuild,
+    }
     if args.command == "queue":
         queue_cmds[args.queue_cmd](args)
     elif args.command == "glossary":
         glossary_cmds[args.glossary_cmd](args)
     elif args.command == "topics":  # NEW Phase 10
         topics_cmds[args.topics_cmd](args)
+    elif args.command == "index":  # NEW Phase 11
+        index_cmds[args.index_cmd](args)
     else:
         cmds[args.command](args)
 
