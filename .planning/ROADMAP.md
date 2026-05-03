@@ -37,7 +37,7 @@ See archive for full phase details, plans, and verification.
 
 - [x] **Phase 10: Topic taxonomy governance + bootstrap CLI** — `output/_topics.md` 顶部已批准 + 底部 `# Pending` 段；3 CLI（`topics bootstrap` 从 17 archives 归纳初始 taxonomy / `topics audit` 列 pending + 引用计数 + 孤儿 / `topics resolve` 把 pending 挪到正式段并自动更新 index.json 引用）；governance 闭环锁定（Claude 写 index.json 时只能从已批准段选；不合适 → append `# Pending`，K5 边界延伸到 governance）。零 summary.md mutation。 (completed 2026-05-03)
 - [x] **Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook** — KB-01 schema 锁（`slug / title / duration_s / mode / topics[] / keywords[] / tldr_oneliner / chapters[]`，chapter 无独立 keywords 字段 per D-02）+ `/summarize-video` Phase 7.6 自动写（在 Phase 7 写完 summary.md 之后、Phase 8 cleanup 之前）+ keywords 优先复用 `_glossary.md` H2 anchors + 顶层 `output/.index.json` atomic rebuild + 手动 `index rebuild` CLI 兜底 + D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。 (completed 2026-05-03)
-- [ ] **Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI** — `index backfill --all` 一次性给 17 v1.0/v1.1 archives 写 index.json（idempotent；`--force` 覆盖；单 slug 失败不阻塞其他）+ CLAUDE.md `## v1.2 知识库自然语言推荐入口` 段（触发 phrase 锁定 + FIRST ACTION = `Read output/.index.json` + 推荐回复格式锁 + anti-hallucination FORBIDDEN list）+ `index search/list` 兜底 CLI（顺手做）+ 末尾再跑一次 D-29 replay 确认 33/0/30。
+- [x] **Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI** — `index backfill --all` 一次性给 17 v1.0/v1.1 archives 写 index.json（idempotent；`--force` 覆盖；单 slug 失败不阻塞其他）+ CLAUDE.md `## v1.2 知识库自然语言推荐入口` 段（触发 phrase 锁定 + FIRST ACTION = `Read output/.index.json` + 推荐回复格式锁 + anti-hallucination FORBIDDEN list）+ `index search/list` 兜底 CLI（顺手做）+ 末尾再跑一次 D-29 replay 确认 33/0/30。 (completed 2026-05-03)
 
 ## Phase Details
 
@@ -80,8 +80,8 @@ See archive for full phase details, plans, and verification.
   4. **E2E 自然语言推荐行为可观测（人工验证 gate）** — 用户在新 Claude Code 会话说 "推荐 LLM Wiki 相关的视频" / "我之前看过哪些 ECS 相关的视频" / "学习 Godot 的话推荐什么" → Claude FIRST ACTION Read `output/.index.json` → 输出符合 prompt rule 格式锁的 top-3 推荐（每条 slug+title+匹配信号 + tldr + 1-3 chapter 入口），且所有推荐的 slug 都真实存在于 `.index.json`（无幻觉）。Phase 12 verification 跑 1-2 次手工 query 确认行为锁。
   5. **`python -m agent.tools index search/list` 兜底 CLI 工作** — `index search <query>` keyword 子串匹配（text 输出 + `--json` flag）；`index list [--topic <topic>] [--mode <mode>]` 按 filter 列。两个命令都是 read-only（不改 .index.json / per-slug index.json，K5 边界）。可选低优先级（KB-MISC-01）：如本 phase 时间紧 Claude 决策 drop 给 v1.3，则不阻塞 phase close（其余 4 个 SC 全 PASS 即可 ship）。
 **Plans**: 2 plans
-- [ ] 12-01-PLAN.md — agent/index.py +3 read-only public functions (scan_archives_for_backfill / search_index / list_index) + cmd_index_{backfill,search,list} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous, KB-12/KB-13/KB-MISC-01)
-- [ ] 12-02-PLAN.md — 17 archives backfill execution + CLAUDE.md `## v1.2 知识库自然语言推荐入口` H2 section + D-29 byte-equal close gate (Wave 2, autonomous, depends_on 12-01, KB-12/KB-13/KB-14/KB-15)
+- [x] 12-01-PLAN.md — agent/index.py +3 read-only public functions (scan_archives_for_backfill / search_index / list_index) + cmd_index_{backfill,search,list} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous, KB-12/KB-13/KB-MISC-01)
+- [x] 12-02-PLAN.md — 17 archives backfill execution + CLAUDE.md `## v1.2 知识库自然语言推荐入口` H2 section + D-29 byte-equal close gate (Wave 2, autonomous, depends_on 12-01, KB-12/KB-13/KB-14/KB-15)
 
 ## Next Milestone
 
@@ -105,7 +105,7 @@ To start the next milestone cycle after v1.2 completes, run `/gsd-new-milestone`
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 2/2 | Complete    | 2026-05-03 |
 | 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 2/2 | Complete    | 2026-05-03 |
-| 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/2 | Planned | — |
+| 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 2/2 | Complete    | 2026-05-03 |
 
 ---
 
