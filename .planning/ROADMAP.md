@@ -25,7 +25,7 @@ See archive for full phase details, plans, and verification.
 
 - [x] **Phase 07: Warm-up + K5 emitters + D-29 foundation** — Opt-in marker, 17-archive replay gate, token-budget baseline, 4 new K5 read-only signal CLIs, MISC打杂. Zero behavior change to summary.md. (completed 2026-05-03)
 - [x] **Phase 08: Writing rules — CLAUDE.md extensions + glossary** — L2/L3 ASR context correction prompts, inline-trace tokens, zero-baseline header, inline term annotation, cross-slug glossary CLI, TL;DR speedrun. New summaries diverge in shape. (completed 2026-05-03)
-- [ ] **Phase 09: Correctness automation — verifier subagent + auto-rewrite** — `summary_lint` mechanical checker + Phase 7.5 verifier subagent (`Task(general-purpose)`) + delta auto-rewrite (max-1) + UNRESOLVED fallback.
+- [x] **Phase 09: Correctness automation — verifier subagent + auto-rewrite** — `summary_lint` mechanical checker + Phase 7.5 verifier subagent (`Task(general-purpose)`) + delta auto-rewrite (max-1) + UNRESOLVED fallback. (completed 2026-05-03)
 
 ## Phase Details
 
@@ -69,7 +69,7 @@ See archive for full phase details, plans, and verification.
   4. **Token budget ≤ 2x v1.0 baseline (P-09)** — End-to-end `/summarize-video` on a marked slug (with all v1.1 features active) produces `.token_budget.json` showing total token spend ≤ 2x the Phase 07 measured baseline for the same mode (replicate-guide / interview-distillation / extension-applications). Per-layer caps verified: CORR-01 L3 ≤ 5 frames/warning AND ≤ 10 entries triggering L3; CORR-03 verifier ≤ 10 frames/run; rewrite ≤ 1 cycle. Phase 09 verification step: run end-to-end on 1 short test video AND assert token-budget cap holds.
 **Plans**: 2 plans
   - [x] 09-01-PLAN.md — CORR-03a: agent/summary_lint.py mechanical CLI + cmd_summary_lint wiring + V11_FEATURES extension (13->15 entries) + 2 K5 source-grep regex tests + 14 unit tests
-  - [ ] 09-02-PLAN.md — CORR-03b/c: CLAUDE.md `## v1.1 校对自动化 (Phase 09)` H2 section (verifier prompt + scope lock + FORBIDDEN list + max-1 rewrite protocol + UNRESOLVED.md template + state.jsonl 3 new event types) + Phase 7.5 hook in /summarize-video + agent/verifier_events.py event helpers
+  - [x] 09-02-PLAN.md — CORR-03b/c: CLAUDE.md `## v1.1 校对自动化 (Phase 09)` H2 section (verifier prompt + scope lock + FORBIDDEN list + max-1 rewrite protocol + UNRESOLVED.md template + state.jsonl 3 new event types) + Phase 7.5 hook in /summarize-video + agent/verifier_events.py event helpers
 
 ## Next Milestone
 
@@ -90,7 +90,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | Complete    | 2026-05-03 |
-| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 1/2 | In Progress|  |
+| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | Complete   | 2026-05-03 |
 
 ---
 
