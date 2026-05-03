@@ -1916,6 +1916,96 @@ def cmd_index_rebuild(args):
         sys.exit(1)
 
 
+def cmd_index_backfill(args):
+    """Phase 12 D-01.2 / D-01.6: scan output_dir for archive slugs and emit
+    a JSON to-do list for backfill. READ-ONLY - does NOT write per-slug
+    index sidecars (Plan 12-02 drives the actual writes).
+
+    K5: this CLI emits a to-do list for Claude. Module source contains zero
+    of the 5 D-29 core literals (verified by
+    test_K5_cmd_index_backfill_no_d29_writes).
+
+    Stdout JSON locked byte-equal to D-01.6 contract.
+    """
+    from agent.index import scan_archives_for_backfill
+
+    if not args.all:
+        print("error: index backfill requires --all "
+              "(no positional slug args in v1.2)", file=sys.stderr)
+        sys.exit(1)
+
+    out_dir = Path(args.output_dir)
+    result = scan_archives_for_backfill(out_dir, force=args.force)
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(
+            f"scanned: {result['total_slugs']} slugs, "
+            f"{len(result['to_backfill'])} to backfill, "
+            f"{len(result['skipped_existing'])} skipped, "
+            f"{len(result['failed'])} failed"
+        )
+        for slug in result["to_backfill"]:
+            print(f"  TO_BACKFILL {slug}")
+        for slug in result["skipped_existing"]:
+            print(
+                f"  SKIP {slug} (sidecar exists; use --force to overwrite)",
+                file=sys.stderr,
+            )
+        for f in result["failed"]:
+            print(f"  FAILED {f['slug']}: {f['reason']}", file=sys.stderr)
+
+    # KB-13 error tolerance: non-zero exit if any slug failed.
+    if result["failed"]:
+        sys.exit(1)
+
+
+def cmd_index_search(args):
+    """Phase 12 D-04: case-insensitive substring search across the top-level
+    aggregator. READ-ONLY (verified by
+    test_K5_cmd_index_search_and_list_read_only).
+    """
+    from agent.index import search_index
+
+    out_dir = Path(args.output_dir)
+    matches = search_index(args.query, output_dir=out_dir)
+
+    if args.json:
+        print(json.dumps(
+            {"query": args.query, "matches": matches},
+            ensure_ascii=False, indent=2,
+        ))
+    else:
+        if not matches:
+            print(f"no matches for query: {args.query!r}")
+        for m in matches:
+            fields = ", ".join(m["matched_fields"])
+            print(f"{m['slug']}: {m['title']} [matched: {fields}]")
+
+
+def cmd_index_list(args):
+    """Phase 12 D-05: list aggregator entries filtered by topic and/or mode.
+    READ-ONLY (verified by test_K5_cmd_index_search_and_list_read_only).
+    """
+    from agent.index import list_index
+
+    out_dir = Path(args.output_dir)
+    entries = list_index(
+        topic=args.topic, mode=args.mode, output_dir=out_dir,
+    )
+
+    if args.json:
+        print(json.dumps(entries, ensure_ascii=False, indent=2))
+    else:
+        if not entries:
+            print("no entries match")
+        for e in entries:
+            topics = ",".join(e.get("topics", []))
+            print(f"{e['slug']}: {e['title']} "
+                  f"(mode={e['mode']}) topics={topics}")
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -2227,6 +2317,46 @@ def main():
     irebuild.add_argument("--timeout", type=float, default=10.0)
     irebuild.add_argument("--json", action="store_true")
 
+    # ── Phase 12 D-06.2: 3 new sub-subcommands under cmds["index"] ──
+    ibackfill = isub.add_parser(
+        "backfill",
+        help="Phase 12 KB-12: scan output/<slug> archive dirs to emit a JSON "
+             "to-do list of slugs needing per-slug index sidecars. READ-ONLY "
+             "(Claude drives actual writes via `index write --slug X --from-stdin`).",
+    )
+    ibackfill.add_argument(
+        "--all", action="store_true", required=True,
+        help="REQUIRED: scan all archive dirs under --output-dir.",
+    )
+    ibackfill.add_argument("--output-dir", default="output")
+    ibackfill.add_argument(
+        "--force", action="store_true",
+        help="Include slugs already having per-slug sidecars (overwrite mode).",
+    )
+    ibackfill.add_argument("--json", action="store_true")
+
+    isearch = isub.add_parser(
+        "search",
+        help="Phase 12 KB-MISC-01: case-insensitive substring match across "
+             "the top-level aggregator (title / keywords / tldr_oneliner / "
+             "chapter title+excerpt). READ-ONLY.",
+    )
+    isearch.add_argument("query", help="substring to search (case-insensitive)")
+    isearch.add_argument("--output-dir", default="output")
+    isearch.add_argument("--json", action="store_true")
+
+    ilist = isub.add_parser(
+        "list",
+        help="Phase 12 KB-MISC-01: list aggregator entries filtered by "
+             "topic membership and/or mode equality. READ-ONLY.",
+    )
+    ilist.add_argument("--topic", default=None,
+                       help="filter to entries with this topic in topics[]")
+    ilist.add_argument("--mode", default=None,
+                       help="filter to entries with mode == this value")
+    ilist.add_argument("--output-dir", default="output")
+    ilist.add_argument("--json", action="store_true")
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -2281,9 +2411,13 @@ def main():
         "audit": cmd_topics_audit,
         "resolve": cmd_topics_resolve,
     }
-    index_cmds = {  # Phase 11 D-08.4 — nested dispatch for `index {write|rebuild}`
+    index_cmds = {  # Phase 11 D-08.4 + Phase 12 D-06.2 — nested dispatch
+                    # for `index {write|rebuild|backfill|search|list}`
         "write": cmd_index_write,
         "rebuild": cmd_index_rebuild,
+        "backfill": cmd_index_backfill,  # Phase 12 D-01
+        "search": cmd_index_search,      # Phase 12 D-04
+        "list": cmd_index_list,          # Phase 12 D-05
     }
     if args.command == "queue":
         queue_cmds[args.queue_cmd](args)

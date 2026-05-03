@@ -389,6 +389,63 @@ class TestK5BoundaryPhase07(unittest.TestCase):
                 f"K5 violation: agent/index.py write pattern {pat!r} found",
             )
 
+    # ── Phase 12 D-07.1 K5 boundary tests for cmd_index_backfill /
+    # cmd_index_search / cmd_index_list ──
+
+    def test_K5_cmd_index_backfill_no_d29_writes(self):
+        """Phase 12 D-07.1: cmd_index_backfill source contains zero of the
+        5 D-29 core literals AND zero write API patterns targeting them.
+        """
+        import re as _re
+        from agent.tools import cmd_index_backfill
+        src = inspect.getsource(cmd_index_backfill)
+        for forbidden in (
+            "summa" "ry.md", "pl" "an.md", "para" "graphs.json",
+            "se" "gs.json", "me" "ta.json",
+        ):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: cmd_index_backfill contains forbidden "
+                f"literal {forbidden!r}",
+            )
+        for pat in _RESOLVE_FORBIDDEN_PATTERNS:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: cmd_index_backfill write pattern {pat!r} "
+                f"found",
+            )
+
+    def test_K5_cmd_index_search_and_list_read_only(self):
+        """Phase 12 D-07.1: cmd_index_search AND cmd_index_list are read-only.
+        Source for both contains zero of the 5 D-29 core literals AND zero
+        write API patterns (literal `index.json` reads are fine).
+        """
+        import re as _re
+        from agent.tools import cmd_index_search, cmd_index_list
+        write_patterns = (
+            r"\.write_text\(", r"\.write_bytes\(",
+            r"open\([^)]*['\"][aw]",
+            r"os\.replace\(",
+            r"_atomic_write\(", r"write_json_atomic\(",
+        )
+        for fn, name in ((cmd_index_search, "cmd_index_search"),
+                         (cmd_index_list, "cmd_index_list")):
+            src = inspect.getsource(fn)
+            for forbidden in (
+                "summa" "ry.md", "pl" "an.md", "para" "graphs.json",
+                "se" "gs.json", "me" "ta.json",
+            ):
+                self.assertNotIn(
+                    forbidden, src,
+                    f"K5 violation: {name} contains forbidden literal "
+                    f"{forbidden!r}",
+                )
+            for pat in write_patterns:
+                self.assertFalse(
+                    _re.search(pat, src),
+                    f"K5 violation: {name} write pattern {pat!r} found",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -847,5 +847,162 @@ class TestListIndex(unittest.TestCase):
         self.assertEqual(results, [])
 
 
+class TestCLIBackfillSearchListEdges(unittest.TestCase):
+    """Phase 12 D-01/D-04/D-05: CLI subprocess edge cases for the 3 new
+    sub-subcommands (backfill / search / list)."""
+
+    def setUp(self):
+        self.scratch = (
+            Path(__file__).parent / "_tmp_index"
+            / f"cli_{self._testMethodName}"
+        )
+        if self.scratch.exists():
+            import shutil
+            shutil.rmtree(self.scratch)
+        self.scratch.mkdir(parents=True)
+
+    def _run(self, *args, expect_returncode=0):
+        repo_root = Path(__file__).parent.parent
+        result = subprocess.run(
+            [sys.executable, "-m", "agent.tools", "index", *args],
+            capture_output=True, text=True, encoding="utf-8",
+            cwd=str(repo_root), timeout=30,
+        )
+        if expect_returncode is not None:
+            self.assertEqual(
+                result.returncode, expect_returncode,
+                msg=f"stdout={result.stdout!r} stderr={result.stderr!r}",
+            )
+        return result
+
+    def _make_archive(self, slug, *, with_index=False):
+        d = self.scratch / slug
+        d.mkdir(parents=True, exist_ok=True)
+        sm = d / ("summa" "ry.md")
+        sm.write_text("# stub\n", encoding="utf-8")
+        if with_index:
+            (d / "index.json").write_text(
+                '{"slug":"' + slug + '"}', encoding="utf-8",
+            )
+
+    def _seed_aggregator(self, entries):
+        agg_path = self.scratch / ".index.json"
+        agg_path.write_text(
+            json.dumps(entries, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def test_backfill_all_json_happy_path(self):
+        self._make_archive("bv001")
+        self._make_archive("bv002")
+        result = self._run(
+            "backfill", "--all",
+            "--output-dir", str(self.scratch), "--json",
+        )
+        data = json.loads(result.stdout)
+        self.assertEqual(data["action"], "scanned")
+        self.assertEqual(data["total_slugs"], 2)
+        self.assertEqual(data["to_backfill"], ["bv001", "bv002"])
+
+    def test_backfill_force_overrides_skip_existing(self):
+        self._make_archive("bv001", with_index=True)
+        # Without force: skipped
+        r1 = self._run(
+            "backfill", "--all",
+            "--output-dir", str(self.scratch), "--json",
+        )
+        self.assertEqual(json.loads(r1.stdout)["skipped_existing"], ["bv001"])
+        # With force: in to_backfill
+        r2 = self._run(
+            "backfill", "--all", "--force",
+            "--output-dir", str(self.scratch), "--json",
+        )
+        self.assertEqual(json.loads(r2.stdout)["to_backfill"], ["bv001"])
+
+    def test_backfill_failure_returns_nonzero(self):
+        self._make_archive("bv001")
+        d = self.scratch / "bv002"
+        d.mkdir()
+        (d / ("summa" "ry.md")).write_bytes(b"\xff\xfe\xfd")
+        result = self._run(
+            "backfill", "--all",
+            "--output-dir", str(self.scratch), "--json",
+            expect_returncode=1,
+        )
+        data = json.loads(result.stdout)
+        self.assertTrue(any(f["slug"] == "bv002" for f in data["failed"]))
+
+    def test_backfill_requires_all_flag(self):
+        # argparse exits 2 with the missing required arg error
+        self._run(
+            "backfill",
+            "--output-dir", str(self.scratch),
+            expect_returncode=2,
+        )
+
+    def test_search_json_match(self):
+        self._seed_aggregator({
+            "douyin_x": {
+                "slug": "douyin_x", "title": "Karpathy 又被吹爆",
+                "duration_s": 1.0, "mode": "interview-distillation",
+                "topics": [], "keywords": [], "tldr_oneliner": "",
+                "chapters": [],
+            }
+        })
+        result = self._run(
+            "search", "Karpathy",
+            "--output-dir", str(self.scratch), "--json",
+        )
+        data = json.loads(result.stdout)
+        self.assertEqual(data["query"], "Karpathy")
+        self.assertEqual(len(data["matches"]), 1)
+        self.assertEqual(data["matches"][0]["slug"], "douyin_x")
+
+    def test_search_plain_text_format(self):
+        self._seed_aggregator({
+            "bv001": {
+                "slug": "bv001", "title": "ECS demo", "duration_s": 1.0,
+                "mode": "concept-explanation", "topics": [],
+                "keywords": ["ECS"], "tldr_oneliner": "x", "chapters": [],
+            }
+        })
+        result = self._run(
+            "search", "ECS",
+            "--output-dir", str(self.scratch),
+        )
+        self.assertIn("bv001:", result.stdout)
+        self.assertIn("[matched:", result.stdout)
+
+    def test_list_topic_filter_json(self):
+        self._seed_aggregator({
+            "a": {"slug": "a", "title": "A", "duration_s": 1.0,
+                  "mode": "replicate-guide", "topics": ["LLM-Wiki"],
+                  "keywords": [], "tldr_oneliner": "", "chapters": []},
+            "b": {"slug": "b", "title": "B", "duration_s": 1.0,
+                  "mode": "replicate-guide", "topics": ["Game-Dev"],
+                  "keywords": [], "tldr_oneliner": "", "chapters": []},
+        })
+        result = self._run(
+            "list", "--topic", "LLM-Wiki",
+            "--output-dir", str(self.scratch), "--json",
+        )
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["slug"], "a")
+
+    def test_list_no_filter_plain_text(self):
+        self._seed_aggregator({
+            "a": {"slug": "a", "title": "A", "duration_s": 1.0,
+                  "mode": "replicate-guide", "topics": ["X", "Y"],
+                  "keywords": [], "tldr_oneliner": "", "chapters": []},
+        })
+        result = self._run(
+            "list", "--output-dir", str(self.scratch),
+        )
+        self.assertIn("a: A", result.stdout)
+        self.assertIn("(mode=replicate-guide)", result.stdout)
+        self.assertIn("topics=X,Y", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
