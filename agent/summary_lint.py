@@ -134,9 +134,18 @@ def _classify_section(line: str, current_section: str | None) -> str | None:
     """Return the section label this line belongs to.
 
     H2 heading lines transition to a new section; non-heading lines inherit
-    the current section. Returns None until the first H2 is seen (preamble
-    counts as `body` for citation_eligibility purposes — actual TL;DR /
-    prelude blocks always live under their dedicated H2).
+    the current section. Returns None for the preamble (everything before
+    the first H2). Load-bearing claims in the preamble are NOT checked by
+    `_check_trace_after_claim` and NOT counted by `_compute_citation_stats`
+    — both helpers gate on `section == "body"`. To check preamble claims,
+    place the metadata under a dedicated H2 (e.g. `## 视频信息`).
+
+    WR-03 (Phase 09 review): docstring was previously misleading — it
+    claimed "preamble counts as body for citation_eligibility purposes"
+    but the implementation returns None for preamble lines, so they are
+    silently skipped from both invariant checks and citation stats. This
+    docstring now matches the actual behavior. The exempt-from-claim-check
+    semantics are intentional: preamble is metadata, not a claim section.
     """
     m = _H2_HEADING_RE.match(line)
     if m:
