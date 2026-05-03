@@ -1393,24 +1393,54 @@ def cmd_schedule_suggest(args):
         silence_obj = json.loads(silence_path.read_text(encoding="utf-8"))
         silence_map = silence_obj.get("silence_intervals", [])
 
+    # WR-01 / IN-02 / IN-03: discover video across canonical extensions yt-dlp
+    # legitimately produces (per Phase 3 SRC-11). Prefer canonical 'video.mp4'
+    # exists() over glob() (IN-02). Fall back to any *.<ext> in slug_dir.
+    _VIDEO_EXTS = ("mp4", "webm", "mkv", "flv", "mov")
+
+    def _discover_video(slug_dir: Path) -> Path | None:
+        canonical = slug_dir / "video.mp4"
+        if canonical.exists():
+            return canonical
+        for ext in _VIDEO_EXTS:
+            for f in sorted(slug_dir.glob(f"*.{ext}")):
+                return f
+        return None
+
     # W5 fix: --duration override skips ffprobe entirely. Required for archives
     # without retained video.mp4 (some 17-archive slugs are audio-only after cleanup).
     if args.duration is not None:
+        # WR-02: validate user-supplied duration is positive before passing through
         duration_s = float(args.duration)
+        if duration_s <= 0:
+            raise ValueError(
+                f"--duration must be > 0; got {duration_s}. "
+                f"Pass a positive float in seconds (e.g., --duration 600.0)"
+            )
         duration_source = "--duration-override"
-        video_filename = "video.mp4"  # nominal name when no real video file present
+        # IN-03: try to propagate the actual video name even on the override path,
+        # falling back to "video.mp4" when no video file exists in slug_dir.
+        discovered = _discover_video(slug_dir)
+        video_filename = discovered.name if discovered else "video.mp4"
     else:
         from agent.sources._common import ffprobe_video
-        video_files = list(slug_dir.glob("video.mp4")) or list(slug_dir.glob("*.mp4"))
-        if not video_files:
+        discovered = _discover_video(slug_dir)
+        if discovered is None:
             raise FileNotFoundError(
-                f"no .mp4 in {slug_dir} for duration probe; "
+                f"no video file in {slug_dir} (looked for *.{{{','.join(_VIDEO_EXTS)}}}); "
                 f"pass --duration <float> to skip ffprobe (W5 archive-without-video path)"
             )
-        probe = ffprobe_video(video_files[0])
+        probe = ffprobe_video(discovered)
         duration_s = probe.get("duration_s", 0.0)
+        # WR-02: ffprobe returning 0 means malformed/partial file — refuse rather
+        # than emit zero-duration segments that break downstream schedule validation.
+        if duration_s <= 0:
+            raise ValueError(
+                f"duration_s must be > 0; got {duration_s} from ffprobe on {discovered}. "
+                f"The file may be corrupt; pass --duration <float> explicitly to override."
+            )
         duration_source = "ffprobe"
-        video_filename = video_files[0].name
+        video_filename = discovered.name
 
     suggestion = compute_suggestion(
         paragraphs,
