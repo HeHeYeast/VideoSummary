@@ -1340,9 +1340,13 @@ def cmd_mode_signals(args):
     NO `recommended_mode` field in output (per PITFALLS P-07). Claude maps
     signals -> mode in the plan artifact, not this tool.
     """
-    from agent.mode_signals import compute_signals, SIGNALS_FILENAME
+    # WR-06 / IN-05: call the canonical _hash_paragraphs helper instead of
+    # inlining hashlib here, so any future change to the hash spec (algorithm,
+    # prefix length, sort_keys) stays single-source. Drops the local hashlib
+    # import (IN-05). Leading underscore is a soft "internal" marker but
+    # already consumed by tests/test_mode_signals.py — accepted intra-package usage.
+    from agent.mode_signals import compute_signals, SIGNALS_FILENAME, _hash_paragraphs
     from agent.io import load_paragraphs
-    import hashlib
 
     out = Path(args.out)
     _validate_out_path(out)
@@ -1352,8 +1356,7 @@ def cmd_mode_signals(args):
     signals = compute_signals(paragraphs)
 
     # paragraphs hash — proves staleness when plan was authored later (P-07 mitigation)
-    payload = json.dumps(paragraphs, ensure_ascii=False, sort_keys=True)
-    p_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    p_hash = _hash_paragraphs(paragraphs)
 
     obj = {
         "version": 1,
