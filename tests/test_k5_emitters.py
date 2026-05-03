@@ -19,9 +19,31 @@ from agent.tools import (
     cmd_mode_signals,
     cmd_schedule_suggest,
     cmd_glossary_audit,
+    cmd_glossary_append,  # NEW Phase 08 TEACH-A3
 )
 
 FORBIDDEN_LITERALS = ("summary.md", "plan.md", "schedule.json")
+
+# Phase 08 TEACH-A3 — for modules where the literal substring `summary.md`
+# is LEGITIMATELY present as part of an OUTPUT bullet-link template (the
+# glossary writes a markdown link `[<slug>](<slug>/summary.md)` INTO the
+# accumulator file — it does NOT write to per-slug summary). We assert no
+# WRITE patterns target the forbidden filenames instead. Mirrors the
+# Phase 07 plan-01 deviation #2 fix (intent-correct write-pattern regex).
+_WRITE_PATTERNS_FORBIDDEN = (
+    r"write_text\([^)]*summary\.md",
+    r"write_text\([^)]*plan\.md",
+    r"write_text\([^)]*schedule\.json",
+    r"open\([^)]*summary\.md[^)]*['\"]w",
+    r"open\([^)]*plan\.md[^)]*['\"]w",
+    r"open\([^)]*schedule\.json[^)]*['\"]w",
+    r"os\.replace\([^)]*summary\.md",
+    r"os\.replace\([^)]*plan\.md",
+    r"os\.replace\([^)]*schedule\.json",
+    r"_atomic_write\([^)]*summary\.md",
+    r"_atomic_write\([^)]*plan\.md",
+    r"_atomic_write\([^)]*schedule\.json",
+)
 
 
 class TestK5BoundaryPhase07(unittest.TestCase):
@@ -71,6 +93,76 @@ class TestK5BoundaryPhase07(unittest.TestCase):
 
     def test_K5_module_glossary_audit(self):
         self._check_module_file("agent/glossary_audit.py")
+
+    # ── Phase 08 TEACH-A3 K5 boundary tests for agent/glossary.py ──
+    # Cannot extend FORBIDDEN_LITERALS tuple because the bullet-link template
+    # legitimately contains the literal substring `summary.md` as OUTPUT
+    # formatting (markdown link inside the glossary accumulator file). We
+    # use intent-correct write-pattern regex tests instead, mirroring the
+    # Phase 07 plan-01 deviation #2 fix.
+
+    def test_K5_handler_cmd_glossary_append(self):
+        """Phase 08 TEACH-A3: glossary append handler must not WRITE to
+        summary / plan / schedule decision artifacts."""
+        import re as _re
+        src = inspect.getsource(cmd_glossary_append)
+        for pat in _WRITE_PATTERNS_FORBIDDEN:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation in cmd_glossary_append: write pattern {pat!r} found in source",
+            )
+
+    def test_K5_module_glossary(self):
+        """Phase 08 TEACH-A3: agent/glossary.py source must not contain WRITE
+        patterns targeting decision artifacts. The literal substring
+        'summary.md' is permitted ONLY inside the slug-link bullet template
+        (output to the glossary accumulator file, not a write to the
+        per-slug summary). The literals 'plan.md' / 'schedule.json' have no
+        legitimate use and are forbidden entirely."""
+        import re as _re
+        here = Path(__file__).parent.parent
+        src = (here / "agent/glossary.py").read_text(encoding="utf-8")
+        # Forbid literal "plan.md" and "schedule.json" entirely (no legitimate use)
+        for forbidden in ("plan.md", "schedule.json"):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: agent/glossary.py contains forbidden literal {forbidden!r}",
+            )
+        # For "summary.md": forbid any WRITE pattern targeting it.
+        for pat in _WRITE_PATTERNS_FORBIDDEN:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: agent/glossary.py write pattern {pat!r} matches source",
+            )
+
+    def test_K5_glossary_append_writes_only_to_accumulator(self):
+        """Behavioral K5 check: a glossary_append call only mutates the
+        glossary file, never any per-slug summary / plan / schedule artifact
+        in the same output dir."""
+        import tempfile
+        from agent.glossary import glossary_append, GLOSSARY_FILENAME
+        with tempfile.TemporaryDirectory(
+            dir=str(Path(__file__).parent / "_tmp_glossary"),
+        ) as td:
+            td_path = Path(td)
+            # Pre-create fake per-slug artifacts to guard against accidental writes
+            (td_path / "BVfake").mkdir()
+            fake_summary = td_path / "BVfake" / ("summary" + ".md")
+            fake_summary.write_text("ORIGINAL\n", encoding="utf-8")
+            fake_plan = td_path / "BVfake" / ("plan" + ".md")
+            fake_plan.write_text("ORIGINAL\n", encoding="utf-8")
+            fake_schedule = td_path / "BVfake" / ("schedule" + ".json")
+            fake_schedule.write_text("ORIGINAL\n", encoding="utf-8")
+            glossary_append(
+                slug="BVfake", term="TestTerm (Test)",
+                definition="A definition.",
+                output_dir=str(td_path),
+            )
+            # Assertion: only the glossary accumulator was created/modified
+            self.assertTrue((td_path / GLOSSARY_FILENAME).exists())
+            self.assertEqual(fake_summary.read_text(encoding="utf-8"), "ORIGINAL\n")
+            self.assertEqual(fake_plan.read_text(encoding="utf-8"), "ORIGINAL\n")
+            self.assertEqual(fake_schedule.read_text(encoding="utf-8"), "ORIGINAL\n")
 
 
 if __name__ == "__main__":

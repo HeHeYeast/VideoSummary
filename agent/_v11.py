@@ -31,15 +31,27 @@ MARKER_FILENAME = ".v11_features.json"
 # tldr, verifier). Keep this list as the single source of truth — downstream
 # phases extend by appending here, never by inventing parallel allowlists.
 V11_FEATURES = (
+    # Phase 07 locked (DO NOT REMOVE — backward-compat with any code already
+    # using these names; cross-referenced by CLAUDE.md line 1103 example marker):
     "transcribe_lint",        # CORR-01a — Phase 07
     "mode_signals",           # TOOL-A   — Phase 07
     "schedule_suggest",       # TOOL-B   — Phase 07
-    "trace_tokens",           # CORR-02  — Phase 08
-    "self_contained_header",  # TEACH-A2 — Phase 08
-    "glossary",               # TEACH-A3 — Phase 08
-    "tldr",                   # TEACH-B  — Phase 08
-    "verifier",               # CORR-03  — Phase 09
+    "trace_tokens",           # CORR-02  — Phase 07 reservation (Phase 08 alias: inline_trace_tokens)
+    "self_contained_header",  # TEACH-A2 — Phase 07 reservation
+    "glossary",               # TEACH-A3 — Phase 07 reservation (Phase 08 alias: cross_slug_glossary)
+    "tldr",                   # TEACH-B  — Phase 07 reservation (Phase 08 alias: tldr_speedrun)
+    "verifier",               # CORR-03  — Phase 07 reservation
+    # Phase 08 ADD (per 08-CONTEXT.md specifics — explicit names that the
+    # CLAUDE.md prompt extensions reference verbatim. The Phase 07 short
+    # names remain valid synonyms; both sets pass set_v11_marker validation):
+    "inline_trace_tokens",    # CORR-02 explicit (synonym of "trace_tokens")
+    "self_check_confidence",  # CORR-02 self-check pass produces summary footer [?] count
+    "cross_slug_glossary",    # TEACH-A3 explicit (synonym of "glossary")
+    "tldr_speedrun",          # TEACH-B  explicit (synonym of "tldr")
+    "l2_l3_correction",       # CORR-01b/c — Claude reading transcribe_lint_warnings.json + writing plan.md "已自动修正的术语"
 )
+# Total: 8 Phase 07 + 5 NEW Phase 08 = 13 entries.
+# self_contained_header from Phase 07 is reused, NOT duplicated.
 
 
 def _marker_path(slug_dir) -> Path:

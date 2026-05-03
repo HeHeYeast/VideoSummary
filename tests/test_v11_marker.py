@@ -140,7 +140,8 @@ class TestV11Marker(unittest.TestCase):
 
     # ---- T10 ----
     def test_T10_v11_features_locked_allowlist(self):
-        expected = (
+        # Phase 07 names (locked, MUST remain for backward-compat):
+        phase_07_names = (
             "transcribe_lint",
             "mode_signals",
             "schedule_suggest",
@@ -150,10 +151,22 @@ class TestV11Marker(unittest.TestCase):
             "tldr",
             "verifier",
         )
+        # Phase 08 NEW names (explicit aliases referenced by CLAUDE.md prompt
+        # extensions; self_contained_header is reused not duplicated):
+        phase_08_names = (
+            "inline_trace_tokens",
+            "self_check_confidence",
+            "cross_slug_glossary",
+            "tldr_speedrun",
+            "l2_l3_correction",
+        )
         # tuple OR list — both acceptable; we check membership + count.
-        self.assertEqual(len(V11_FEATURES), 8)
-        for f in expected:
-            self.assertIn(f, V11_FEATURES)
+        # Phase 08 extension: 8 Phase 07 + 5 NEW Phase 08 = 13 entries.
+        self.assertEqual(len(V11_FEATURES), 13)
+        for f in phase_07_names:
+            self.assertIn(f, V11_FEATURES, f"Phase 07 name {f} must remain (backward-compat)")
+        for f in phase_08_names:
+            self.assertIn(f, V11_FEATURES, f"Phase 08 name {f} must be added")
 
 
 if __name__ == "__main__":

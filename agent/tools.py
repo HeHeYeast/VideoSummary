@@ -1501,6 +1501,29 @@ def cmd_glossary_audit(args):
                 print(f"    - {c['term']}: {len(c['definitions'])} variants")
 
 
+def cmd_glossary_append(args):
+    """Phase 08 TEACH-A3: append a term + slug-reference to the cross-slug glossary.
+
+    Serialized via output/.glossary.lock (reuses agent/_lock.FileLock).
+    K5: writes ONLY to the glossary accumulator file; never touches per-slug
+    decision artifacts (the slug summary path / the slug plan path / the slug
+    schedule artifact).
+    """
+    from agent.glossary import glossary_append
+
+    result = glossary_append(
+        slug=args.slug,
+        term=args.term,
+        definition=args.definition,
+        output_dir=args.output_dir,
+        context=args.context or "",
+        timeout=args.timeout,
+    )
+    _log(args.slug, "glossary", f"append {result}")
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False))
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -1669,9 +1692,47 @@ def main():
              "but you still want to regenerate schedule_suggestion.json",
     )
 
+    # ── Phase 08 TEACH-A3: nested `glossary` subparser (append + audit) ──
+    p = sub.add_parser(
+        "glossary",
+        help="Cross-slug glossary CLI: append (Phase 08 TEACH-A3) or audit (Phase 07 stub)",
+    )
+    gsub = p.add_subparsers(dest="glossary_cmd", required=True)
+
+    gappend = gsub.add_parser(
+        "append",
+        help="Append a term to output/_glossary.md (Phase 08 TEACH-A3; FileLock-serialized)",
+    )
+    gappend.add_argument("--slug", required=True,
+                         help="source slug name (used in bullet link)")
+    gappend.add_argument("--term", required=True,
+                         help="H2 anchor text, e.g. 'LoRA (Low-Rank Adaptation)'")
+    gappend.add_argument("--definition", required=True,
+                         help="1-3 line markdown body (used only if term is new)")
+    gappend.add_argument("--context", default="",
+                         help="optional one-line context for the slug bullet")
+    gappend.add_argument("--output-dir", default="output",
+                         help="parent dir for the glossary file (default: output)")
+    gappend.add_argument("--timeout", type=float, default=10.0,
+                         help="FileLock acquisition timeout in seconds")
+    gappend.add_argument("--json", action="store_true",
+                         help="emit JSON action result")
+
+    gaudit = gsub.add_parser(
+        "audit",
+        help="K5 read-only: audit output/_glossary.md for duplicates / conflicts (Phase 07 stub)",
+    )
+    gaudit.add_argument("--glossary-path", default=None,
+                        help="path to glossary file (default: output/_glossary.md)")
+    gaudit.add_argument("--json", action="store_true",
+                        help="emit JSON instead of text")
+
+    # Backward-compat: keep the original `glossary_audit` standalone subparser
+    # so anyone scripted against `python -m agent.tools glossary_audit` still works.
+    # This matches the "additive only, never break v1.0" pattern (D-29 spirit).
     p = sub.add_parser(
         "glossary_audit",
-        help="K5 read-only: audit output/_glossary.md for duplicates / conflicts (Phase 08 TEACH-A3 helper)",
+        help="[DEPRECATED ALIAS] use `glossary audit` instead (Phase 07 compat shim)",
     )
     p.add_argument("--glossary-path", default=None,
                    help="path to glossary file (default: output/_glossary.md)")
@@ -1711,7 +1772,7 @@ def main():
         "transcribe_lint": cmd_transcribe_lint,    # Phase 07 CORR-01a
         "mode_signals": cmd_mode_signals,          # Phase 07 TOOL-A
         "schedule_suggest": cmd_schedule_suggest,  # Phase 07 TOOL-B
-        "glossary_audit": cmd_glossary_audit,      # Phase 07 (Phase 08 helper stub)
+        "glossary_audit": cmd_glossary_audit,      # Phase 07 (Phase 08 helper stub) — backward-compat alias
     }
     queue_cmds = {  # Phase 07 MISC-02 — nested dispatch for `queue {add|list|next|done|skip}`
         "add": cmd_queue_add,
@@ -1720,8 +1781,14 @@ def main():
         "done": cmd_queue_done,
         "skip": cmd_queue_skip,
     }
+    glossary_cmds = {  # Phase 08 TEACH-A3 — nested dispatch for `glossary {append|audit}`
+        "append": cmd_glossary_append,
+        "audit": cmd_glossary_audit,
+    }
     if args.command == "queue":
         queue_cmds[args.queue_cmd](args)
+    elif args.command == "glossary":
+        glossary_cmds[args.glossary_cmd](args)
     else:
         cmds[args.command](args)
 

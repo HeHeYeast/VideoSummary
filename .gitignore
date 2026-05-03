@@ -21,3 +21,4 @@ tests/_tmp_replay/
 tests/_tmp_lock/
 tests/_tmp_queue/
 tests/_tmp_glossary/
+tests/_tmp_glossary_append/
