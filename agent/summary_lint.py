@@ -1,10 +1,10 @@
 """Phase 09 CORR-03a — mechanical format-spec + citation + glossary checker.
 
 K5 boundary: this module READS the input artifact (a slug-level summary file)
-and produces a sibling lint report; it NEVER modifies the summary artifact.
-The literal substring "summary.md" appears in this file ONLY as part of the
-LINT_FILENAME naming context; the module does NOT contain `plan.md` or
-`schedule.json` substrings at all.
+and produces a sibling lint report; it NEVER modifies the input artifact.
+The literal substring naming the input file appears in this file ONLY as
+part of the LINT_FILENAME naming context. The plan / schedule decision
+artifact filenames have no legitimate use here and are absent entirely.
 
 Statically asserted by tests/test_k5_emitters.py via _WRITE_PATTERNS_FORBIDDEN
 regex (mirrors the Phase 08-01 agent/glossary.py exception: substring is

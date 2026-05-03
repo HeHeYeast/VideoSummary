@@ -20,6 +20,7 @@ from agent.tools import (
     cmd_schedule_suggest,
     cmd_glossary_audit,
     cmd_glossary_append,  # NEW Phase 08 TEACH-A3
+    cmd_summary_lint,  # NEW Phase 09 CORR-03a
 )
 
 FORBIDDEN_LITERALS = ("summary.md", "plan.md", "schedule.json")
@@ -163,6 +164,44 @@ class TestK5BoundaryPhase07(unittest.TestCase):
             self.assertEqual(fake_summary.read_text(encoding="utf-8"), "ORIGINAL\n")
             self.assertEqual(fake_plan.read_text(encoding="utf-8"), "ORIGINAL\n")
             self.assertEqual(fake_schedule.read_text(encoding="utf-8"), "ORIGINAL\n")
+
+    # ── Phase 09 CORR-03a K5 boundary tests for summary_lint ──
+    # Cannot extend FORBIDDEN_LITERALS tuple because the literal `summary.md`
+    # legitimately appears in (a) argparse help text and (b) the input arg
+    # path receiver. We use intent-correct write-pattern regex tests instead,
+    # mirroring the Phase 08-01 agent/glossary.py exception.
+
+    def test_K5_handler_cmd_summary_lint(self):
+        """Phase 09 CORR-03a: summary_lint handler must not WRITE to
+        summary / plan / schedule decision artifacts."""
+        import re as _re
+        src = inspect.getsource(cmd_summary_lint)
+        for pat in _WRITE_PATTERNS_FORBIDDEN:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation in cmd_summary_lint: write pattern {pat!r} found in source",
+            )
+
+    def test_K5_module_summary_lint(self):
+        """Phase 09 CORR-03a: agent/summary_lint.py source must not contain
+        WRITE patterns targeting decision artifacts. The literal substring
+        `summary.md` is permitted ONLY as the input arg in lint_summary's
+        signature + as the LINT_FILENAME sibling-naming context. The literals
+        `plan.md` / `schedule.json` have no legitimate use and are forbidden
+        entirely."""
+        import re as _re
+        here = Path(__file__).parent.parent
+        src = (here / "agent/summary_lint.py").read_text(encoding="utf-8")
+        for forbidden in ("plan.md", "schedule.json"):
+            self.assertNotIn(
+                forbidden, src,
+                f"K5 violation: agent/summary_lint.py contains forbidden literal {forbidden!r}",
+            )
+        for pat in _WRITE_PATTERNS_FORBIDDEN:
+            self.assertFalse(
+                _re.search(pat, src),
+                f"K5 violation: agent/summary_lint.py write pattern {pat!r} matches source",
+            )
 
 
 if __name__ == "__main__":

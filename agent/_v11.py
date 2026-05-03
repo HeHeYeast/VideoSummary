@@ -49,8 +49,11 @@ V11_FEATURES = (
     "cross_slug_glossary",    # TEACH-A3 explicit (synonym of "glossary")
     "tldr_speedrun",          # TEACH-B  explicit (synonym of "tldr")
     "l2_l3_correction",       # CORR-01b/c — Claude reading transcribe_lint_warnings.json + writing plan.md "已自动修正的术语"
+    # Phase 09 ADD (this plan):
+    "summary_lint",           # CORR-03a — mechanical lint CLI explicit name
+    "verifier_phase_75",      # CORR-03b/c — Phase 7.5 verifier subagent + delta rewrite explicit name
 )
-# Total: 8 Phase 07 + 5 NEW Phase 08 = 13 entries.
+# Total: 8 Phase 07 + 5 Phase 08 + 2 NEW Phase 09 = 15 entries.
 # self_contained_header from Phase 07 is reused, NOT duplicated.
 
 

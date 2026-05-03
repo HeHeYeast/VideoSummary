@@ -1524,6 +1524,55 @@ def cmd_glossary_append(args):
         print(json.dumps(result, ensure_ascii=False))
 
 
+def cmd_summary_lint(args):
+    """Phase 09 CORR-03a: mechanical format-spec + citation + glossary checker.
+
+    K5 boundary: writes ONLY the lint sibling artifact ('summary_lint.json');
+    NEVER mutates the input slug-level summary. The literal substring
+    `summary.md` is permitted ONLY in the argparse help= text and as the
+    input arg path receiver (agent/glossary.py-style exception, asserted
+    by write-pattern regex in tests/test_k5_emitters.py).
+    """
+    from agent.summary_lint import lint_summary, LINT_FILENAME
+
+    summary_path = Path(args.summary_path)
+    _validate_out_path(summary_path)
+    if not summary_path.exists():
+        raise FileNotFoundError(f"input not found: {summary_path}")
+    slug_dir = summary_path.parent
+    slug = slug_dir.name
+    glossary_path = (
+        Path(args.glossary_path) if args.glossary_path
+        else slug_dir.parent / "_glossary.md"
+    )
+    result = lint_summary(
+        summary_path,
+        glossary_path=glossary_path if glossary_path.exists() else None,
+    )
+    out = slug_dir / LINT_FILENAME
+    write_json_atomic(out, result)
+
+    violations_count = sum(
+        len(v.get("violations", []))
+        for v in result["format_invariants"].values()
+    )
+    _log(slug, "summary_lint",
+         f"claims={result['citation_stats']['claims_total']}, "
+         f"with_trace={result['citation_stats']['claims_with_trace']}, "
+         f"format_violations={violations_count}, "
+         f"citation_eligibility_violations={len(result['citation_eligibility_violations'])}, "
+         f"glossary_inconsistencies={len(result['glossary_inconsistencies'])}")
+    _log(slug, "summary_lint", f"output: {out}")
+    _emit_event(slug_dir, "summary_lint", "completed", details={
+        "claims_total": result["citation_stats"]["claims_total"],
+        "claims_with_trace": result["citation_stats"]["claims_with_trace"],
+        "format_violations_count": violations_count,
+        "citation_eligibility_violations_count": len(result["citation_eligibility_violations"]),
+        "glossary_inconsistencies_count": len(result["glossary_inconsistencies"]),
+        "lint_path": str(out),
+    })
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(prog="agent.tools", description="VideoSummary 工具集")
@@ -1738,6 +1787,22 @@ def main():
                    help="path to glossary file (default: output/_glossary.md)")
     p.add_argument("--json", action="store_true", help="emit JSON instead of text")
 
+    # ── Phase 09 CORR-03a: summary_lint K5 emitter (mechanical format-spec checker) ──
+    p = sub.add_parser(
+        "summary_lint",
+        help="K5: mechanical lint of the slug-level summary artifact -> "
+             "summary_lint.json (format-spec 4+1 invariants + citation density "
+             "+ glossary drift)",
+    )
+    p.add_argument(
+        "summary_path",
+        help="path to the input artifact (typically output/<slug>/summary.md)",
+    )
+    p.add_argument(
+        "--glossary-path", default=None,
+        help="path to glossary file (default: <slug_dir>/../_glossary.md if it exists)",
+    )
+
     # ── 后备命令 (VE API, 通常不需要) ──
     p = sub.add_parser("classify_frame", help="[后备] API 分类单帧")
     p.add_argument("frame_path")
@@ -1768,11 +1833,12 @@ def main():
         "classify_frame": cmd_classify_frame,
         "ocr_frame": cmd_ocr_frame,
         "doctor": cmd_doctor,  # NEW (Phase 2 RES-07)
-        # ── Phase 07 K5 emitters (CORR-01a + TOOL-A + TOOL-B + glossary_audit) ──
+        # ── Phase 07/09 K5 emitters (CORR-01a + TOOL-A + TOOL-B + glossary_audit + summary_lint) ──
         "transcribe_lint": cmd_transcribe_lint,    # Phase 07 CORR-01a
         "mode_signals": cmd_mode_signals,          # Phase 07 TOOL-A
         "schedule_suggest": cmd_schedule_suggest,  # Phase 07 TOOL-B
         "glossary_audit": cmd_glossary_audit,      # Phase 07 (Phase 08 helper stub) — backward-compat alias
+        "summary_lint": cmd_summary_lint,          # Phase 09 CORR-03a — mechanical format-spec checker
     }
     queue_cmds = {  # Phase 07 MISC-02 — nested dispatch for `queue {add|list|next|done|skip}`
         "add": cmd_queue_add,
