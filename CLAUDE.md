@@ -266,16 +266,17 @@ depth_plan.md 内容是**章节级 token 预算 + 重点段落标记**，目的�
 
 **判断标准**（Claude 自判）：你在 Phase 2 通读 paragraphs.json 后觉得"这条视频写满会爆 context"或"重点 / 闲聊比例严重失衡需要预算"——写一份 depth_plan.md。否则跳过。
 
-### 格式锁定（无论哪个 mode，4 项不变量）
+### 格式锁定（无论哪个 mode，4+1 项不变量）
 
-**这是 format-spec lock。不论 primary 是哪个 mode，summary.md 必须满足以下 4 项；违反一项就是质量退化（P1.2 退化路径）：**
+**这是 format-spec lock。不论 primary 是哪个 mode，summary.md 必须满足以下 4 项；违反一项就是质量退化（P1.2 退化路径）。第 5 项是 v1.1 opt-in 增强（仅 marker 启用 `inline_trace_tokens` 的 slug 必须满足）：**
 
 1. **时间戳格式**：`[HH:MM:SS]`，必须 8 字符（`[01:23:45]` ✓ / `[1:23]` ✗ / `[83:45]` ✗ / `12:34` ✗）
 2. **代码 fence 必带显式语言**：```` ```gdscript ```` / ```` ```python ```` / ```` ```bash ```` / ```` ```json ```` / ```` ```yaml ````。**不能裸 fence**（```` ``` ```` 后接代码）。即便是 shell 输出也写 ```` ```text ```` 或 ```` ```console ````
 3. **图片嵌入**：`![](frames/seg_xxxx_xxxxxx.jpg)` 相对路径。**不能** absolute 路径（`![](D:/.../frames/...)` ✗）；**不能** 空 alt 含截图（OK 但放在 frames/ 目录下，非占位 placeholder）
 4. **第二人称指令式**："你 + 动词"（"你打开 settings.json" ✓ / "我们打开 settings.json" ✗ / "settings.json 被打开" ✗）
+5. **行内溯源 token (v1.1 opt-in，仅 `is_v11_enabled(slug, "inline_trace_tokens")` 时强制)**：每个 claim / 参数 / 截图引用句末加 `[seg_NNNN_NNNNNN.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` token。**FORBIDDEN** 在 TL;DR / glossary inline 注解 / "你需要知道什么" prelude / 章节小结 transitions 中放 token。**REQUIRED** 在具体 claim / 参数 / 代码 / UI 引用句。**OPTIONAL** 在 narrative 连接句。密度目标 avg ≤ 1 citation per 3 sentences。完整规则见 § v1.1 自适应教学文档增强 (Phase 08) → CORR-02。
 
-锁死语：**内容自适应；形式不变。** 这 4 项是 17 archived 已建立的"读起来是 videoSummary 出品"的视觉指纹。
+锁死语：**内容自适应；形式不变。** 前 4 项是 17 archived 已建立的"读起来是 videoSummary 出品"的视觉指纹。第 5 项是 v1.1 marker-gated 增强 — v1.0 archives 不强制（D-29 byte-equal preserved）。
 
 ### 4 模式 skeleton（exemplar prior）
 
@@ -1445,6 +1446,8 @@ python -m agent.tools aggregate output/BVxxx/segs.json --out output/BVxxx/paragr
 
 **2.4** 输出模式判断 + 写 plan.md（详见 § 视频类型变奏 → 模式分类）。从 4 模式（`replicate-guide` / `concept-explanation` / `extension-applications` / `interview-distillation`）选 primary + optional secondary，落到 `output/<slug>/plan.md` 顶部 5 字段 YAML front-matter；模糊 fallback 到 `replicate-guide`；写到一半误判可以改 mode 字段 + `mode_switched_at` 标记。
 
+**2.5** **v1.1 hook (opt-in)**：如果 `is_v11_enabled('output/<slug>', 'l2_l3_correction')` 返回 True 且 `output/<slug>/transcribe_lint_warnings.json` 存在 → 走 § v1.1 自适应教学文档增强 → **CORR-01b L2 上下文修复**，把采纳的 corrections 写到 plan.md 的"已自动修正的术语"段。详见 § v1.1 自适应教学文档增强 (Phase 08) → CORR-01b/c。L3 多模态兜底在 Phase 4 看帧时执行（CORR-01c）。
+
 ### Phase 3: 智能抽帧（你决定参数）
 
 **根据 Phase 2 的判断分段抽帧**。关键原则：
@@ -1509,15 +1512,28 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 
 > **mode 提示**：`replicate-guide` 是默认风格（17 archived 主流，本 phase 上方 markdown 模板就是它）。`concept-explanation` 不放完整代码块，只放概念图和最小例证；`extension-applications` 按场景横向罗列；`interview-distillation` 用 blockquote 替代图片（`> [HH:MM:SS] 嘉宾名："核心引文"`）。具体形态见 § 视频类型变奏 → 4 模式 skeleton。
 
+> **v1.1 hook (opt-in)**：如果 marker 启用了 `inline_trace_tokens` / `self_contained_header` / `cross_slug_glossary` 中任一 → 写正文时叠加对应规则。具体：
+> - `inline_trace_tokens` → 每个 claim 句末加 `[seg_*.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` token（CORR-02 引用资格规则）
+> - `self_contained_header` → 顶部按 TEACH-A2 写 "标题/UP/时长/链接 → 你需要知道 / 你不需要知道 → 正文" 结构 + TEACH-A1 首次术语 inline 注解
+> - `cross_slug_glossary` → 每个新术语 inline 注解后立即调用 `python -m agent.tools glossary append --slug <slug> --term "..." --definition "..."`
+>
+> 三条规则的完整定义在 § v1.1 自适应教学文档增强 (Phase 08)。
+
 ### Phase 7: 完整代码 + 输出
 
 - 文档末尾合并完整代码（分文件列出）
 - Write 到 `output/BVxxx/summary.md`
 
+> **v1.1 hook (opt-in)**：如果 marker 启用了 `tldr_speedrun` AND（视频时长 > 20 min OR plan.md `estimated_sections > 50`）→ 在 summary.md 顶部 header 之后、正文之前插入 `## 5 分钟速读版` 块。**写在 LAST**（写完正文 + glossary appends 后才生成，防 drift）。10-15 行 hard cap，零 citation 内容（用 `详见 §三、消化阶段` 章节锚点替代）。完整模板 + sync check 见 § v1.1 自适应教学文档增强 (Phase 08) → TEACH-B。
+
 ### Phase 8: 收尾
 
 - 质量自检（时间戳真实？代码从截图抄？图片对应步骤？无废话？）
 - 可选：`python -m agent.tools cleanup_frames <dir> --keep <用到的帧>` 清理未引用的帧
+
+> **v1.1 hook (opt-in)**：如果 marker 启用了 `self_check_confidence` → 跑 CORR-02 自检 pass：重读全文，对每个带 token 的 claim 句自评 confidence，< 80% 在句末加 `[?]`，并在 summary.md 末尾追加 `## 写作自检 (CORR-02)` footer 段（总 claim 数 / `[?]` 数 / 比例 + 低置信度行号列表）。完整规则见 § v1.1 自适应教学文档增强 (Phase 08) → CORR-02 → 自检 pass。
+>
+> 如果 marker 启用了 `cross_slug_glossary` → 收尾时建议跑一次 `python -m agent.tools glossary audit --json` 检查 `output/_glossary.md` 是否有 `duplicate_terms` / `conflicting_definitions` 需要 Claude 决策（first-seen-wins 是默认 schema，audit 只报告不修改 — K5）。
 
 ---
 
