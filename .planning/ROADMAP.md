@@ -36,7 +36,7 @@ See archive for full phase details, plans, and verification.
 ### v1.2 — knowledge-base
 
 - [x] **Phase 10: Topic taxonomy governance + bootstrap CLI** — `output/_topics.md` 顶部已批准 + 底部 `# Pending` 段；3 CLI（`topics bootstrap` 从 17 archives 归纳初始 taxonomy / `topics audit` 列 pending + 引用计数 + 孤儿 / `topics resolve` 把 pending 挪到正式段并自动更新 index.json 引用）；governance 闭环锁定（Claude 写 index.json 时只能从已批准段选；不合适 → append `# Pending`，K5 边界延伸到 governance）。零 summary.md mutation。 (completed 2026-05-03)
-- [ ] **Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook** — KB-01 schema 锁（`slug / title / duration_s / mode / topics[] / keywords[] / tldr_oneliner / chapters[]`，chapter 无独立 keywords 字段 per D-02）+ `/summarize-video` Phase 7.6 自动写（在 Phase 7 写完 summary.md 之后、Phase 8 cleanup 之前）+ keywords 优先复用 `_glossary.md` H2 anchors + 顶层 `output/.index.json` atomic rebuild + 手动 `index rebuild` CLI 兜底 + D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。
+- [x] **Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook** — KB-01 schema 锁（`slug / title / duration_s / mode / topics[] / keywords[] / tldr_oneliner / chapters[]`，chapter 无独立 keywords 字段 per D-02）+ `/summarize-video` Phase 7.6 自动写（在 Phase 7 写完 summary.md 之后、Phase 8 cleanup 之前）+ keywords 优先复用 `_glossary.md` H2 anchors + 顶层 `output/.index.json` atomic rebuild + 手动 `index rebuild` CLI 兜底 + D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。 (completed 2026-05-03)
 - [ ] **Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI** — `index backfill --all` 一次性给 17 v1.0/v1.1 archives 写 index.json（idempotent；`--force` 覆盖；单 slug 失败不阻塞其他）+ CLAUDE.md `## v1.2 知识库自然语言推荐入口` 段（触发 phrase 锁定 + FIRST ACTION = `Read output/.index.json` + 推荐回复格式锁 + anti-hallucination FORBIDDEN list）+ `index search/list` 兜底 CLI（顺手做）+ 末尾再跑一次 D-29 replay 确认 33/0/30。
 
 ## Phase Details
@@ -66,8 +66,8 @@ See archive for full phase details, plans, and verification.
   4. **keywords 优先复用 `output/_glossary.md` H2 anchors 避免术语分裂** — generator 抽 keywords 时先读 `output/_glossary.md` 所有 H2 anchors（v1.1 已 ship 的 cross-slug 术语累积），把 summary.md 里命中的 H2 anchor term 作为 keyword 候选优先选；新概念才创造新 keyword。验证：跑 generator 在含 "LoRA" 术语的 archive 上，输出 keyword 必须 byte-equal `_glossary.md` 中的 canonical 形式（如 `LoRA (Low-Rank Adaptation)`），而不是 `Lora` / `low-rank adaptation` 散落形式。
   5. **D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）** — Phase 11 ship 后跑 `python scripts/replay_v10_archives.py` 输出 33 PASS / 0 FAIL / 30 archives 比对 4 核心文件（summary.md / segs.json / paragraphs.json / meta.json）byte-equal。`index.json` 作为新 sidecar **不**进 replay 比对集；任一字节 diff 在 4 核心文件上 → phase NOT shippable。Phase 11 verification 主动跑一次确认。
 **Plans**: 2 plans
-- [ ] 11-01-PLAN.md — agent/index.py module + cmd_index_{write,rebuild} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous)
-- [ ] 11-02-PLAN.md — CLAUDE.md /summarize-video Phase 7.6 hook insertion + D-29 byte-equal close gate + 11-02-SUMMARY (Wave 2, autonomous, depends_on 11-01)
+- [x] 11-01-PLAN.md — agent/index.py module + cmd_index_{write,rebuild} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous)
+- [x] 11-02-PLAN.md — CLAUDE.md /summarize-video Phase 7.6 hook insertion + D-29 byte-equal close gate + 11-02-SUMMARY (Wave 2, autonomous, depends_on 11-01)
 
 ### Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI
 **Goal**: v1.2 收尾——把 Phase 11 的 generator 复用到 17 v1.0/v1.1 archives 上一次性 backfill 写 index.json，让 Claude 一开会话 Read 顶层 `.index.json` 就能看全 23 条；CLAUDE.md 加自然语言推荐 prompt rule（D-09 锁，不加 slash command，mirror v1.1 anti-hallucination 字面规则风格）；顺手 ship `index search/list` 兜底 CLI；末尾再跑一次 D-29 replay 确认 33/0/30。E2E 用户行为：用户在新会话说"推荐 LLM Wiki 相关的视频"→ Claude FIRST ACTION Read `.index.json` → 返回 top-N 带 chapter 入口。
@@ -102,7 +102,7 @@ To start the next milestone cycle after v1.2 completes, run `/gsd-new-milestone`
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 2/2 | Complete    | 2026-05-03 |
-| 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 0/TBD | Not started | — |
+| 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 2/2 | Complete    | 2026-05-03 |
 | 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/TBD | Not started | — |
 
 ---
