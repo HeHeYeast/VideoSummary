@@ -67,7 +67,9 @@ See archive for full phase details, plans, and verification.
   2. **Phase 7.5 verifier subagent stays scope-locked, never does pedagogical judgment (P-03)** — `/summarize-video` Phase 7.5 spawns `Task(subagent_type=general-purpose)` reading summary.md + paragraphs.json + plan.md + transcribe_warnings.json + summary_lint.json + ≤ 10 frames sampled from `claims_without_trace`. Subagent writes `output/<slug>/<slug>-REVIEW.md` with critical / warning / info three-tier findings. Verifier prompt scope locked to: (a) format-spec 4 invariants, (b) plan.md mode rules, (c) inline citation timestamp validity, (d) glossary term consistency. FORBIDDEN: any "this explanation is unclear" / "this should be rephrased" pedagogical critique. `VIDEOSUMMARY_SKIP_REVIEWER=1` env var degrades the entire phase 7.5 (low-quota fallback).
   3. **Max-1-rewrite cap enforced; pre-rewrite backup preserved (P-03)** — only `critical` severity findings trigger rewrite; `warning` / `info` go to REVIEW.md only. Rewrite is delta (targeted edits to flagged sentences/paragraphs, NOT full re-write). Pre-rewrite copy saved to `output/<slug>/summary.md.pre-review`. Hard cap: 1 rewrite per `/summarize-video` invocation, recorded as `rewrite_cycle_completed` event in `state.jsonl`. If post-rewrite review still finds critical issues → write `output/<slug>/<slug>-UNRESOLVED.md` listing them, ship summary as-is, exit cleanly. NO 2nd rewrite attempt automatically.
   4. **Token budget ≤ 2x v1.0 baseline (P-09)** — End-to-end `/summarize-video` on a marked slug (with all v1.1 features active) produces `.token_budget.json` showing total token spend ≤ 2x the Phase 07 measured baseline for the same mode (replicate-guide / interview-distillation / extension-applications). Per-layer caps verified: CORR-01 L3 ≤ 5 frames/warning AND ≤ 10 entries triggering L3; CORR-03 verifier ≤ 10 frames/run; rewrite ≤ 1 cycle. Phase 09 verification step: run end-to-end on 1 short test video AND assert token-budget cap holds.
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 09-01-PLAN.md — CORR-03a: agent/summary_lint.py mechanical CLI + cmd_summary_lint wiring + V11_FEATURES extension (13->15 entries) + 2 K5 source-grep regex tests + 14 unit tests
+  - [ ] 09-02-PLAN.md — CORR-03b/c: CLAUDE.md `## v1.1 校对自动化 (Phase 09)` H2 section (verifier prompt + scope lock + FORBIDDEN list + max-1 rewrite protocol + UNRESOLVED.md template + state.jsonl 3 new event types) + Phase 7.5 hook in /summarize-video + agent/verifier_events.py event helpers
 
 ## Next Milestone
 
@@ -88,7 +90,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | Complete    | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | Complete    | 2026-05-03 |
-| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
+| 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/2 | Not started | — |
 
 ---
 
@@ -128,4 +130,4 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 
 ---
 
-*Last updated: 2026-05-03 — Phase 07 planned: 3 plans across 2 waves (Plan 01 D-29 foundation + Plan 02 MISC chrome wave 1 parallel; Plan 03 K5 emitters wave 2 sequential due to agent/tools.py file ownership). All 8 Phase 07 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a) covered 1:1 across 3 plans. v1.1 summary-quality phases 07-09 derived from REQUIREMENTS.md (18 reqs, 5 categories) + research SUMMARY.md (3-phase consensus + 11 pitfalls). Coverage: 18/18 requirements mapped 1:1.*
+*Last updated: 2026-05-03 — Phase 09 planned: 2 plans across 2 waves (Plan 09-01 wave 1: summary_lint K5 CLI + module + tests; Plan 09-02 wave 2: CLAUDE.md Phase 09 H2 + Phase 7.5 hook + verifier_events helper, depends on 09-01 because the verifier prompt explicitly references summary_lint.json that 09-01 produces). All 3 Phase 09 reqs (CORR-03a / CORR-03b / CORR-03c) covered 1:1 across 2 plans. — Phase 07 planned: 3 plans across 2 waves (Plan 01 D-29 foundation + Plan 02 MISC chrome wave 1 parallel; Plan 03 K5 emitters wave 2 sequential due to agent/tools.py file ownership). All 8 Phase 07 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a) covered 1:1 across 3 plans. v1.1 summary-quality phases 07-09 derived from REQUIREMENTS.md (18 reqs, 5 categories) + research SUMMARY.md (3-phase consensus + 11 pitfalls). Coverage: 18/18 requirements mapped 1:1.*

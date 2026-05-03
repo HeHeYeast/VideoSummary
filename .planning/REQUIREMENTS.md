@@ -89,9 +89,9 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 | TEACH-A2 | Phase 08 | 08-02 |
 | TEACH-A3 | Phase 08 | 08-01 |
 | TEACH-B | Phase 08 | 08-02 |
-| CORR-03a | Phase 09 | TBD |
-| CORR-03b | Phase 09 | TBD |
-| CORR-03c | Phase 09 | TBD |
+| CORR-03a | Phase 09 | 09-01 |
+| CORR-03b | Phase 09 | 09-02 |
+| CORR-03c | Phase 09 | 09-02 |
 
 **Total: 18 v1.1 requirements** (7 CORR + 4 TEACH + 2 TOOL + 2 MISC + 3 PRE-V11) — all mapped 1:1 to phases. **Coverage: 18/18 ✓ — no orphans, no double-mapping.**
 
@@ -101,4 +101,4 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 - Phase 09: 3 reqs (CORR-03a/b/c)
 
 ---
-*Last updated: 2026-05-03 — Phase 07 plans (07-01/02/03) shipped; Phase 08 plans (08-01/02) created and mapped 1:1 to all 7 Phase 08 reqs (TEACH-A3 → 08-01 code, all 6 others → 08-02 CLAUDE.md prompt extensions). Phase 09 plans pending. Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
+*Last updated: 2026-05-03 — Phase 07 plans (07-01/02/03) shipped; Phase 08 plans (08-01/02) created and mapped 1:1 to all 7 Phase 08 reqs; Phase 09 plans (09-01/02) created and mapped 1:1 to all 3 Phase 09 reqs (CORR-03a → 09-01 code, CORR-03b/c → 09-02 CLAUDE.md prompt + verifier_events helper). Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
