@@ -1115,7 +1115,7 @@ Phase 07 ship 4 个工具，**只发信号、不写决策 artifact**。Claude �
 
 | 命令 | 输出 | 用途 |
 |---|---|---|
-| `python -m agent.tools transcribe_lint output/<slug>` | `transcribe_warnings.json` | L1 ASR 可疑词检测：5 strategies = title_token + frequency_variance + mixed_script + hapax + **homophone_cluster** (pypinyin 同音聚类，CORR-01a 4 mandated 之一)。Phase 08 L2 prompt 读它做上下文修复 |
+| `python -m agent.tools transcribe_lint output/<slug>` | `transcribe_lint_warnings.json` | L1 ASR 可疑词检测：5 strategies = title_token + frequency_variance + mixed_script + hapax + **homophone_cluster** (pypinyin 同音聚类，CORR-01a 4 mandated 之一)。Phase 08 L2 prompt 读它做上下文修复。**注意**：和 Phase 5 transcribe `--profile podcast` 的 `transcribe_warnings.json` 不同文件（CR-01 fix 隔离） |
 | `python -m agent.tools mode_signals output/<slug>/paragraphs.json --out output/<slug>/mode_signals.json` | `mode_signals.json` | 5 个客观信号（code-fence rate / step markers / question density / speaker turns / cross-tool comparisons）+ raw evidence。**没有** `recommended_mode` 字段（K5 边界，PITFALLS P-07）。Claude 写 plan 时可参考 |
 | `python -m agent.tools schedule_suggest output/<slug> [--duration <float>]` | `schedule_suggestion.json` | 组合 paragraphs + scenes + silence 输出建议 fps 段 + **强制 FPS-04 baseline**（fps ≤ 0.1 覆盖全片，避免 strict-only 触雷 D-08 fallback gate）。Claude 拿建议自己 author schedule artifact。`--duration` 用于 video.mp4 已清理的归档（W5 fix） |
 | `python -m agent.tools glossary_audit` | stdout (or `--json`) | Read-only 审计 `output/_glossary.md`（Phase 08 TEACH-A3 落地）：报重复 term + 冲突定义。**永不**改 glossary 文件（K5） |
