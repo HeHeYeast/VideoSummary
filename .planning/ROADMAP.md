@@ -79,7 +79,9 @@ See archive for full phase details, plans, and verification.
   3. **CLAUDE.md 推荐 prompt rule 段落 byte-locked（mirror v1.1 anti-hallucination 风格）** — CLAUDE.md 顶层加 `## v1.2 知识库自然语言推荐入口` 段，含 3 部分：(a) 触发 phrase 锁定（'推荐' / '相关' / '我之前看过' / '学过' / '找一下我' / '哪些视频' / 类似查询意图）；(b) FIRST ACTION = `Read output/.index.json`（missing 时 hint user 跑 `index rebuild`）；(c) 推荐回复格式锁（每条 = 1 行 slug+title+共享匹配信号 + 1 行 tldr + 1-3 个 chapter 入口）+ FORBIDDEN list（编造 .index.json 里没有的 slug / 推荐不存在的视频，mirror v1.1 5th format-spec invariant 的字面规则风格）。
   4. **E2E 自然语言推荐行为可观测（人工验证 gate）** — 用户在新 Claude Code 会话说 "推荐 LLM Wiki 相关的视频" / "我之前看过哪些 ECS 相关的视频" / "学习 Godot 的话推荐什么" → Claude FIRST ACTION Read `output/.index.json` → 输出符合 prompt rule 格式锁的 top-3 推荐（每条 slug+title+匹配信号 + tldr + 1-3 chapter 入口），且所有推荐的 slug 都真实存在于 `.index.json`（无幻觉）。Phase 12 verification 跑 1-2 次手工 query 确认行为锁。
   5. **`python -m agent.tools index search/list` 兜底 CLI 工作** — `index search <query>` keyword 子串匹配（text 输出 + `--json` flag）；`index list [--topic <topic>] [--mode <mode>]` 按 filter 列。两个命令都是 read-only（不改 .index.json / per-slug index.json，K5 边界）。可选低优先级（KB-MISC-01）：如本 phase 时间紧 Claude 决策 drop 给 v1.3，则不阻塞 phase close（其余 4 个 SC 全 PASS 即可 ship）。
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 12-01-PLAN.md — agent/index.py +3 read-only public functions (scan_archives_for_backfill / search_index / list_index) + cmd_index_{backfill,search,list} + 3 K5 boundary tests + behavior tests (Wave 1, autonomous, KB-12/KB-13/KB-MISC-01)
+- [ ] 12-02-PLAN.md — 17 archives backfill execution + CLAUDE.md `## v1.2 知识库自然语言推荐入口` H2 section + D-29 byte-equal close gate (Wave 2, autonomous, depends_on 12-01, KB-12/KB-13/KB-14/KB-15)
 
 ## Next Milestone
 
@@ -103,7 +105,7 @@ To start the next milestone cycle after v1.2 completes, run `/gsd-new-milestone`
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 2/2 | Complete    | 2026-05-03 |
 | 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 2/2 | Complete    | 2026-05-03 |
-| 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/TBD | Not started | — |
+| 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/2 | Planned | — |
 
 ---
 
