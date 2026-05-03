@@ -35,7 +35,7 @@ See archive for full phase details, plans, and verification.
 
 ### v1.2 — knowledge-base
 
-- [ ] **Phase 10: Topic taxonomy governance + bootstrap CLI** — `output/_topics.md` 顶部已批准 + 底部 `# Pending` 段；3 CLI（`topics bootstrap` 从 17 archives 归纳初始 taxonomy / `topics audit` 列 pending + 引用计数 + 孤儿 / `topics resolve` 把 pending 挪到正式段并自动更新 index.json 引用）；governance 闭环锁定（Claude 写 index.json 时只能从已批准段选；不合适 → append `# Pending`，K5 边界延伸到 governance）。零 summary.md mutation。
+- [x] **Phase 10: Topic taxonomy governance + bootstrap CLI** — `output/_topics.md` 顶部已批准 + 底部 `# Pending` 段；3 CLI（`topics bootstrap` 从 17 archives 归纳初始 taxonomy / `topics audit` 列 pending + 引用计数 + 孤儿 / `topics resolve` 把 pending 挪到正式段并自动更新 index.json 引用）；governance 闭环锁定（Claude 写 index.json 时只能从已批准段选；不合适 → append `# Pending`，K5 边界延伸到 governance）。零 summary.md mutation。 (completed 2026-05-03)
 - [ ] **Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook** — KB-01 schema 锁（`slug / title / duration_s / mode / topics[] / keywords[] / tldr_oneliner / chapters[]`，chapter 无独立 keywords 字段 per D-02）+ `/summarize-video` Phase 7.6 自动写（在 Phase 7 写完 summary.md 之后、Phase 8 cleanup 之前）+ keywords 优先复用 `_glossary.md` H2 anchors + 顶层 `output/.index.json` atomic rebuild + 手动 `index rebuild` CLI 兜底 + D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。
 - [ ] **Phase 12: 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI** — `index backfill --all` 一次性给 17 v1.0/v1.1 archives 写 index.json（idempotent；`--force` 覆盖；单 slug 失败不阻塞其他）+ CLAUDE.md `## v1.2 知识库自然语言推荐入口` 段（触发 phrase 锁定 + FIRST ACTION = `Read output/.index.json` + 推荐回复格式锁 + anti-hallucination FORBIDDEN list）+ `index search/list` 兜底 CLI（顺手做）+ 末尾再跑一次 D-29 replay 确认 33/0/30。
 
@@ -52,8 +52,8 @@ See archive for full phase details, plans, and verification.
   4. **`python -m agent.tools topics resolve <pending-name> [--rename <new>]` 把 pending 挪到正式段并自动更新所有引用 index.json** — 命令把 `## Pending` 中的 entry 移到 `## Approved Taxonomy`（可选 rename）；同时扫 `output/<slug>/index.json` 中所有 `topics: ["pending: <name>"]` → 改为 `topics: ["<name>"]`（rename 时改成 new 名）。Atomic write 保证 _topics.md + 多个 index.json 一起改完才落盘。
   5. **Claude 申请新 topic 走 governance 闭环（K5 边界 statically asserted）** — Phase 11 写 index.json 时遇到现有 approved topic 都不合适 → 在 `## Pending` 段 append（必填 3 字段：申请来源 slug + chapter title + 提议理由），该 chapter `topics: ["pending: <name>"]`。Approved topics 从 `output/_topics.md` 顶部段读取作为白名单。CLI source-grep 测试断言 `topics bootstrap/audit/resolve` 三个 cmd 不写 `index.json` / `summary.md`（K5 boundary，mirror v1.1 K5 emitter 静态断言模式）。
 **Plans**: 2 plans
-- [ ] 10-01-PLAN.md — agent/topics.py module + 3 nested CLI subcommands + 4 K5 boundary tests + behavior tests (Wave 1, autonomous)
-- [ ] 10-02-PLAN.md — first real `topics bootstrap` invocation: Claude reads 17+ archives, proposes JSON taxonomy, populates output/_topics.md (Wave 2, autonomous, depends_on 10-01)
+- [x] 10-01-PLAN.md — agent/topics.py module + 3 nested CLI subcommands + 4 K5 boundary tests + behavior tests (Wave 1, autonomous)
+- [x] 10-02-PLAN.md — first real `topics bootstrap` invocation: Claude reads 17+ archives, proposes JSON taxonomy, populates output/_topics.md (Wave 2, autonomous, depends_on 10-01)
 
 ### Phase 11: per-slug index.json + 顶层聚合 + Phase 7.6 hook
 **Goal**: 落地 v1.2 知识库的"中颗粒索引层"——给每个 `output/<slug>/` 写 `index.json`（schema 锁死 8 字段），keywords 优先复用 `_glossary.md` H2 anchors 避免分裂，顶层 `output/.index.json` atomic rebuild 让 Claude 一次 Read 拿全 23+ 条概览。`/summarize-video` Phase 7.6 hook 让新视频自动同步生成；老归档 backfill 复用同一 generator（Phase 12 用）保证一致性。D-29 byte-equal 33/0/30 仍 PASS（index.json 是新 sidecar 不在 replay 比对范围）。
@@ -99,7 +99,7 @@ To start the next milestone cycle after v1.2 completes, run `/gsd-new-milestone`
 | 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 3/3 | ✅ Complete | 2026-05-03 |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 2/2 | ✅ Complete | 2026-05-03 |
-| 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 0/2 | Not started | — |
+| 10. Topic taxonomy governance + bootstrap CLI | v1.2 | 2/2 | Complete    | 2026-05-03 |
 | 11. per-slug index.json + 顶层聚合 + Phase 7.6 hook | v1.2 | 0/TBD | Not started | — |
 | 12. 17 archives backfill + CLAUDE.md 推荐 prompt rule + search/list CLI | v1.2 | 0/TBD | Not started | — |
 
