@@ -15,3 +15,5 @@ vendor/
 tests/_tmp_batch/
 tests/_tmp_scenes/
 tests/_tmp_silence/
+tests/_tmp_lock/
+tests/_tmp_queue/
