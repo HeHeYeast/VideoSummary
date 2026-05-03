@@ -39,7 +39,10 @@ See archive for full phase details, plans, and verification.
   3. **`.token_budget.json` baseline measured on 3 representative archives** — replicate-guide / interview-distillation / extension-applications archives each get a `.token_budget.json` recording v1.0 baseline token cost per layer (transcribe / aggregate / plan / write / cleanup). Phase 08 + 09 success criteria assert ≤ 2x this baseline.
   4. **4 new K5 emitters land with statically-asserted source-grep tests** — `transcribe_lint`, `mode_signals`, `schedule_suggest`, `glossary_audit` (read-only audit) CLIs all callable from `python -m agent.tools <cmd>`. Static test: each tool's source MUST NOT reference `schedule.json` / `plan.md` / `summary.md` filenames (mirrors v1.0 `cmd_detect_scenes` K5 assertion). User can run each CLI on any v1.0 archive and get JSON output without modifying any v1.0-shape artifact.
   5. **MISC打杂 shipped** — AV1 codec WARNING demoted to INFO (single line change in `agent/sources/_common.py` ffprobe gate); `python -m agent.tools queue {add|list|next|done|skip}` CLI works against `~/.videoSummary/queue.json` with `~/.videoSummary/.queue.lock` FileLock (reuses `agent/_lock.py`). Two-terminal `queue add` race test passes (no JSON corruption); `queue next` marks `in_progress: <pid>` so the other terminal skips to the next free slug.
-**Plans**: TBD
+**Plans**: 3 plans
+  - [ ] 07-01-PLAN.md — D-29 foundation (PRE-V11-01/02/03): `agent/_v11.py` opt-in marker helpers + `scripts/replay_v10_archives.py` 17-archive byte-equal regression test + `scripts/measure_token_budget.py` baseline writer + 3 representative archive `.token_budget.json` files
+  - [ ] 07-02-PLAN.md — MISC chrome (MISC-01/02): AV1 WARNING→INFO single-line demote + `agent/queue.py` cross-terminal queue with `~/.videoSummary/.queue.lock` + 5 `queue {add|list|next|done|skip}` subcommands wired into `agent/tools.py`
+  - [ ] 07-03-PLAN.md — K5 emitters (CORR-01a, TOOL-A, TOOL-B + Phase-08-helper stub): `pypinyin>=0.55.0` install + `agent/transcribe_lint.py` + `agent/mode_signals.py` (no `recommended_mode` field) + `agent/schedule_suggestion.py` (mandatory FPS-04 baseline) + `agent/glossary_audit.py` stub + `tests/test_k5_emitters.py` source-grep K5 boundary assertions + CLAUDE.md "v1.1 opt-in marker + 4 K5 emitters" section
 
 ### Phase 08: Writing rules — CLAUDE.md extensions + glossary
 **Goal**: Make new summaries (slugs with `.v11_features.json` marker) diverge in shape — inline ASR corrections via L2/L3 prompts, inline trace tokens after every load-bearing claim, zero-baseline self-contained header, first-mention inline term annotations, cross-slug `output/_glossary.md` accumulation with FileLock, optional 5-min TL;DR speedrun for long videos. All format changes are prompt + Markdown convention; only the glossary append needs new Python.
@@ -81,7 +84,7 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 | 04. Frame fps Automation | v1.0 | 2/2 | ✅ Complete | 2026 |
 | 05. Adaptive Output + UI Demos + Podcasts | v1.0 | 3/3 | ✅ Complete | 2026-05-02 |
 | 06. Multi-Agent Parallelism | v1.0 | 2/2 | ✅ Complete | 2026-05-02 |
-| 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 0/? | Not started | — |
+| 07. Warm-up + K5 emitters + D-29 foundation | v1.1 | 0/3 | Planned | — |
 | 08. Writing rules — CLAUDE.md + glossary | v1.1 | 0/? | Not started | — |
 | 09. Correctness automation — verifier + auto-rewrite | v1.1 | 0/? | Not started | — |
 
@@ -96,6 +99,11 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 - Phase 09 verifier reads inline trace tokens (Phase 08 convention) + format-spec extensions (Phase 08) + summary_lint output
 
 **Granularity = coarse**: Three phases is appropriate for 18 requirements grouped into 5 categories. Splitting further would fragment the K5 emitter cluster (Phase 07) or the prompt-extension cluster (Phase 08); compression into 2 phases would entangle the gating opt-in foundation with feature work.
+
+**Phase 07 plan structure (3 plans, 2 waves)**:
+- Wave 1 (parallel): Plan 01 (D-29 foundation, only new files) + Plan 02 (MISC chrome — independent file scope from Plan 01)
+- Wave 2: Plan 03 (K5 emitters + CLAUDE.md + tools.py wiring) — depends on Plan 02 because both modify `agent/tools.py` (subparser additions); sequencing avoids merge contention
+- Total: 8 reqs covered 1:1 across 3 plans (PRE-V11-01/02/03 in Plan 01; MISC-01/02 in Plan 02; CORR-01a + TOOL-A + TOOL-B in Plan 03)
 
 **Critical pitfall coverage** (research SUMMARY.md "Top 5"):
 - P-08 D-29 byte-equal regression → Phase 07 SC#1 (17-archive replay PASS gate)
@@ -118,4 +126,4 @@ To start the next milestone cycle after v1.1 completes, run `/gsd-new-milestone`
 
 ---
 
-*Last updated: 2026-05-03 — v1.1 summary-quality phases 07-09 derived from REQUIREMENTS.md (18 reqs, 5 categories) + research SUMMARY.md (3-phase consensus + 11 pitfalls). Coverage: 18/18 requirements mapped 1:1.*
+*Last updated: 2026-05-03 — Phase 07 planned: 3 plans across 2 waves (Plan 01 D-29 foundation + Plan 02 MISC chrome wave 1 parallel; Plan 03 K5 emitters wave 2 sequential due to agent/tools.py file ownership). All 8 Phase 07 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a) covered 1:1 across 3 plans. v1.1 summary-quality phases 07-09 derived from REQUIREMENTS.md (18 reqs, 5 categories) + research SUMMARY.md (3-phase consensus + 11 pitfalls). Coverage: 18/18 requirements mapped 1:1.*

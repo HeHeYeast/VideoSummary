@@ -74,14 +74,14 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 
 | REQ-ID | Phase | Plan |
 |--------|-------|------|
-| PRE-V11-01 | Phase 07 | TBD |
-| PRE-V11-02 | Phase 07 | TBD |
-| PRE-V11-03 | Phase 07 | TBD |
-| MISC-01 | Phase 07 | TBD |
-| MISC-02 | Phase 07 | TBD |
-| TOOL-A | Phase 07 | TBD |
-| TOOL-B | Phase 07 | TBD |
-| CORR-01a | Phase 07 | TBD |
+| PRE-V11-01 | Phase 07 | 07-01 |
+| PRE-V11-02 | Phase 07 | 07-01 |
+| PRE-V11-03 | Phase 07 | 07-01 |
+| MISC-01 | Phase 07 | 07-02 |
+| MISC-02 | Phase 07 | 07-02 |
+| TOOL-A | Phase 07 | 07-03 |
+| TOOL-B | Phase 07 | 07-03 |
+| CORR-01a | Phase 07 | 07-03 |
 | CORR-01b | Phase 08 | TBD |
 | CORR-01c | Phase 08 | TBD |
 | CORR-02 | Phase 08 | TBD |
@@ -96,9 +96,9 @@ Phase mapping populated by ROADMAP.md (1:1, 18/18 covered, no orphans, no double
 **Total: 18 v1.1 requirements** (7 CORR + 4 TEACH + 2 TOOL + 2 MISC + 3 PRE-V11) — all mapped 1:1 to phases. **Coverage: 18/18 ✓ — no orphans, no double-mapping.**
 
 **Per-phase distribution:**
-- Phase 07: 8 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a)
+- Phase 07: 8 reqs (PRE-V11-01/02/03 + MISC-01/02 + TOOL-A/B + CORR-01a) — **all mapped to specific plans (07-01/02/03)**
 - Phase 08: 7 reqs (CORR-01b/c + CORR-02 + TEACH-A1/A2/A3 + TEACH-B)
 - Phase 09: 3 reqs (CORR-03a/b/c)
 
 ---
-*Last updated: 2026-05-03 — milestone v1.1 summary-quality requirements defined + ROADMAP phase assignment complete. Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
+*Last updated: 2026-05-03 — Phase 07 plans (07-01/02/03) created and mapped 1:1 to all 8 Phase 07 reqs. Phase 08/09 plans pending. Source: v1.1-CANDIDATES.md (D-01/02/03 locked) + .planning/research/SUMMARY.md (3 phases / 1 new dep / 11 pitfalls). Phases 07-09 (numbering continues from v1.0 Phase 06).*
