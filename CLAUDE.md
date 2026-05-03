@@ -276,6 +276,8 @@ depth_plan.md 内容是**章节级 token 预算 + 重点段落标记**，目的�
 4. **第二人称指令式**："你 + 动词"（"你打开 settings.json" ✓ / "我们打开 settings.json" ✗ / "settings.json 被打开" ✗）
 5. **行内溯源 token (v1.1 opt-in，仅 `is_v11_enabled(slug, "inline_trace_tokens")` 时强制)**：每个 claim / 参数 / 截图引用句末加 `[seg_NNNN_NNNNNN.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` token。**FORBIDDEN** 在 TL;DR / glossary inline 注解 / "你需要知道什么" prelude / 章节小结 transitions 中放 token。**REQUIRED** 在具体 claim / 参数 / 代码 / UI 引用句。**OPTIONAL** 在 narrative 连接句。密度目标 avg ≤ 1 citation per 3 sentences。完整规则见 § v1.1 自适应教学文档增强 (Phase 08) → CORR-02。
 
+> **机械校验**：以上 4+1 项不变量由 `python -m agent.tools summary_lint <slug>/summary.md` 静态检查（CORR-03a，Phase 09 Plan 09-01）；Phase 7.5 verifier subagent（CORR-03b，Phase 09 Plan 09-02）读 `summary_lint.json` 后再做语义层校对（mode 规则一致性 / 引用 timestamp 真实性 / glossary term 漂移）。详见 § v1.1 校对自动化 (Phase 09)。
+
 锁死语：**内容自适应；形式不变。** 前 4 项是 17 archived 已建立的"读起来是 videoSummary 出品"的视觉指纹。第 5 项是 v1.1 marker-gated 增强 — v1.0 archives 不强制（D-29 byte-equal preserved）。
 
 ### 4 模式 skeleton（exemplar prior）
@@ -1410,6 +1412,216 @@ python -m agent.tools glossary audit --json
 
 ---
 
+## v1.1 校对自动化 (Phase 09)
+
+> 这一节是 v1.1 summary-quality 的最后一层 —— 把"读起来正确"升级到"机械可证 + 独立 agent 复审 + max-1 自动修订"。**只有** `output/<slug>/.v11_features.json` marker 显式启用 `summary_lint` 或 `verifier_phase_75` 的 slug 才走以下规则。无 marker 的 slug（包括 17 archived）不受影响（D-29 byte-equal preserved）。
+
+> **降级开关**：环境变量 `VIDEOSUMMARY_SKIP_REVIEWER=1` 直接跳过整个 Phase 7.5 verifier subagent + rewrite cycle（low-quota fallback；P-09 token budget compounding 兜底）。`summary_lint` CLI 仍可被显式调用，不受降级开关影响。
+
+### CORR-03a：`summary_lint` 机械校验 CLI
+
+**触发条件**：用户/Claude 显式 invoke `python -m agent.tools summary_lint <slug>/summary.md`。**不**自动触发（K5：Claude 决策何时跑机械 lint）。
+
+**检查项**（写入 `output/<slug>/summary_lint.json`）：
+
+1. **5 项 format-spec 不变量**（CLAUDE.md `### 格式锁定` 4+1）：
+   - `timestamp_format`：`[HH:MM:SS]` 必须 8 字符
+   - `code_fence_language`：每个 fenced code block 必须显式声明语言（`gdscript` / `python` / `bash` / `json` / `yaml` / `text` / `console`）
+   - `relative_frame_paths`：`![](frames/seg_xxxx_xxxxxx.jpg)` 相对路径，禁止 absolute / http
+   - `second_person_imperative`：禁止 `我们打开` / `XXX 被打开`，必须 `你打开 XXX`
+   - `trace_after_claim`：每个 load-bearing claim 行尾必须有 `[seg_*.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` token（仅当 marker `inline_trace_tokens` 启用）
+2. **citation density 统计**（per CORR-02 引用资格规则）：`claims_total` / `claims_with_trace` / `claims_without_trace` (line + snippet) / `trace_density` / `uncertainty_markers` (`[?]` 计数)
+3. **引用资格违规** (`citation_eligibility_violations`)：trace token 出现在 FORBIDDEN 段（TL;DR / 你需要知道什么 / 你不需要知道什么 / 章节小结 / 总评）→ 1 entry per 违规
+4. **glossary 一致性漂移** (`glossary_inconsistencies`)：summary 内 `LoRA (Low-Rank Adaptation)` 与 `output/_glossary.md` 内 `## LoRA (Low-Rank Adaptation Model)` 定义不同 → drift_detected: true
+
+**K5 边界**：summary_lint 是只读 CLI；它**不修改** summary 文件，**不**在 plan.md / schedule.json 上 dispatch 任何动作。`tests/test_k5_emitters.py` 用 `_WRITE_PATTERNS_FORBIDDEN` 正则静态断言。
+
+**state.jsonl 事件**：每次 invoke 写一行 `{"stage":"summary_lint", "status":"completed", "details":{"claims_total":N, "claims_with_trace":M, "format_violations_count":K, ...}}`。事件类型名：`summary_lint_run`。
+
+### CORR-03b：Phase 7.5 verifier subagent
+
+**触发条件**：`/summarize-video` Phase 7 写完 summary.md 后，**且** 满足全部 3 条：
+1. `is_v11_enabled('output/<slug>', 'verifier_phase_75')` 返回 True
+2. `os.environ.get('VIDEOSUMMARY_SKIP_REVIEWER') != '1'`
+3. Phase 7.5 之前 `python -m agent.tools summary_lint output/<slug>/summary.md` 已跑过（产出 `summary_lint.json`）
+
+**执行**：Claude 在 `/summarize-video` Phase 7.5 子步骤中 spawn 一个独立的 `Task` subagent：
+
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Phase 7.5 summary verifier (CORR-03b scope-locked)",
+    prompt=<下方 Verifier Prompt 段，逐字 inline>,
+)
+```
+
+Subagent 读以下 5 个文件 + 至多 10 帧：
+
+- `output/<slug>/summary.md` — 待校对正文
+- `output/<slug>/paragraphs.json` — 时间戳真实性 ground truth
+- `output/<slug>/plan.md` — mode 规则 + 已校正术语清单
+- `output/<slug>/transcribe_lint_warnings.json` — Phase 07 CORR-01a L1 warnings（如存在）
+- `output/<slug>/summary_lint.json` — Phase 09 CORR-03a 机械校验结果
+- `output/_glossary.md` — Phase 08 cross-slug glossary（如存在）
+- **至多 10 帧** sampled from `summary_lint.json.citation_stats.claims_without_trace[]` 的 line snippet 中提到的 `frames/seg_*.jpg` 路径（P-09 token budget 硬上限）
+
+**输出**：`output/<slug>/<slug>-REVIEW.md`，三级 finding（critical / warning / info）。
+
+**state.jsonl 事件**：subagent 完成后由 caller 调用 `agent.verifier_events.emit_verifier_run(slug_dir, severity_counts={...}, output_path=..., duration_ms=...)`。事件类型名：`verifier_run`。
+
+#### Verifier Prompt（逐字使用，不要改写）
+
+```text
+你是 summary 质量复审 agent。**严格 scope-locked**：你**只能**针对以下 4 类问题挑出 critical / warning / info 三级 finding。**任何超出 scope 的 finding（哪怕你觉得真的有问题）都必须丢弃，不写入 REVIEW.md。**
+
+**REQUIRED scope（你能挑的问题）：**
+
+1. **format-spec 4+1 项不变量**（参见 CLAUDE.md `### 格式锁定`）：
+   - `[HH:MM:SS]` 必须 8 字符
+   - 每个 fenced code block 必须有显式语言
+   - 图片路径必须 `frames/...` 相对路径
+   - 第二人称指令式（禁 `我们` / 禁被动语态）
+   - load-bearing claim 必须带 `[seg_*.jpg @ HH:MM:SS]` 或 `[para_NNNN @ HH:MM:SS]` trace token
+2. **plan.md mode 规则一致性**（参见 CLAUDE.md § 视频类型变奏 → 4 模式 skeleton）：
+   - 如果 plan.md `mode: replicate-guide` → summary 应有按步骤的章节 + 每步带操作截图
+   - 如果 plan.md `mode: interview-distillation` → summary 应有 blockquote 引文 + speaker turn 标注，**不**应有逐步 hands-on 代码
+   - 如果 plan.md `mode: concept-explanation` → summary 应是"核心问题 → 反直觉答案 → 最小例证 → 应用边界"流
+   - 如果 plan.md `mode: extension-applications` → summary 应是横向罗列 3-5 个场景 + 边界对比表
+3. **inline trace token timestamp 真实性**：每个 `[para_NNNN @ HH:MM:SS]` 的 timestamp 必须存在于 `paragraphs.json` 某个 paragraph 的 `[start, end]` 区间。**逐个核对**——你拿到 paragraphs.json 全文，对每个 trace token 做窗口匹配；不在任何 paragraph 区间内的 timestamp = critical finding。
+4. **glossary term 一致性**：每个 summary 内 inline `术语 (English/中文释义)` 注解，如果该 term 在 `output/_glossary.md` 也出现，定义必须 byte-equal（first-seen-wins 已经处理过 conflicts，所以你看到的就是 canonical 定义）。drift = warning，不是 critical（除非该术语是 plan.md 已记录的 L2 校正项 —— 那种是 critical）。
+
+**FORBIDDEN scope（你绝对不能写进 REVIEW.md 的东西）：**
+
+- "这段说不清楚" / "这里应该改写" / "语气不好" / "解释太啰嗦" / "新读者可能看不懂" / "可以加一个例子" —— 任何形式的**教学质量评判** ✗
+- "这个步骤的顺序是不是反了" / "你应该先讲 X 再讲 Y" —— 任何形式的**章节结构建议** ✗
+- "代码缩进不一致" / "标点符号能不能更统一" —— 任何**文字层 nit-pick**（这些是 summary_lint 的工作；如果 summary_lint 没报，就不关你事） ✗
+- "frame seg_NNNN.jpg 看起来像是 Y 不是 X" —— 任何**事实层重新解读 frame 的内容**（你只校 timestamp 真实性，不重新解读 frame；多模态重读 frame 由 author 在 Phase 4 做过，你不再做） ✗
+
+**每个 finding 必须给 EVIDENCE，不是主观意见：**
+
+- critical：写明 `summary.md 第 N 行 / claim "<verbatim 原文>" / 违反规则: <REQUIRED scope 1-4 哪一条> / 证据: <paragraphs.json 区间 / glossary 定义 / format spec 字面规则>`
+- warning：同上，但严重度低（e.g., trace_density < 0.3、UI 第二人称违规但稀疏）
+- info：同上，severity 最低（e.g., glossary 一处轻微定义漂移）
+
+**REVIEW.md 输出格式（markdown）：**
+
+```markdown
+# <slug>-REVIEW.md
+
+> Phase 7.5 verifier subagent (CORR-03b) 报告。Scope 锁定 4 类：format-spec / mode 规则 / citation timestamp / glossary 一致性。
+
+## Critical (N 项)
+
+- [ ] **summary.md L42** (规则违反: trace_after_claim)
+  - claim: "fps=0.3 抽帧"
+  - 证据: 该行无 [seg_*.jpg @ HH:MM:SS] 或 [para_NNNN @ HH:MM:SS] token
+  - 建议: 加 trace token 指向对应 paragraph 或 frame
+
+## Warning (M 项)
+
+...
+
+## Info (K 项)
+
+...
+```
+
+**Token budget hard caps：**
+
+- 至多 read 10 帧（per `summary_lint.json.citation_stats.claims_without_trace[]` 的 line snippet 抽样；优先 critical 候选）
+- 不要 read 任何 v1.0 archive 来"对比风格"——你只校当前 slug
+- 不要 read CLAUDE.md 来"确认 mode 规则"——你已经在这个 prompt 里有了 4 个 mode 的判别要点
+
+**完成后**返回结构化结果：`{critical_count: N, warning_count: M, info_count: K, output_path: "<slug>-REVIEW.md"}`，让 caller 决定是否触发 CORR-03c rewrite cycle。
+```
+
+### CORR-03c：max-1 delta rewrite cycle
+
+**触发条件**：CORR-03b verifier 返回 `critical_count > 0`。`warning` / `info` 永不触发 rewrite —— 直接 ship。
+
+**流程**：
+
+1. **备份**：`cp output/<slug>/summary.md output/<slug>/summary.md.pre-review`（atomic copy；如果该备份已存在 → overwrite，因为 max-1 cap 意味着该备份只代表"本次 invocation 的 pre-rewrite 状态"，跨 invocation 不保留多版本）。
+2. **delta 重写**：Claude **不**全量重写 summary.md；只对 REVIEW.md `## Critical` 段列出的具体行/段做 targeted edit。Edit 用 `Edit` tool，每条 critical finding 对应一次 Edit call。
+3. **重新 lint + verify**：
+   a. 重跑 `python -m agent.tools summary_lint output/<slug>/summary.md`（更新 summary_lint.json）
+   b. 重 spawn 一个 verifier subagent（同样的 prompt，同样的 scope lock）
+4. **判定**：
+   - 重 verifier 返回 `critical_count == 0` → **clean ship**：调用 `emit_rewrite_cycle_completed(slug_dir, critical_count_pre=N, critical_count_post=0, rewrite_path="summary.md.pre-review", duration_ms=...)`，正常进 Phase 8。
+   - 重 verifier 返回 `critical_count > 0` → **UNRESOLVED**：调用 `agent.verifier_events.build_unresolved_md(slug, critical_findings)` 渲染模板，`Write` 到 `output/<slug>/<slug>-UNRESOLVED.md`；调用 `emit_rewrite_cycle_completed(slug_dir, critical_count_pre=N, critical_count_post=K, rewrite_path="summary.md.pre-review", duration_ms=..., unresolved_path="<slug>-UNRESOLVED.md")`；**ship summary.md as-is**（不回滚到 pre-review，因为 delta 修了一些 critical 至少不会更糟），exit cleanly。
+5. **NO 2nd automatic rewrite cycle**（per .planning/research/SUMMARY.md "Self-Refine empirical max-1 cap" + REQUIREMENTS.md CORR-03c lock）。
+
+**state.jsonl 事件**：rewrite cycle 完成后由 caller 调用 `agent.verifier_events.emit_rewrite_cycle_completed(...)`。事件类型名：`rewrite_cycle_completed`。Schema：
+
+```json
+{
+  "stage": "rewrite_cycle",
+  "status": "completed",
+  "ts": "<ISO-8601 UTC>",
+  "details": {
+    "critical_count_pre": 3,
+    "critical_count_post": 0,
+    "rewrite_path": "summary.md.pre-review",
+    "duration_ms": 12345,
+    "unresolved_path": null
+  }
+}
+```
+
+注：`unresolved_path` 字段仅当 `critical_count_post > 0` 时存在；clean ship 时该字段省略（不写入 details dict）。
+
+### UNRESOLVED.md 模板（`agent.verifier_events.build_unresolved_md` 渲染）
+
+```markdown
+# UNRESOLVED — <slug>
+
+> 本文件由 Phase 7.5 verifier 在 max-1-rewrite 周期后仍存在 critical 问题时生成。
+> Claude 已经做了一轮 delta 重写但无法消除以下 critical findings —— 需要人工介入。
+> 备份：原始未修订版本保存在 `output/<slug>/summary.md.pre-review`。
+
+## 人工介入清单
+
+- [ ] **1. summary.md L42** (规则违反：`trace_after_claim`)
+  - 证据：`fps=0.3 抽帧（缺少 [seg_*.jpg @ HH:MM:SS] token）`
+  - 建议修复方向：
+
+- [ ] **2. summary.md §三、消化阶段** (规则违反：`citation_timestamp_invalid`)
+  - 证据：`[para_0042 @ 00:23:15] 不存在于 paragraphs.json`
+  - 建议修复方向：
+
+---
+
+*生成时间：YYYY-MM-DDTHH:MM:SSZ*
+```
+
+### Token budget 校验（P-09，end-to-end manual gate）
+
+**本 phase 的 SC#4** 断言："End-to-end `/summarize-video` on a marked slug (with all v1.1 features active) produces `.token_budget.json` showing total token spend ≤ 2x the Phase 07 measured baseline for the same mode."
+
+这是**人工 gate**：
+
+1. 选 1 条短 (~5 min) 测试视频，开 marker 启用全部 15 个 v1.1 features
+2. 跑 `/summarize-video <url>`，让它跑完整 8 + 7.5 phases
+3. 检查 `output/<slug>/.token_budget.json`，比对 Phase 07 baseline `.token_budget.json` 的 same mode（replicate-guide / interview-distillation / extension-applications）
+4. 总 token 必须 ≤ 2x baseline；超出则人工调查（多半是 verifier subagent 失控读了过多 frame）
+5. 失败时缓解：set `VIDEOSUMMARY_SKIP_REVIEWER=1`（降级关闭 Phase 7.5）跑 v1.1 minus verifier baseline，确认 Phase 7.5 是 token blow-up 的根因
+
+**本 plan 的 orchestrator 不跑这个 gate**（需要真实 Claude session 跑 `/summarize-video`，不是 unit test 能模拟的）。该 gate 在 09-02-SUMMARY.md 的 "Known Stubs" 段标记为 `human_needed`，由用户/未来 milestone 实测验证。
+
+### Phase 09 新增 state.jsonl event types 总览
+
+| event 名 | 触发位置 | 写入者 | 关键 details |
+|---|---|---|---|
+| `summary_lint_run` | `cmd_summary_lint` | `agent/tools.py` (Plan 09-01) | claims_total, claims_with_trace, format_violations_count, citation_eligibility_violations_count, glossary_inconsistencies_count, lint_path |
+| `verifier_run` | Phase 7.5 verifier subagent 完成后 | `agent/verifier_events.emit_verifier_run` (Plan 09-02) | severity_counts {critical/warning/info}, output_path, duration_ms |
+| `rewrite_cycle_completed` | CORR-03c rewrite cycle 完成（无论 clean ship 还是 UNRESOLVED） | `agent/verifier_events.emit_rewrite_cycle_completed` (Plan 09-02) | critical_count_pre, critical_count_post, rewrite_path, duration_ms, unresolved_path? |
+
+### 多终端并行注意事项（Phase 6 lock 域延续）
+
+Phase 7.5 verifier + rewrite cycle 全程在 `output/<slug>/.resume.lock` 已持有的窗口内执行（because Phase 7.5 跑在 `/summarize-video` 主流程里，而 transcribe / aggregate / extract_frames_batch 已经持锁）。所以 Phase 09 **不**新增锁域。`<slug>-REVIEW.md` / `<slug>-UNRESOLVED.md` / `summary.md.pre-review` 三个新文件的写都受 `.resume.lock` 保护。
+
+---
+
 ## /summarize-video 完整工作流
 
 当用户说"总结这个视频"或给出 B 站 URL 时，**严格按以下步骤执行**。
@@ -1525,6 +1737,31 @@ Read output/BVxxx/frames/seg_0030_000015.jpg
 - Write 到 `output/BVxxx/summary.md`
 
 > **v1.1 hook (opt-in)**：如果 marker 启用了 `tldr_speedrun` AND（视频时长 > 20 min OR plan.md `estimated_sections > 50`）→ 在 summary.md 顶部 header 之后、正文之前插入 `## 5 分钟速读版` 块。**写在 LAST**（写完正文 + glossary appends 后才生成，防 drift）。10-15 行 hard cap，零 citation 内容（用 `详见 §三、消化阶段` 章节锚点替代）。完整模板 + sync check 见 § v1.1 自适应教学文档增强 (Phase 08) → TEACH-B。
+
+### Phase 7.5: 校对自动化（v1.1 校对自动化 — Phase 09）
+
+> **v1.1 hook (opt-in, 三重 gate)**：满足以下**全部 3 条**才走 Phase 7.5 verifier subagent + rewrite cycle —— 任何一条不满足则 silently skip 直接进 Phase 8（v1.0 path）：
+>
+> 1. `is_v11_enabled('output/<slug>', 'verifier_phase_75')` 返回 True
+> 2. 环境变量 `VIDEOSUMMARY_SKIP_REVIEWER != '1'`（降级开关；low-quota fallback）
+> 3. `python -m agent.tools summary_lint output/<slug>/summary.md` 已跑过（`output/<slug>/summary_lint.json` 存在）—— 如果未跑则**先跑** summary_lint 再走 7.5
+>
+> **Phase 7.5 步骤**（按顺序）：
+>
+> 1. **Spawn verifier subagent**：执行 `Task(subagent_type='general-purpose', description='Phase 7.5 summary verifier', prompt=<§ v1.1 校对自动化 → CORR-03b → Verifier Prompt 段的逐字内容>)`。Subagent 输出 `output/<slug>/<slug>-REVIEW.md`。
+> 2. **Emit verifier_run event**：`from agent.verifier_events import emit_verifier_run` → `emit_verifier_run(Path('output/<slug>'), severity_counts=<subagent 返回的 counts>, output_path='<slug>-REVIEW.md', duration_ms=<wall_ms>)`
+> 3. **判定**：如果 subagent 返回 `critical_count == 0` → 直接进 Phase 8（warning/info 都只在 REVIEW.md 留档，不触发 rewrite）。
+> 4. **如果 critical_count > 0**：走 CORR-03c max-1 rewrite cycle（详见 § v1.1 校对自动化 → CORR-03c）：
+>    a. 备份 `cp output/<slug>/summary.md output/<slug>/summary.md.pre-review`
+>    b. 用 `Edit` tool 对 REVIEW.md `## Critical` 段列出的每个 finding 做 targeted edit（**不**全量重写）
+>    c. 重跑 `python -m agent.tools summary_lint output/<slug>/summary.md`
+>    d. 重 spawn 一次 verifier subagent（同 prompt 同 scope lock）
+>    e. 如果重 verifier 返回 `critical_count == 0` → emit `rewrite_cycle_completed` (clean ship)，进 Phase 8
+>    f. 如果重 verifier 仍返回 `critical_count > 0` → 调用 `agent.verifier_events.build_unresolved_md(slug, critical_findings)`，`Write` 到 `output/<slug>/<slug>-UNRESOLVED.md`，emit `rewrite_cycle_completed` (with unresolved_path)，**ship summary.md as-is** 进 Phase 8。**绝不**做第 2 轮 rewrite。
+>
+> **NO 2nd automatic rewrite cycle** — max-1 是 hard cap（per .planning/research/SUMMARY.md "Self-Refine empirical max-1 cap" + REQUIREMENTS.md CORR-03c lock）。
+>
+> 完整规则 + verifier prompt 全文 + UNRESOLVED.md 模板见 § v1.1 校对自动化 (Phase 09)。
 
 ### Phase 8: 收尾
 
